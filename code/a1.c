@@ -106,6 +106,29 @@ void collisionResponse() {
 
    /* your code for collisions goes here */
 
+   float vxp = 0;
+   float vyp = 0;
+   float vzp = 0;
+   int worldValue = 0;
+   int worldValue2 = 0;
+   int outOfSpace = 0;
+   //jui
+   getViewPosition(&vxp,&vyp,&vzp);
+   worldValue = world[-1*(int)vxp][-1*(int)vyp][-1*(int)vzp];
+   worldValue2= world[-1*(int)vxp][1+(-1)*(int)vyp][-1*(int)vzp];
+   outOfSpace = (((-1*(int)vxp)> 99) || ((-1*(int)vyp)> 49) || ((-1*(int)vzp)> 99));
+   outOfSpace = outOfSpace || (((-1*(int)vxp) < 0) || ((-1*(int)vyp) < 21) || ((-1*(int)vzp) <0));
+   if ((outOfSpace == 1)||((worldValue > 0) && (worldValue2 > 0)))
+   {
+      
+      getOldViewPosition(&vxp,&vyp,&vzp);
+      setViewPosition(vxp,vyp,vzp); 
+   }
+   else if ((worldValue > 0) && (worldValue2 == 0))
+   {
+      getOldViewPosition(&vxp,&vyp,&vzp);
+      setViewPosition(vxp,vyp-1,vzp); 
+   }
 
 }
 
@@ -247,6 +270,52 @@ createTube(2, -xx, -yy, -zz, -xx-((x-xx)*25.0), -yy-((y-yy)*25.0), -zz-((z-zz)*2
    } else {
 
    /* your code goes here */
+      int valOfWorldAtBelowVP = 0;
+      static float vpx = 0;
+      static float vpy = 0;
+      static float vpz = 0;
+      float newY = 0;
+      float floorLv = 20;
+      static int fallState = 0;
+      // yn = y(n-1) - 0.5*g*(tn^2-t(n-1)^2)
+      static clock_t timeCount,clkRef;
+      static float timePast,timeCurrent;
+      getViewPosition(&vpx,&vpy,&vpz);
+      valOfWorldAtBelowVP = world[-1*(int)vpx][(-1*(int)vpy)-1][-1*(int)vpz];
+      timeCount = clock();
+
+      if (fallState == 0)
+      {
+         fallState = (valOfWorldAtBelowVP == 0);
+      }
+      else if (fallState == 1)
+      {
+         clkRef = clock();
+         timePast = 0;
+         timeCurrent = 0;
+         fallState =2 ;
+      }
+      else if (fallState == 2)
+      {
+
+         timePast = timeCurrent;
+         timeCurrent = (float)(clock() - clkRef)/CLOCKS_PER_SEC;
+         newY = (-1.0)*vpy - 4.0*(timeCurrent*timeCurrent-timePast*timePast);
+         
+         if (valOfWorldAtBelowVP != 0) 
+         {
+            floorLv = (-1*(int)vpy)-1;
+         }
+
+         if((valOfWorldAtBelowVP != 0) && ((((float)((int)vpy)) - vpy) <= 0.0))
+         {
+            fallState = 0;
+            newY =floorLv+1.0;
+         }
+         if ((newY < (floorLv+1))||(newY > 49.0)) newY =floorLv+1.0;
+         setViewPosition(vpx,newY*(-1.0),vpz);
+         //printf("newY:%f , dffY:%f time diff :%f, tC:%f, tP:%f, floorLv:%f\n",newY,(((float)((int)vpy)) - vpy) ,(timeCurrent*timeCurrent-timePast*timePast),timeCurrent,timePast,floorLv);
+         }
 
    }
 }
@@ -526,11 +595,19 @@ int i, j, k;
          zLenght = sparForRoomSize + getRandomNumber(0,grid3x3[k][3]+grid3x3[k][1]-1-sparForCorridors-sparForRoomSize - zStartP);
 
          // find view point
+         printf("k: %d, xStart : %d, zStartP:%d, XL:%d, ZL:%d\n",k,xStartP,zStartP,xLenght,zLenght);
          if (k == ViewPointID)
          {
-            xViewP = 1 + xStartP + getRandomNumber(0,xLenght-1);
-            zViewP = 1 + zStartP + getRandomNumber(0,zLenght-1);
+            xViewP = 2 + xStartP + getRandomNumber(0,xLenght-4);
+            zViewP = 2 + zStartP + getRandomNumber(0,zLenght-4);
+            world[xViewP+1][yStartP][zViewP] =7;
+            world[xViewP+2][yStartP+1][zViewP] =7;
+            world[xViewP+3][yStartP+2][zViewP] =7;
+            world[xViewP+4][yStartP+3][zViewP] =4;
+            world[xViewP+5][yStartP+4][zViewP] =1;
+            printf("ViewPId:%d, xV:%d, zV:%d\n",ViewPointID,xViewP,zViewP);
          }
+
          roomProperty[k][0] = xStartP;
          roomProperty[k][1] = zStartP;
          roomProperty[k][2] = xLenght;
@@ -546,13 +623,14 @@ int i, j, k;
          {
             for(i = 0;i<xLenght;i++)
             {
-               world[xStartP+i][yStartP+j][zStartP]= getRandomNumber(2,8); 
-               world[xStartP+i][yStartP+j][zStartP+zLenght-1]=getRandomNumber(3,7); 
+               world[xStartP+i][yStartP+j][zStartP]= getRandomNumber(5,6); 
+               world[xStartP+i][yStartP+j][zStartP+zLenght-1]=getRandomNumber(5,6); 
             }
-            for(i = 0;i<zLenght;i++)
+            // -2 and move offset +1 at Z-axis cuz 2 cells of X-wall sides have already built 
+            for(i = 0;i<zLenght-2;i++)
             {
-               world[xStartP][yStartP+j][zStartP+i]= getRandomNumber(3,8); 
-               world[xStartP+xLenght-1][yStartP+j][zStartP+i]= getRandomNumber(2,7); 
+               world[xStartP][yStartP+j][zStartP+i+1]= getRandomNumber(5,6); 
+               world[xStartP+xLenght-1][yStartP+j][zStartP+i+1]= getRandomNumber(5,6); 
             }
          }
 
@@ -564,21 +642,20 @@ int i, j, k;
             //find door z point of room k th
             zStartP = roomProperty[k][1] + getRandomNumber(1,roomProperty[k][3]-doorWidth-1);
             roomProperty[k][5] = roomProperty[k][5]*10;
-                        //door's height 
-            doorHeight =  getRandomNumber(2,5);
+
             for(j = 0; j< doorHeight;j++)
              for (i = 0; i < doorWidth; i++)
                world[xStartP][yStartP+j][zStartP+i] = 0;
 
          }
+
          // east
          if((roomProperty[k][4] > -1) && (roomProperty[k][4] < 9)) 
          {
             xStartP = roomProperty[k][0];
             zStartP = roomProperty[k][1] + getRandomNumber(1,roomProperty[k][3]-doorWidth-1);
             roomProperty[k][4] = roomProperty[k][4]*10;
-            //door's height 
-            doorHeight =  getRandomNumber(2,5);
+
             for(j = 0; j< doorHeight;j++)
                for (i = 0; i < doorWidth; i++)
                   world[xStartP][yStartP+j][zStartP+i] = 0;
@@ -593,8 +670,7 @@ int i, j, k;
 
 
                roomProperty[k][6] = roomProperty[k][6]*10;
-                              //door's height 
-               doorHeight =  getRandomNumber(2,5);
+
                for(j = 0; j< doorHeight;j++)
                 for (i = 0; i < doorWidth; i++)
                   world[xStartP+i][yStartP+j][zStartP] = 0;
@@ -608,12 +684,22 @@ int i, j, k;
 
                roomProperty[k][7] = roomProperty[k][7]*10;
 
-               doorHeight =  getRandomNumber(2,5);
                for(j = 0; j< doorHeight;j++)
                 for (i = 0; i < doorWidth; i++)
                   world[xStartP+i][yStartP+j][zStartP] = 0;
          }
-         
+         // build  hallway and corridor
+         // w to e
+         if((roomProperty[k][4] > 8) && (roomProperty[k][5] > 8)) 
+         {
+
+         }
+         // n to s
+         if((roomProperty[k][6] > 8) && (roomProperty[k][7] > 8))
+         {
+
+         }
+
       }
 
          
@@ -632,7 +718,7 @@ int i, j, k;
      // drawPillars();
       // drawTestBlocks();
 
-   setViewPosition(xViewP*-1, -1*yStartP, -1*zViewP);
+   setViewPosition(-1*xViewP, -1*yStartP, -1*zViewP);
    }
 
 
