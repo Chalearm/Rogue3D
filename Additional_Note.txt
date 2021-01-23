@@ -1,0 +1,5 @@
+1. Start the player in one of the rooms. Set the viewpoint so it is in a random room at when the game starts.
+
+2. All rooms and hallways should have a floor, ceiling, and walls.
+
+3. Turn off flight mode (flycontrol).
