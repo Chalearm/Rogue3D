@@ -106,6 +106,7 @@ void collisionResponse() {
 
    /* your code for collisions goes here */
 
+
 }
 
 
@@ -138,7 +139,17 @@ void draw2D() {
    }
 
 }
+void drawWallStacks(int x, int y, int z, int color) {
+   int i;
+   int ground = 21;
+   int wallHeight = ground + y;
 
+
+   for(i=ground; i<wallHeight; i++)
+   {
+      world[x][i][z] = color;
+   }
+}
 
    /*** update() ***/
    /* background process, it is called when there are no other events */
@@ -264,13 +275,126 @@ void mouse(int button, int state, int x, int y) {
 }
 
 
+void makeBorderRow1(int sidesLength, int endsLength, int xPosition, int zPosition, int color) {
+   int i;
 
+   sidesLength = xPosition + sidesLength;
+   endsLength = zPosition + endsLength;
+
+   printf("sidesLength = %i\n", sidesLength);
+
+   for(i=xPosition;i<sidesLength;i++)
+   {
+      //left side
+      drawWallStacks(i,3,0, color);
+      //right side
+      drawWallStacks(i,3,endsLength, color);
+   }
+
+   for(i=zPosition;i<endsLength;i++)
+    {
+      //back side
+      drawWallStacks(0,3,i, color);
+      //front side
+      drawWallStacks(sidesLength-1,3,i, color);
+   }
+}
+
+
+
+void makeWorld() {
+   int i, j, k;
+for(i=0; i<WORLDX; i++)
+         for(j=0; j<WORLDY; j++)
+            for(k=0; k<WORLDZ; k++)
+               world[i][j][k] = 0;
+}
+void drawFloor()
+{
+   int i, j;
+
+   for(i=0; i<WORLDX; i++) {
+         for(j=0; j<WORLDZ; j++) {
+            world[i][20][j] = 2;
+         }
+      }
+}
+
+void makeBorderRow2(int sidesLength, int endsLength, int xPosition, int zPosition, int color) {
+   int i;
+
+   sidesLength = xPosition + sidesLength;
+   endsLength = zPosition + endsLength;
+
+   for(i=xPosition;i<sidesLength;i++)
+   {
+      //left side
+      drawWallStacks(i,3,33, color);
+      //right side
+      drawWallStacks(i,3,66, color);
+   }
+   for(i=zPosition;i<endsLength;i++)
+    {
+      //back side
+      drawWallStacks(xPosition,3,i, color);
+      //front side
+      drawWallStacks(sidesLength-1,3,i, color);
+   }
+}
+
+void drawBorderTest3(int sidesLength, int endsLength, int xPosition, int zPosition, int color) {
+   int i;
+
+
+   for(i=33;i<66;i++)
+   {
+      //left side
+      drawWallStacks(i,3,33, color);
+      //right side
+      drawWallStacks(i,3,66, color);
+   }
+
+   for(i=33;i<66;i++)
+    {
+      //back side
+      drawWallStacks(33,3,i, color);
+      //front side
+      drawWallStacks(66,3,i, color);
+   }
+}
+
+void makeBorderRow3(int sidesLength, int endsLength, int xPosition, int zPosition, int color) {
+   int i;
+
+   sidesLength = xPosition + sidesLength;
+   endsLength = zPosition + endsLength;
+
+   for(i=xPosition;i<sidesLength;i++)
+   {
+      //left side
+      drawWallStacks(i,3,zPosition, color);
+      //right side
+      drawWallStacks(i,3,endsLength, color);
+   }
+   for(i=zPosition;i<endsLength;i++)
+    {
+      //back side
+      drawWallStacks(xPosition,3,i, color);
+      //front side
+      drawWallStacks(sidesLength-1,3,i, color);
+   }
+}
+
+int getRandomNumber(int minimum, int maximum) {
+
+   return minimum + rand() % (maximum+1 - minimum);
+}
 int main(int argc, char** argv)
 {
 int i, j, k;
    /* initialize the graphics system */
    graphicsInit(&argc, argv);
-
+   srand(time(NULL));
 
    /* the first part of this if statement builds a sample */
    /* world which will be used for testing */
@@ -359,22 +483,141 @@ int i, j, k;
 //       for(i=50; i<100; i++)
 //          for(j=66; j<100; j++)
 //          world[i][25][j]= 3; 
+      int l,m,n,o,p;
+      int xLenght = 0;
+      int zLenght = 0;
+      int yLenght = 12;
+      int xStartP = 0;
+      int zStartP = 0;
+      int xViewP = 0;
+      int zViewP = 0;
+      int yStartP = 21;
+      int colorID1 = 3;
+      const int numRoom = 9;
+      const int doorWidth = 2;
+      int ViewPointID = getRandomNumber(0,8); //which the view point will be
+      int doorHeight = 3;
+      int oppositeRoomID = -1;
+      int sparForCorridors = 2;
+      int sparForRoomSize = 5;  // sparForRoomSize >= 3+doorWidth
+      //{x,z,xLenght,zLenght,CanBuildDoorW,CanBuildDoorE,CanBuildDoorS,CanBuildDoorN}
+      // CanBuildDoor status = -1 , Corridor cannot be built
+      //                       0 - 8 room number which Corridor can be built
+      //                       m = 10 - 18 the corridor of room number m-10 is   built
+      int grid3x3[9][8]= {{0,0,33,33,-1,1,-1,3},
+                        {33,0,34,33,0,2,-1,4},
+                        {67,0,33,33,1,-1,-1,5},
+                        {0,33,33,34,-1,4,0,6},
+                        {33,33,34,34,3,5,1,7},
+                        {67,33,33,34,4,-1,2,8},
+                        {0,67,33,33,-1,7,3,-1},
+                        {33,67,34,33,6,8,4,-1},
+                        {67,67,33,33,7,-1,5,-1}};
+      int roomProperty[9][8];
+      for(k = 0;k<numRoom;k++)
+      {
+
+         // random location of a room
+         xStartP = grid3x3[k][0] + getRandomNumber(0,grid3x3[k][2]-sparForCorridors-sparForRoomSize-1);
+         zStartP = grid3x3[k][1] + getRandomNumber(0,grid3x3[k][3]-sparForCorridors-sparForRoomSize-1);
+
+         // random size of a room
+         xLenght = sparForRoomSize + getRandomNumber(0,grid3x3[k][2]+grid3x3[k][0]-1-sparForCorridors-sparForRoomSize - xStartP);
+         zLenght = sparForRoomSize + getRandomNumber(0,grid3x3[k][3]+grid3x3[k][1]-1-sparForCorridors-sparForRoomSize - zStartP);
+
+         // find view point
+         if (k == ViewPointID)
+         {
+            xViewP = 1 + xStartP + getRandomNumber(0,xLenght-1);
+            zViewP = 1 + zStartP + getRandomNumber(0,zLenght-1);
+         }
+         roomProperty[k][0] = xStartP;
+         roomProperty[k][1] = zStartP;
+         roomProperty[k][2] = xLenght;
+         roomProperty[k][3] = zLenght;
+         roomProperty[k][4] = grid3x3[k][4];
+         roomProperty[k][5] = grid3x3[k][5];
+         roomProperty[k][6] = grid3x3[k][6];
+         roomProperty[k][7] = grid3x3[k][7];
+         
+         // build walls of room
+         yLenght = getRandomNumber(7,13);
+         for(j = 0;j<yLenght;j++)
+         {
+            for(i = 0;i<xLenght;i++)
+            {
+               world[xStartP+i][yStartP+j][zStartP]= getRandomNumber(2,8); 
+               world[xStartP+i][yStartP+j][zStartP+zLenght-1]=getRandomNumber(3,7); 
+            }
+            for(i = 0;i<zLenght;i++)
+            {
+               world[xStartP][yStartP+j][zStartP+i]= getRandomNumber(3,8); 
+               world[xStartP+xLenght-1][yStartP+j][zStartP+i]= getRandomNumber(2,7); 
+            }
+         }
+
+         // build door and corridor for 4 direction
+         // west
+         if((roomProperty[k][5] > -1) && (roomProperty[k][5] < 9)) 
+         {
+            xStartP = roomProperty[k][0] + roomProperty[k][2] -1;
+            //find door z point of room k th
+            zStartP = roomProperty[k][1] + getRandomNumber(1,roomProperty[k][3]-doorWidth-1);
+            roomProperty[k][5] = roomProperty[k][5]*10;
+                        //door's height 
+            doorHeight =  getRandomNumber(2,5);
+            for(j = 0; j< doorHeight;j++)
+             for (i = 0; i < doorWidth; i++)
+               world[xStartP][yStartP+j][zStartP+i] = 0;
+
+         }
+         // east
+         if((roomProperty[k][4] > -1) && (roomProperty[k][4] < 9)) 
+         {
+            xStartP = roomProperty[k][0];
+            zStartP = roomProperty[k][1] + getRandomNumber(1,roomProperty[k][3]-doorWidth-1);
+            roomProperty[k][4] = roomProperty[k][4]*10;
+            //door's height 
+            doorHeight =  getRandomNumber(2,5);
+            for(j = 0; j< doorHeight;j++)
+               for (i = 0; i < doorWidth; i++)
+                  world[xStartP][yStartP+j][zStartP+i] = 0;
+         }
+         // south
+         if((roomProperty[k][6] > -1) && (roomProperty[k][6] < 9)) 
+         {
+
+               zStartP = roomProperty[k][1];
+               //find door z point of room k th
+               xStartP = roomProperty[k][0] + getRandomNumber(1,roomProperty[k][2]-doorWidth-1);
 
 
+               roomProperty[k][6] = roomProperty[k][6]*10;
+                              //door's height 
+               doorHeight =  getRandomNumber(2,5);
+               for(j = 0; j< doorHeight;j++)
+                for (i = 0; i < doorWidth; i++)
+                  world[xStartP+i][yStartP+j][zStartP] = 0;
+         }
+         // north
+         if((roomProperty[k][7] > -1) && (roomProperty[k][7] < 9)) 
+         {
 
-      makeBorderRow1(33, 33, 0, 0, 3);
-      makeBorderRow1(33, 33, 33, 0, 3);
-      makeBorderRow1(33, 33, 66, 0, 3);
+               zStartP = roomProperty[k][1] + roomProperty[k][3] -1;
+               xStartP = roomProperty[k][0] + getRandomNumber(1,roomProperty[k][2]-doorWidth-1);
 
+               roomProperty[k][7] = roomProperty[k][7]*10;
 
-      makeBorderRow2(33, 33, 0, 33, 6);
-      makeBorderRow2(33, 33, 33, 33, 6);
-      makeBorderRow2(33, 33, 66, 33, 6);
+               doorHeight =  getRandomNumber(2,5);
+               for(j = 0; j< doorHeight;j++)
+                for (i = 0; i < doorWidth; i++)
+                  world[xStartP+i][yStartP+j][zStartP] = 0;
+         }
+         
+      }
 
+         
 
-      makeBorderRow3(20, 10, 0, 66, 5);
-      makeBorderRow3(20, 10, 33, 66, 5);
-      makeBorderRow3(20, 10, 66, 66, 5);
 
 
       //drawBorderTest3(33, 33, 33, 0, 6);
@@ -389,7 +632,7 @@ int i, j, k;
      // drawPillars();
       // drawTestBlocks();
 
-   setViewPosition(-2, -35, -2);
+   setViewPosition(xViewP*-1, -1*yStartP, -1*zViewP);
    }
 
 
@@ -399,10 +642,7 @@ int i, j, k;
    return 0; 
 }
 
-int getRandomNumber(int minimum, int maximum) {
-   srand(time(NULL));
-   return minimum + rand() % (maximum+1 - minimum);
-}
+
 
 void makeWall(int numOfBlocks, int color) {
    int i = 0;
@@ -411,28 +651,6 @@ void makeWall(int numOfBlocks, int color) {
    }
 }
 
-
-
-
-void makeWorld() {
-   int i, j, k;
-for(i=0; i<WORLDX; i++)
-         for(j=0; j<WORLDY; j++)
-            for(k=0; k<WORLDZ; k++)
-               world[i][j][k] = 0;
-}
-
-
-void drawFloor()
-{
-   int i, j;
-
-   for(i=0; i<WORLDX; i++) {
-         for(j=0; j<WORLDZ; j++) {
-            world[i][20][j] = 4;
-         }
-      }
-}
 
 
 void drawBorder(int borderMinRange, int borderMaxRange)
@@ -449,112 +667,8 @@ void drawBorder(int borderMinRange, int borderMaxRange)
    // }
 }
 
-void makeBorderRow1(int sidesLength, int endsLength, int xPosition, int zPosition, int color) {
-   int i;
-
-   sidesLength = xPosition + sidesLength;
-   endsLength = zPosition + endsLength;
-
-   printf("sidesLength = %i\n", sidesLength);
-
-   for(i=xPosition;i<sidesLength;i++)
-   {
-      //left side
-      drawWallStacks(i,3,0, color);
-      //right side
-      drawWallStacks(i,3,endsLength, color);
-   }
-
-   for(i=zPosition;i<endsLength;i++)
-    {
-      //back side
-      drawWallStacks(0,3,i, color);
-      //front side
-      drawWallStacks(sidesLength-1,3,i, color);
-   }
-}
 
 
-void makeBorderRow2(int sidesLength, int endsLength, int xPosition, int zPosition, int color) {
-   int i;
-
-   sidesLength = xPosition + sidesLength;
-   endsLength = zPosition + endsLength;
-
-   for(i=xPosition;i<sidesLength;i++)
-   {
-      //left side
-      drawWallStacks(i,3,33, color);
-      //right side
-      drawWallStacks(i,3,66, color);
-   }
-   for(i=zPosition;i<endsLength;i++)
-    {
-      //back side
-      drawWallStacks(xPosition,3,i, color);
-      //front side
-      drawWallStacks(sidesLength-1,3,i, color);
-   }
-}
-
-
-void makeBorderRow3(int sidesLength, int endsLength, int xPosition, int zPosition, int color) {
-   int i;
-
-   sidesLength = xPosition + sidesLength;
-   endsLength = zPosition + endsLength;
-
-   for(i=xPosition;i<sidesLength;i++)
-   {
-      //left side
-      drawWallStacks(i,3,zPosition, color);
-      //right side
-      drawWallStacks(i,3,endsLength, color);
-   }
-   for(i=zPosition;i<endsLength;i++)
-    {
-      //back side
-      drawWallStacks(xPosition,3,i, color);
-      //front side
-      drawWallStacks(sidesLength-1,3,i, color);
-   }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-void drawBorderTest3(int sidesLength, int endsLength, int xPosition, int zPosition, int color) {
-   int i;
-
-
-   for(i=33;i<66;i++)
-   {
-      //left side
-      drawWallStacks(i,3,33, color);
-      //right side
-      drawWallStacks(i,3,66, color);
-   }
-
-   for(i=33;i<66;i++)
-    {
-      //back side
-      drawWallStacks(33,3,i, color);
-      //front side
-      drawWallStacks(66,3,i, color);
-   }
-}
 
 
 void drawBorderTest4(int sidesLength, int endsLength, int xPosition, int zPosition, int color) {
@@ -583,7 +697,12 @@ void drawBorderTest4(int sidesLength, int endsLength, int xPosition, int zPositi
 
 
 
-
+void draw_wall_3high(int x, int z, int cubeStyle)
+{
+   world[x][21][z] = cubeStyle;
+   world[x][22][z] = cubeStyle;
+   world[x][23][z] = cubeStyle;
+}
 
 void drawPillars()
 {
@@ -614,22 +733,5 @@ void drawTestBlocks()
 }
 
 
-void draw_wall_3high(int x, int z, int cubeStyle)
-{
-   world[x][21][z] = cubeStyle;
-   world[x][22][z] = cubeStyle;
-   world[x][23][z] = cubeStyle;
-}
 
 
-void drawWallStacks(int x, int y, int z, int color) {
-   int i;
-   int ground = 21;
-   int wallHeight = ground + y;
-
-
-   for(i=ground; i<wallHeight; i++)
-   {
-      world[x][i][z] = color;
-   }
-}
