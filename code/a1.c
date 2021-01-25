@@ -522,6 +522,7 @@ int i, j, k;
       int xViewP = 0;
       int zViewP = 0;
       int yStartP = 11;
+      int numberofCubes = 2;
       int colorID1 = 3;
       const int numRoom = 9;
       const int doorWidth = 2;
@@ -569,6 +570,8 @@ int i, j, k;
             xViewP = 2 + RMAT[k][ROOM_XP] + getRandomNumber(0,RMAT[k][ROOM_X_LENGTH]-4);
             zViewP = 2 + RMAT[k][ROOM_ZP] + getRandomNumber(0,RMAT[k][ROOM_Z_LENGTH]-4);
          }
+         numberofCubes = getRandomNumber(3,9);
+         for(i = 0; i < numberofCubes;i++)
          world[2 + RMAT[k][ROOM_XP] + getRandomNumber(0,RMAT[k][ROOM_X_LENGTH] -4)][yStartP][2 + RMAT[k][ROOM_ZP]  + getRandomNumber(0,RMAT[k][ROOM_Z_LENGTH] -4)]= 8;
 
          
