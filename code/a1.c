@@ -644,45 +644,72 @@ int i, j, k;
             int LL = 0;
             int dXP = (areaAndDoorPosition[oppositeRoomID][AREA_XP] + areaAndDoorPosition[oppositeRoomID][AREA_X_LENGHT]) - (doorWidth/2) -1;
             int dXL = dXP - RMAT[oppositeRoomID][DOOR_EAST_XP];
+            int dZP = RMAT[oppositeRoomID][DOOR_EAST_ZP]+doorWidth;
+
+
+
             int aXP = dXP + doorWidth;
             int aXL = dXL + doorWidth;
             int aZP = RMAT[oppositeRoomID][DOOR_EAST_ZP]-1;
-            int dZP = RMAT[oppositeRoomID][DOOR_EAST_ZP]+doorWidth;
+
             int bXP = aXP+1;
             int bXL = RMAT[k][DOOR_WEST_XP] - bXP;
             int bZP = RMAT[k][DOOR_WEST_ZP]-1;
+
             int fXP = dXP+1;
             int fXL = RMAT[k][DOOR_WEST_XP] - fXP;
             int fZP = RMAT[k][DOOR_WEST_ZP]+ doorWidth;
+
+            int cXP = fXP-1;
+            int cZP = dZP+1;
+            int cZL = fZP-dZP;
+
+            int eXP = bXP;
+            int eZP = aZP;
+            int eZL = bZP-aZP;
             if (RMAT[k][DOOR_WEST_ZP] < RMAT[oppositeRoomID][DOOR_EAST_ZP])
             {
                dZP = RMAT[oppositeRoomID][DOOR_EAST_ZP]-1; 
                aZP = RMAT[oppositeRoomID][DOOR_EAST_ZP]+doorWidth;
                bZP = RMAT[k][DOOR_WEST_ZP]+ doorWidth;
                fZP = RMAT[k][DOOR_WEST_ZP]-1;
+               cZP = bZP;
+               cZL = 1+aZP-bZP;
+               eZP = fZP;
+               eZL = 1+dZP-fZP;
+               cXP = aXP+1;
+               eXP = dXP;
 
 
             }
-
+            //printf("k:%d, AreaP(%d,%d), AreaL(%d,%d) DoorEastP(%d,%d),dP(%d,%d),aP(%d,%d), dL:%d, aL:%d",k,areaAndDoorPosition[oppositeRoomID][AREA_XP],areaAndDoorPosition[oppositeRoomID][AREA_ZP],areaAndDoorPosition[oppositeRoomID][AREA_X_LENGHT],areaAndDoorPosition[oppositeRoomID][AREA_Z_LENGHT],RMAT[oppositeRoomID][DOOR_EAST_XP],RMAT[oppositeRoomID][DOOR_EAST_ZP],dXP,dZP,aXP,aZP,dXL,aXL);
+            //printf(" DoorWestP(%d,%d), fP(%d,%d), bP(%d,%d), fL:%d, bL:%d \n",RMAT[k][DOOR_WEST_XP],RMAT[k][DOOR_WEST_ZP],fXP,fZP,bXP,bZP,fXL,bXL);
+            //printf("cP(%d,%d), eP(%d,%d)\n",cXP,cZP,eXP,eZP);
             for(j = 0;j <doorHeight;j++)
             {
                LL = bXL;
                if (fXL > bXL ) LL = fXL;
                for (i = 0; i < LL;i++)
                {
-                  if(i <bXL)world[bXP+i][yStartP+j][bZP] = 3;
-                  if(i <fXL)world[fXP+i][yStartP+j][fZP] = 3;
+                  if(i <bXL)world[bXP+i][yStartP+j][bZP] = wallColor;
+                  if(i <fXL)world[fXP+i][yStartP+j][fZP] = wallColor;
                }
 
-               for (i = 0; i < (aXL-1);i++)
+               for (i = 0; i < aXL;i++)
                {
-                   world[RMAT[oppositeRoomID][DOOR_EAST_XP]+i+1][yStartP+j][aZP] = 5;
-                   if(i < (dXL-1))world[RMAT[oppositeRoomID][DOOR_EAST_XP]+i+1][yStartP+j][dZP] = 2;
+                   world[RMAT[oppositeRoomID][DOOR_EAST_XP]+i+1][yStartP+j][aZP] = wallColor;
+                   if(i < dXL)world[RMAT[oppositeRoomID][DOOR_EAST_XP]+i+1][yStartP+j][dZP] = wallColor;
+               }
+               LL=cZL;
+               if (cZL <eZL) LL =eZL;
+               for(i = 0;i<LL;i++)
+               {
+                  if(i<cZL)world[cXP][yStartP+j][cZP+i] = wallColor;
+                  if(i<eZL)world[eXP][yStartP+j][eZP+i] = wallColor;
                }
 
             }
 
-//printf("k:%d, BX,BZ:%d,%d, BXL:%d - FX,FZ:%d, %d, FXL:%d\n",k,bXP,bZP,bXL,fXL,fZP,fXL);
 
          }
          // south and north side 
@@ -704,12 +731,26 @@ int i, j, k;
             int fZP = dZP+1;
             int fZL = RMAT[k][DOOR_SOUTH_ZP] - fZP;
             int fXP = RMAT[k][DOOR_SOUTH_XP]+ doorWidth;
+
+            int cZP = fZP-1;
+            int cXP = dXP+1;
+            int cXL = fXP-dXP;
+
+            int eZP = bZP;
+            int eXP = aXP;
+            int eXL = bXP-aXP;
             if (RMAT[k][DOOR_SOUTH_XP] < RMAT[oppositeRoomID][DOOR_NORTH_XP])
             {
                dXP = RMAT[oppositeRoomID][DOOR_NORTH_XP]-1; 
                aXP = RMAT[oppositeRoomID][DOOR_NORTH_XP]+doorWidth;
                bXP = RMAT[k][DOOR_SOUTH_XP]+ doorWidth;
                fXP = RMAT[k][DOOR_SOUTH_XP]-1;
+               cXP = bXP;
+               cXL = 1+aXP-bXP;
+               eXP = fXP;
+               eXL = 1+dXP-fXP;
+               cZP = aZP+1;
+               eZP = dZP;
 
 
             }
@@ -719,14 +760,21 @@ int i, j, k;
                if (fZL > bZL ) LL = fZL;
                for (i = 0; i < LL;i++)
                {
-                  if(i <bZL)world[bXP][yStartP+j][bZP+i] = 3;
-                  if(i <fZL)world[fXP][yStartP+j][fZP+i] = 3;
+                  if(i <bZL)world[bXP][yStartP+j][bZP+i] = wallColor;
+                  if(i <fZL)world[fXP][yStartP+j][fZP+i] = wallColor;
                }
 
-               for (i = 0; i < (aZL-1);i++)
+               for (i = 0; i < aZL;i++)
                {
-                   world[aXP][yStartP+j][RMAT[oppositeRoomID][DOOR_NORTH_ZP]+i+1] = 6;
-                   if(i < (dZL-1))world[dXP][yStartP+j][RMAT[oppositeRoomID][DOOR_NORTH_ZP]+i+1] = 5;
+                   world[aXP][yStartP+j][RMAT[oppositeRoomID][DOOR_NORTH_ZP]+i+1] = wallColor;
+                   if(i < dZL)world[dXP][yStartP+j][RMAT[oppositeRoomID][DOOR_NORTH_ZP]+i+1] = wallColor;
+               }
+               LL=cXL;
+               if (cXL <eXL) LL =eXL;
+               for(i = 0;i<LL;i++)
+               {
+                  if(i<cXL)world[cXP+i][yStartP+j][cZP] = wallColor;
+                  if(i<eXL)world[eXP+i][yStartP+j][eZP] = wallColor;
                }
 
             }
