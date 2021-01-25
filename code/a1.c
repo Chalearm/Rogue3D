@@ -112,18 +112,19 @@ void collisionResponse() {
    int worldValue = 0;
    int worldValue2 = 0;
    int outOfSpace = 0;
-   //jui
    getViewPosition(&vxp,&vyp,&vzp);
    worldValue = world[-1*(int)vxp][-1*(int)vyp][-1*(int)vzp];
    worldValue2= world[-1*(int)vxp][1+(-1)*(int)vyp][-1*(int)vzp];
    outOfSpace = (((-1*(int)vxp)> 99) || ((-1*(int)vyp)> 49) || ((-1*(int)vzp)> 99));
    outOfSpace = outOfSpace || (((-1*(int)vxp) < 0) || ((-1*(int)vyp) <11) || ((-1*(int)vzp) <0));
+   // protect to pass through
    if ((outOfSpace == 1)||((worldValue > 0) && (worldValue2 > 0)))
    {
       
       getOldViewPosition(&vxp,&vyp,&vzp);
       setViewPosition(vxp,vyp,vzp); 
    }
+   // jump on the box
    else if ((worldValue > 0) && (worldValue2 == 0))
    {
       getOldViewPosition(&vxp,&vyp,&vzp);
