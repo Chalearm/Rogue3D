@@ -555,12 +555,13 @@ int i, j, k;
                   // random size of a room
          RMAT[k][ROOM_X_LENGTH] = getRandomNumber(sparForRoomSizeMin,sparForRoomSizeMax);
          RMAT[k][ROOM_Z_LENGTH] = getRandomNumber(sparForRoomSizeMin,sparForRoomSizeMax);
-
+//printf("k:%d, max X:%d, Z:%d, CX:%d, CZ:%d\n",k,areaAndDoorPosition[k][AREA_X_LENGHT]-RMAT[k][ROOM_X_LENGTH]-sparForCorridorsX-1,areaAndDoorPosition[k][AREA_Z_LENGHT]-RMAT[k][ROOM_Z_LENGTH]-sparForCorridorsZ-1,sparForCorridorsX,sparForCorridorsZ);
          // random location of a room
-         RMAT[k][ROOM_XP] = sparForCorridorsX + areaAndDoorPosition[k][AREA_XP] + getRandomNumber(0,areaAndDoorPosition[k][AREA_X_LENGHT]-RMAT[k][ROOM_X_LENGTH]-sparForCorridorsX-1);
-         RMAT[k][ROOM_ZP] = sparForCorridorsZ + areaAndDoorPosition[k][AREA_ZP] + getRandomNumber(0,areaAndDoorPosition[k][AREA_Z_LENGHT]-RMAT[k][ROOM_Z_LENGTH]-sparForCorridorsZ-1);
+         //printf("OK[%d] :%d, sparForCorridorsX:%d, RMAT[k][ROOM_X_LENGTH]:%d\n",k,areaAndDoorPosition[k][AREA_X_LENGHT]-RMAT[k][ROOM_X_LENGTH]-sparForCorridorsX-sparForCorridorsX,sparForCorridorsX,RMAT[k][ROOM_X_LENGTH]);
+         RMAT[k][ROOM_XP] = sparForCorridorsX + areaAndDoorPosition[k][AREA_XP] + getRandomNumber(0,areaAndDoorPosition[k][AREA_X_LENGHT]-RMAT[k][ROOM_X_LENGTH]-sparForCorridorsX-sparForCorridorsX);
+         RMAT[k][ROOM_ZP] = sparForCorridorsZ + areaAndDoorPosition[k][AREA_ZP] + getRandomNumber(0,areaAndDoorPosition[k][AREA_Z_LENGHT]-RMAT[k][ROOM_Z_LENGTH]-sparForCorridorsZ-sparForCorridorsZ);
 
-
+//printf("k:%d, Grid3x3:(%d,%d)(X,Z) : (%d,%d), LX:%d, LZ:%d\n",k,areaAndDoorPosition[k][AREA_XP],areaAndDoorPosition[k][AREA_ZP],RMAT[k][ROOM_XP],RMAT[k][ROOM_ZP],RMAT[k][ROOM_X_LENGTH],RMAT[k][ROOM_Z_LENGTH]);
 
          // find view point
          if (k == ViewPointID)
@@ -641,17 +642,17 @@ int i, j, k;
 
             oppositeRoomID = RMAT[k][WEST_ID];
             int LL = 0;
-            int dXP = (areaAndDoorPosition[oppositeRoomID][AREA_XP] + areaAndDoorPosition[oppositeRoomID][AREA_X_LENGHT]) - (doorWidth/2);
+            int dXP = (areaAndDoorPosition[oppositeRoomID][AREA_XP] + areaAndDoorPosition[oppositeRoomID][AREA_X_LENGHT]) - (doorWidth/2) -1;
             int dXL = dXP - RMAT[oppositeRoomID][DOOR_EAST_XP];
             int aXP = dXP + doorWidth;
             int aXL = dXL + doorWidth;
             int aZP = RMAT[oppositeRoomID][DOOR_EAST_ZP]-1;
             int dZP = RMAT[oppositeRoomID][DOOR_EAST_ZP]+doorWidth;
-            int bXP = aXP;
-            int bXL = RMAT[k][DOOR_WEST_XP] - aXP;
+            int bXP = aXP+1;
+            int bXL = RMAT[k][DOOR_WEST_XP] - bXP;
             int bZP = RMAT[k][DOOR_WEST_ZP]-1;
-            int fXP = dXP;
-            int fXL = RMAT[k][DOOR_WEST_XP] - dXP;
+            int fXP = dXP+1;
+            int fXL = RMAT[k][DOOR_WEST_XP] - fXP;
             int fZP = RMAT[k][DOOR_WEST_ZP]+ doorWidth;
             if (RMAT[k][DOOR_WEST_ZP] < RMAT[oppositeRoomID][DOOR_EAST_ZP])
             {
@@ -676,11 +677,12 @@ int i, j, k;
                for (i = 0; i < (aXL-1);i++)
                {
                    world[RMAT[oppositeRoomID][DOOR_EAST_XP]+i+1][yStartP+j][aZP] = 5;
-                   if(i < (dXL-1))world[RMAT[oppositeRoomID][DOOR_EAST_XP]+i+1][yStartP+j][dZP] = 5;
+                   if(i < (dXL-1))world[RMAT[oppositeRoomID][DOOR_EAST_XP]+i+1][yStartP+j][dZP] = 2;
                }
 
             }
 
+//printf("k:%d, BX,BZ:%d,%d, BXL:%d - FX,FZ:%d, %d, FXL:%d\n",k,bXP,bZP,bXL,fXL,fZP,fXL);
 
          }
          // south and north side 
@@ -689,18 +691,18 @@ int i, j, k;
 
             oppositeRoomID = RMAT[k][SOUTH_ID];
             int LL = 0;
-            int dZP = (areaAndDoorPosition[oppositeRoomID][AREA_ZP] + areaAndDoorPosition[oppositeRoomID][AREA_Z_LENGHT]) - (doorWidth/2);
+            int dZP = (areaAndDoorPosition[oppositeRoomID][AREA_ZP] + areaAndDoorPosition[oppositeRoomID][AREA_Z_LENGHT]) - (doorWidth/2)-1;
             int dZL = dZP - RMAT[oppositeRoomID][DOOR_NORTH_ZP];
             int aZP = dZP + doorWidth;
             int aZL = dZL + doorWidth;
             int aXP = RMAT[oppositeRoomID][DOOR_NORTH_XP]-1;
             int dXP = RMAT[oppositeRoomID][DOOR_NORTH_XP]+doorWidth;
-            int bZP = aZP;
-            int bZL = RMAT[k][DOOR_SOUTH_ZP] - aZP;
+            int bZP = aZP+1;
+            int bZL = RMAT[k][DOOR_SOUTH_ZP] - bZP;
             int bXP = RMAT[k][DOOR_SOUTH_XP]-1;
 
-            int fZP = dZP;
-            int fZL = RMAT[k][DOOR_SOUTH_ZP] - dZP;
+            int fZP = dZP+1;
+            int fZL = RMAT[k][DOOR_SOUTH_ZP] - fZP;
             int fXP = RMAT[k][DOOR_SOUTH_XP]+ doorWidth;
             if (RMAT[k][DOOR_SOUTH_XP] < RMAT[oppositeRoomID][DOOR_NORTH_XP])
             {
@@ -723,7 +725,7 @@ int i, j, k;
 
                for (i = 0; i < (aZL-1);i++)
                {
-                   world[aXP][yStartP+j][RMAT[oppositeRoomID][DOOR_NORTH_ZP]+i+1] = 5;
+                   world[aXP][yStartP+j][RMAT[oppositeRoomID][DOOR_NORTH_ZP]+i+1] = 6;
                    if(i < (dZL-1))world[dXP][yStartP+j][RMAT[oppositeRoomID][DOOR_NORTH_ZP]+i+1] = 5;
                }
 
