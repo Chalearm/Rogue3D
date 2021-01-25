@@ -106,7 +106,30 @@ void collisionResponse() {
 
    /* your code for collisions goes here */
 
-
+   float vxp = 0;
+   float vyp = 0;
+   float vzp = 0;
+   int worldValue = 0;
+   int worldValue2 = 0;
+   int outOfSpace = 0;
+   getViewPosition(&vxp,&vyp,&vzp);
+   worldValue = world[-1*(int)vxp][-1*(int)vyp][-1*(int)vzp];
+   worldValue2= world[-1*(int)vxp][1+(-1)*(int)vyp][-1*(int)vzp];
+   outOfSpace = (((-1*(int)vxp)> 99) || ((-1*(int)vyp)> 49) || ((-1*(int)vzp)> 99));
+   outOfSpace = outOfSpace || (((-1*(int)vxp) < 0) || ((-1*(int)vyp) <11) || ((-1*(int)vzp) <0));
+   // protect to pass through
+   if ((outOfSpace == 1)||((worldValue > 0) && (worldValue2 > 0)))
+   {
+      
+      getOldViewPosition(&vxp,&vyp,&vzp);
+      setViewPosition(vxp,vyp,vzp); 
+   }
+   // jump on the box
+   else if ((worldValue > 0) && (worldValue2 == 0))
+   {
+      getOldViewPosition(&vxp,&vyp,&vzp);
+      setViewPosition(vxp,vyp-1,vzp); 
+   }
 }
 
 
@@ -247,6 +270,54 @@ createTube(2, -xx, -yy, -zz, -xx-((x-xx)*25.0), -yy-((y-yy)*25.0), -zz-((z-zz)*2
    } else {
 
    /* your code goes here */
+      
+      int valOfWorldAtBelowVP = 0;
+      static float vpx = 0;
+      static float vpy = 0;
+      static float vpz = 0;
+      float newY = 0;
+      float floorLv = 10;
+      static int fallState = 0;
+      // yn = y(n-1) - 0.5*g*(tn^2-t(n-1)^2)
+      static clock_t timeCount,clkRef;
+      static float timePast,timeCurrent;
+      getViewPosition(&vpx,&vpy,&vpz);
+      valOfWorldAtBelowVP = world[-1*(int)vpx][(-1*(int)vpy)-1][-1*(int)vpz];
+      timeCount = clock();
+
+      if (fallState == 0)
+      {
+         fallState = (valOfWorldAtBelowVP == 0);
+      }
+      else if (fallState == 1)
+      {
+         clkRef = clock();
+         timePast = 0;
+         timeCurrent = 0;
+         fallState =2 ;
+      }
+      else if (fallState == 2)
+      {
+
+         timePast = timeCurrent;
+         timeCurrent = (float)(clock() - clkRef)/CLOCKS_PER_SEC;
+         newY = (-1.0)*vpy - 4.0*(timeCurrent*timeCurrent-timePast*timePast);
+         
+         if (valOfWorldAtBelowVP != 0) 
+         {
+            floorLv = (-1*(int)vpy)-1;
+         }
+
+         if((valOfWorldAtBelowVP != 0) && ((((float)((int)vpy)) - vpy) <= 0.0))
+         {
+            fallState = 0;
+            newY =floorLv+1.0;
+         }
+         if ((newY < (floorLv+1))||(newY > 49.0)) newY =floorLv+1.0;
+         setViewPosition(vpx,newY*(-1.0),vpz);
+         //printf("newY:%f , dffY:%f time diff :%f, tC:%f, tP:%f, floorLv:%f\n",newY,(((float)((int)vpy)) - vpy) ,(timeCurrent*timeCurrent-timePast*timePast),timeCurrent,timePast,floorLv);
+         }
+
 
    }
 }
@@ -389,6 +460,7 @@ int getRandomNumber(int minimum, int maximum) {
 
    return minimum + rand() % (maximum+1 - minimum);
 }
+
 int main(int argc, char** argv)
 {
 int i, j, k;
@@ -894,6 +966,7 @@ void drawTestBlocks()
       /* 3 high */
       draw_wall_3high(1,3,3);
 }
+
 
 
 
