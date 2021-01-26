@@ -315,7 +315,7 @@ void drawFloor()
 
    for(i=0; i<WORLDX; i++) {
          for(j=0; j<WORLDZ; j++) {
-            world[i][10][j] = 4;
+            world[i][21][j] = 4;
          }
       }
 }
@@ -449,7 +449,12 @@ int i, j, k;
 
    /* your code to build the world goes here */
       makeWorld();
-      drawFloor();
+    for(i=0; i<WORLDX; i++) {
+         for(j=0; j<WORLDZ; j++) {
+            //world[i][10][j] = 4;    // entire black
+            world[i][10][j] = (((j%2==0)&&(i%2==1))||((j%2==1)&&(i%2==0)))?4:5;  // chessboard pattern
+         }
+      }
       // drawBorder(0, 33);
       // drawBorder(33, 66);
 // drawBorder(66, 100);
@@ -525,7 +530,7 @@ int i, j, k;
       int numberofCubes = 2;
       int colorID1 = 3;
       const int numRoom = 9;
-      const int doorWidth = 2;
+      const int doorWidth = 5;
       const int wallColor = 1; // Green
       int ViewPointID = getRandomNumber(0,8); //which room the view point will be
       int doorHeight = 2;
@@ -533,7 +538,7 @@ int i, j, k;
       int sparForCorridorsX = 4;
       int sparForCorridorsZ = 4;
       int sparForRoomSizeMax = 24;  // sparForRoomSize >= 3+doorWidth
-      int sparForRoomSizeMin = 6;
+      int sparForRoomSizeMin = 8;
       for(k = 0;k<numRoom;k++)
       {
          sparForCorridorsX = (areaAndDoorPosition[k][AREA_X_LENGHT] - sparForRoomSizeMax)/2;
@@ -570,7 +575,7 @@ int i, j, k;
             xViewP = 2 + RMAT[k][ROOM_XP] + getRandomNumber(0,RMAT[k][ROOM_X_LENGTH]-4);
             zViewP = 2 + RMAT[k][ROOM_ZP] + getRandomNumber(0,RMAT[k][ROOM_Z_LENGTH]-4);
          }
-         numberofCubes = getRandomNumber(3,9);
+         numberofCubes = getRandomNumber(1,2);
          for(i = 0; i < numberofCubes;i++)
          world[2 + RMAT[k][ROOM_XP] + getRandomNumber(0,RMAT[k][ROOM_X_LENGTH] -4)][yStartP][2 + RMAT[k][ROOM_ZP]  + getRandomNumber(0,RMAT[k][ROOM_Z_LENGTH] -4)]= 8;
 
@@ -590,6 +595,13 @@ int i, j, k;
                world[RMAT[k][ROOM_XP]][yStartP+j][RMAT[k][ROOM_ZP]+i+1]= wallColor; 
                world[RMAT[k][ROOM_XP]+RMAT[k][ROOM_X_LENGTH]-1][yStartP+j][RMAT[k][ROOM_ZP]+i+1]= wallColor; 
             }
+         }
+         // Roof of a room
+         for(j = 0;j < RMAT[k][ROOM_Z_LENGTH];j++)
+         {
+            for(i=0;i < RMAT[k][ROOM_X_LENGTH];i++)
+
+               world[RMAT[k][ROOM_XP]+i][yStartP+wallHeight][RMAT[k][ROOM_ZP]+j]= wallColor; 
          }
 
          // build door and corridor for 4 direction
@@ -685,9 +697,32 @@ int i, j, k;
 
 
             }
-            //printf("k:%d, AreaP(%d,%d), AreaL(%d,%d) DoorEastP(%d,%d),dP(%d,%d),aP(%d,%d), dL:%d, aL:%d",k,areaAndDoorPosition[oppositeRoomID][AREA_XP],areaAndDoorPosition[oppositeRoomID][AREA_ZP],areaAndDoorPosition[oppositeRoomID][AREA_X_LENGHT],areaAndDoorPosition[oppositeRoomID][AREA_Z_LENGHT],RMAT[oppositeRoomID][DOOR_EAST_XP],RMAT[oppositeRoomID][DOOR_EAST_ZP],dXP,dZP,aXP,aZP,dXL,aXL);
-            //printf(" DoorWestP(%d,%d), fP(%d,%d), bP(%d,%d), fL:%d, bL:%d \n",RMAT[k][DOOR_WEST_XP],RMAT[k][DOOR_WEST_ZP],fXP,fZP,bXP,bZP,fXL,bXL);
-            //printf("cP(%d,%d), eP(%d,%d)\n",cXP,cZP,eXP,eZP);
+
+            // Build Roof for Hallway
+            
+            if (RMAT[oppositeRoomID][DOOR_EAST_ZP] > RMAT[k][DOOR_WEST_ZP])
+            {
+               for(j = 0;j < doorWidth+2;j++)
+                  for(i=RMAT[k][DOOR_WEST_ZP]-1;i<=RMAT[oppositeRoomID][DOOR_EAST_ZP]+doorWidth;i++)
+                     world[dXP+j][yStartP+doorHeight][i] = wallColor;
+            }
+            else
+            {
+               for(j = 0;j < doorWidth+2;j++)
+                  for(i=RMAT[oppositeRoomID][DOOR_EAST_ZP]-1;i<=RMAT[k][DOOR_WEST_ZP]+doorWidth;i++)
+                     world[dXP+j][yStartP+doorHeight][i] = wallColor;
+            }
+            LL = bXL;
+            if (fXL < bXL ) LL = fXL;
+            for(j = 1;j < LL;j++)
+               for(i=0;i < doorWidth+2;i++)
+                  world[bXP+j][yStartP+doorHeight][RMAT[k][DOOR_WEST_ZP]-1+i]= wallColor; 
+            LL = aXL;
+            for(j = 0;j < LL-doorWidth-1;j++)
+               for(i=0;i < doorWidth+2;i++)
+                  world[RMAT[oppositeRoomID][DOOR_EAST_XP]+j+1][yStartP+doorHeight][RMAT[oppositeRoomID][DOOR_EAST_ZP]-1+i]= wallColor; 
+
+            // Build hallway's walls
             for(j = 0;j <doorHeight;j++)
             {
                LL = bXL;
@@ -712,7 +747,6 @@ int i, j, k;
                }
 
             }
-
 
          }
          // south and north side 
@@ -757,6 +791,7 @@ int i, j, k;
 
 
             }
+            // Build hallway's walls
             for(j = 0;j <doorHeight;j++)
             {
                LL = bZL;
@@ -781,16 +816,34 @@ int i, j, k;
                }
 
             }
+            // Build hallway's Roof  
+            
+            LL = bZL;
+            if (fZL < bZL ) LL = fZL;
+            for(j = 1;j < LL;j++)
+               for(i=0;i < doorWidth+2;i++)
+                  world[RMAT[k][DOOR_SOUTH_XP]-1+i][yStartP+doorHeight][bZP+j]= wallColor; 
+               
+            LL = aZL;
+            for(j = 0;j < LL-doorWidth-1;j++)
+               for(i=0;i < doorWidth+2;i++)
+                  world[RMAT[oppositeRoomID][DOOR_NORTH_XP]-1+i][yStartP+doorHeight][RMAT[oppositeRoomID][DOOR_NORTH_ZP]+j+1]= wallColor; 
+            if (RMAT[oppositeRoomID][DOOR_NORTH_XP] > RMAT[k][DOOR_SOUTH_XP])
+            {
+               for(j = 0;j < doorWidth+2;j++)
+                  for(i=RMAT[k][DOOR_SOUTH_XP]-1;i<=RMAT[oppositeRoomID][DOOR_NORTH_XP]+doorWidth;i++)
+                     world[i][yStartP+doorHeight][dZP+j] = wallColor;
+            }
+            else
+            {
+               for(j = 0;j < doorWidth+2;j++)
+                  for(i=RMAT[oppositeRoomID][DOOR_NORTH_XP]-1;i<=RMAT[k][DOOR_SOUTH_XP]+doorWidth;i++)
+                     world[i][yStartP+doorHeight][dZP+j] = wallColor;
+            }
+      
          }
-
       }
 
-      //drawBorderTest3(33, 33, 33, 0, 6);
-
-     // drawBorderTest4(33, 33, 33, 0, 7);
-
-     // int randomNum = getRandomNumber(50, 100);
-    //  printf("Random Number = %i\n", randomNum);
 
     //drawFloor();
       //drawBorder();
