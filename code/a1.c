@@ -421,7 +421,7 @@ void drawFloor()
 
    for(i=0; i<WORLDX; i++) {
          for(j=0; j<WORLDZ; j++) {
-            world[i][20][j] = 4;
+            world[i][10][j] = 4;
          }
       }
 }
@@ -495,6 +495,7 @@ int getRandomNumber(int minimum, int maximum) {
 
    return minimum + rand() % (maximum+1 - minimum);
 }
+
 int main(int argc, char** argv)
 {
 int i, j, k;
@@ -573,44 +574,42 @@ int i, j, k;
 //       for(i=0; i<50; i++)
 //          for(j=66; j<100; j++)
 //          world[i][25][j]= 5; 
+//  ROOM attributes
+#define ROOM_XP 0
+#define ROOM_ZP 1
+#define ROOM_X_LENGTH 2
+#define ROOM_Z_LENGTH 3
+#define DOOR_WEST_XP 4
+#define DOOR_WEST_ZP 5
+#define DOOR_EAST_XP 6
+#define DOOR_EAST_ZP 7
+#define DOOR_SOUTH_XP 8
+#define DOOR_SOUTH_ZP 9
+#define DOOR_NORTH_XP 10
+#define DOOR_NORTH_ZP 11
+#define WEST_ID 12
+#define EAST_ID 13
+#define SOUTH_ID 14
+#define NORTH_ID 15
 
-// // Second row
+      int RMAT[9][16]; // RooM ATtribute
 
-//       for(i=50; i<100; i++)
-//          for(j=0; j<33; j++)
-//          world[i][25][j] =5;   
-
-
-//       for(i=50; i<100; i++)
-//          for(j=33; j<66; j++)
-//          world[i][25][j]= 2;  
-
-
-//       for(i=50; i<100; i++)
-//          for(j=66; j<100; j++)
-//          world[i][25][j]= 3; 
-      int l,m,n,o,p;
-      int xLenght = 0;
-      int zLenght = 0;
-      int wallHeight = 3;
-      int xStartP = 0;
-      int zStartP = 0;
-      int xViewP = 0;
-      int zViewP = 0;
-      int yStartP = 21;
-      int colorID1 = 3;
-      const int numRoom = 9;
-      const int doorWidth = 2;
-      int ViewPointID = getRandomNumber(0,8); //which the view point will be
-      int doorHeight = 2;
-      int oppositeRoomID = -1;
-      int sparForCorridors = 2;
-      int sparForRoomSize = 11;  // sparForRoomSize >= 3+doorWidth
+// 3x3 areas and Door position directions
       //{x,z,xLenght,zLenght,CanBuildDoorW,CanBuildDoorE,CanBuildDoorS,CanBuildDoorN}
       // CanBuildDoor status = -1 , Corridor cannot be built
       //                       0 - 8 room number which Corridor can be built
-      //                       m = 10 - 18 the corridor of room number m-10 is   built
-      int grid3x3[9][8]= {{0,0,33,33,-1,1,-1,3},
+      //                       m = 10 - 18 the door of room number m-10 is   built
+      //                       m = 20 - 28 the hallway and corridors are built
+#define AREA_XP 0
+#define AREA_ZP 1
+#define AREA_X_LENGHT 2
+#define AREA_Z_LENGHT 3
+#define WEST_DEFINE_ID 4
+#define EAST_DEFINE_ID 5
+#define SOUTH_DEFINE_ID 6
+#define NORTH_DEFINE_ID 7
+
+      int areaAndDoorPosition[9][8]= {{0,0,33,33,-1,1,-1,3},
                         {33,0,34,33,0,2,-1,4},
                         {67,0,33,33,1,-1,-1,5},
                         {0,33,33,34,-1,4,0,6},
@@ -619,132 +618,276 @@ int i, j, k;
                         {0,67,33,33,-1,7,3,-1},
                         {33,67,34,33,6,8,4,-1},
                         {67,67,33,33,7,-1,5,-1}};
-      int roomProperty[9][8];
+
+//       for(i=50; i<100; i++)
+//          for(j=66; j<100; j++)
+//          world[i][25][j]= 3; 
+      int l,m,n,o,p;
+      int xLenght = 0;
+      int zLenght = 0;
+      int wallHeight = 3;
+      int xViewP = 0;
+      int zViewP = 0;
+      int yStartP = 11;
+      int colorID1 = 3;
+      const int numRoom = 9;
+      const int doorWidth = 2;
+      const int wallColor = 1; // Green
+      int ViewPointID = getRandomNumber(0,8); //which room the view point will be
+      int doorHeight = 2;
+      int oppositeRoomID = -1;
+      int sparForCorridorsX = 4;
+      int sparForCorridorsZ = 4;
+      int sparForRoomSizeMax = 24;  // sparForRoomSize >= 3+doorWidth
+      int sparForRoomSizeMin = 6;
       for(k = 0;k<numRoom;k++)
       {
+         sparForCorridorsX = (areaAndDoorPosition[k][AREA_X_LENGHT] - sparForRoomSizeMax)/2;
+         sparForCorridorsZ = (areaAndDoorPosition[k][AREA_Z_LENGHT] - sparForRoomSizeMax)/2;
+         //initial DOOR points
+         RMAT[k][DOOR_WEST_XP] = -1;
+         RMAT[k][DOOR_WEST_ZP] = -1;
+         RMAT[k][DOOR_EAST_XP] = -1;
+         RMAT[k][DOOR_EAST_ZP] = -1;
+         RMAT[k][DOOR_SOUTH_XP] = -1;
+         RMAT[k][DOOR_SOUTH_ZP] = -1;
+         RMAT[k][DOOR_NORTH_XP] = -1;
+         RMAT[k][DOOR_NORTH_ZP] = -1;
+         // define door direction to Room attribute
+         RMAT[k][WEST_ID] = areaAndDoorPosition[k][WEST_DEFINE_ID];
+         RMAT[k][EAST_ID] = areaAndDoorPosition[k][EAST_DEFINE_ID];
+         RMAT[k][SOUTH_ID] = areaAndDoorPosition[k][SOUTH_DEFINE_ID];
+         RMAT[k][NORTH_ID] = areaAndDoorPosition[k][NORTH_DEFINE_ID];
 
+                  // random size of a room
+         RMAT[k][ROOM_X_LENGTH] = getRandomNumber(sparForRoomSizeMin,sparForRoomSizeMax);
+         RMAT[k][ROOM_Z_LENGTH] = getRandomNumber(sparForRoomSizeMin,sparForRoomSizeMax);
+//printf("k:%d, max X:%d, Z:%d, CX:%d, CZ:%d\n",k,areaAndDoorPosition[k][AREA_X_LENGHT]-RMAT[k][ROOM_X_LENGTH]-sparForCorridorsX-1,areaAndDoorPosition[k][AREA_Z_LENGHT]-RMAT[k][ROOM_Z_LENGTH]-sparForCorridorsZ-1,sparForCorridorsX,sparForCorridorsZ);
          // random location of a room
-         xStartP = grid3x3[k][0] + getRandomNumber(0,grid3x3[k][2]-sparForCorridors-sparForRoomSize-1);
-         zStartP = grid3x3[k][1] + getRandomNumber(0,grid3x3[k][3]-sparForCorridors-sparForRoomSize-1);
+         //printf("OK[%d] :%d, sparForCorridorsX:%d, RMAT[k][ROOM_X_LENGTH]:%d\n",k,areaAndDoorPosition[k][AREA_X_LENGHT]-RMAT[k][ROOM_X_LENGTH]-sparForCorridorsX-sparForCorridorsX,sparForCorridorsX,RMAT[k][ROOM_X_LENGTH]);
+         RMAT[k][ROOM_XP] = sparForCorridorsX + areaAndDoorPosition[k][AREA_XP] + getRandomNumber(0,areaAndDoorPosition[k][AREA_X_LENGHT]-RMAT[k][ROOM_X_LENGTH]-sparForCorridorsX-sparForCorridorsX);
+         RMAT[k][ROOM_ZP] = sparForCorridorsZ + areaAndDoorPosition[k][AREA_ZP] + getRandomNumber(0,areaAndDoorPosition[k][AREA_Z_LENGHT]-RMAT[k][ROOM_Z_LENGTH]-sparForCorridorsZ-sparForCorridorsZ);
 
-         // random size of a room
-         xLenght = sparForRoomSize + getRandomNumber(0,grid3x3[k][2]+grid3x3[k][0]-1-sparForCorridors-sparForRoomSize - xStartP);
-         zLenght = sparForRoomSize + getRandomNumber(0,grid3x3[k][3]+grid3x3[k][1]-1-sparForCorridors-sparForRoomSize - zStartP);
+//printf("k:%d, Grid3x3:(%d,%d)(X,Z) : (%d,%d), LX:%d, LZ:%d\n",k,areaAndDoorPosition[k][AREA_XP],areaAndDoorPosition[k][AREA_ZP],RMAT[k][ROOM_XP],RMAT[k][ROOM_ZP],RMAT[k][ROOM_X_LENGTH],RMAT[k][ROOM_Z_LENGTH]);
 
          // find view point
-         //printf("k: %d, xStart : %d, zStartP:%d, XL:%d, ZL:%d\n",k,xStartP,zStartP,xLenght,zLenght);
          if (k == ViewPointID)
          {
-            xViewP = 2 + xStartP + getRandomNumber(0,xLenght-4);
-            zViewP = 2 + zStartP + getRandomNumber(0,zLenght-4);
-            /*
-            world[xViewP+1][yStartP][zViewP] =7;
-            world[xViewP+2][yStartP+1][zViewP] =7;
-            world[xViewP+3][yStartP+2][zViewP] =7;
-            world[xViewP+4][yStartP+3][zViewP] =4;
-            world[xViewP+5][yStartP+4][zViewP] =1;
-            */
-            //printf("ViewPId:%d, xV:%d, zV:%d\n",ViewPointID,xViewP,zViewP);
+            xViewP = 2 + RMAT[k][ROOM_XP] + getRandomNumber(0,RMAT[k][ROOM_X_LENGTH]-4);
+            zViewP = 2 + RMAT[k][ROOM_ZP] + getRandomNumber(0,RMAT[k][ROOM_Z_LENGTH]-4);
          }
-         world[2 + xStartP + getRandomNumber(0,xLenght-4)][yStartP][2 + zStartP + getRandomNumber(0,zLenght-4)]= 8;
+         world[2 + RMAT[k][ROOM_XP] + getRandomNumber(0,RMAT[k][ROOM_X_LENGTH] -4)][yStartP][2 + RMAT[k][ROOM_ZP]  + getRandomNumber(0,RMAT[k][ROOM_Z_LENGTH] -4)]= 8;
 
-         roomProperty[k][0] = xStartP;
-         roomProperty[k][1] = zStartP;
-         roomProperty[k][2] = xLenght;
-         roomProperty[k][3] = zLenght;
-         roomProperty[k][4] = grid3x3[k][4];
-         roomProperty[k][5] = grid3x3[k][5];
-         roomProperty[k][6] = grid3x3[k][6];
-         roomProperty[k][7] = grid3x3[k][7];
          
          // build walls of room
          //wallHeight = getRandomNumber(7,13);
          for(j = 0;j<wallHeight;j++)
          {
-            for(i = 0;i<xLenght;i++)
+            for(i = 0;i<RMAT[k][ROOM_X_LENGTH];i++)
             {
-               world[xStartP+i][yStartP+j][zStartP]= 1;
-               world[xStartP+i][yStartP+j][zStartP+zLenght-1]=1; 
+               world[RMAT[k][ROOM_XP]+i][yStartP+j][RMAT[k][ROOM_ZP]]= wallColor;
+               world[RMAT[k][ROOM_XP]+i][yStartP+j][RMAT[k][ROOM_ZP]+RMAT[k][ROOM_Z_LENGTH]-1]=wallColor; 
             }
             // -2 and move offset +1 at Z-axis cuz 2 cells of X-wall sides have already built 
-            for(i = 0;i<zLenght-2;i++)
+            for(i = 0;i<RMAT[k][ROOM_Z_LENGTH]-2;i++)
             {
-               world[xStartP][yStartP+j][zStartP+i+1]= 1; 
-               world[xStartP+xLenght-1][yStartP+j][zStartP+i+1]= 1; 
+               world[RMAT[k][ROOM_XP]][yStartP+j][RMAT[k][ROOM_ZP]+i+1]= wallColor; 
+               world[RMAT[k][ROOM_XP]+RMAT[k][ROOM_X_LENGTH]-1][yStartP+j][RMAT[k][ROOM_ZP]+i+1]= wallColor; 
             }
          }
 
          // build door and corridor for 4 direction
-         // west
-         if((roomProperty[k][5] > -1) && (roomProperty[k][5] < 9)) 
+         // east
+         if(RMAT[k][EAST_ID] > -1) 
          {
-            xStartP = roomProperty[k][0] + roomProperty[k][2] -1;
-            //find door z point of room k th
-            zStartP = roomProperty[k][1] + getRandomNumber(1,roomProperty[k][3]-doorWidth-1);
-            roomProperty[k][5] = roomProperty[k][5]*10;
-
+            RMAT[k][DOOR_EAST_XP] = RMAT[k][ROOM_XP] + RMAT[k][ROOM_X_LENGTH] -1;
+            do {RMAT[k][DOOR_EAST_ZP] = RMAT[k][ROOM_ZP] + getRandomNumber(1,RMAT[k][ROOM_Z_LENGTH]-doorWidth-1);}
+            while(RMAT[k][DOOR_EAST_ZP] == RMAT[RMAT[k][EAST_ID]][DOOR_WEST_ZP]);
             for(j = 0; j< doorHeight;j++)
              for (i = 0; i < doorWidth; i++)
-               world[xStartP][yStartP+j][zStartP+i] = 0;
+               world[RMAT[k][DOOR_EAST_XP]][yStartP+j][RMAT[k][DOOR_EAST_ZP]+i] = 0;
 
          }
 
-         // east
-         if((roomProperty[k][4] > -1) && (roomProperty[k][4] < 9)) 
+         // west
+         if(RMAT[k][WEST_ID] > -1) 
          {
-            xStartP = roomProperty[k][0];
-            zStartP = roomProperty[k][1] + getRandomNumber(1,roomProperty[k][3]-doorWidth-1);
-            roomProperty[k][4] = roomProperty[k][4]*10;
-
+            RMAT[k][DOOR_WEST_XP] = RMAT[k][ROOM_XP];
+            do {RMAT[k][DOOR_WEST_ZP] = RMAT[k][ROOM_ZP] + getRandomNumber(1,RMAT[k][ROOM_Z_LENGTH]-doorWidth-1);}
+            while(RMAT[k][DOOR_WEST_ZP] == RMAT[RMAT[k][WEST_ID]][DOOR_EAST_ZP]);
             for(j = 0; j< doorHeight;j++)
                for (i = 0; i < doorWidth; i++)
-                  world[xStartP][yStartP+j][zStartP+i] = 0;
+                  world[RMAT[k][DOOR_WEST_XP]][yStartP+j][RMAT[k][DOOR_WEST_ZP]+i] = 0;
          }
          // south
-         if((roomProperty[k][6] > -1) && (roomProperty[k][6] < 9)) 
+         if(RMAT[k][SOUTH_ID] > -1) 
          {
+            RMAT[k][DOOR_SOUTH_ZP] = RMAT[k][ROOM_ZP];
+            do {RMAT[k][DOOR_SOUTH_XP] = RMAT[k][ROOM_XP] + getRandomNumber(1,RMAT[k][ROOM_X_LENGTH]-doorWidth-1);}
+            while(RMAT[k][DOOR_SOUTH_XP] == RMAT[RMAT[k][SOUTH_ID]][DOOR_NORTH_XP]);
 
-               zStartP = roomProperty[k][1];
-               //find door z point of room k th
-               xStartP = roomProperty[k][0] + getRandomNumber(1,roomProperty[k][2]-doorWidth-1);
-
-
-               roomProperty[k][6] = roomProperty[k][6]*10;
 
                for(j = 0; j< doorHeight;j++)
                 for (i = 0; i < doorWidth; i++)
-                  world[xStartP+i][yStartP+j][zStartP] = 0;
+                  world[RMAT[k][DOOR_SOUTH_XP] +i][yStartP+j][RMAT[k][DOOR_SOUTH_ZP]] = 0;
          }
          // north
-         if((roomProperty[k][7] > -1) && (roomProperty[k][7] < 9)) 
+         if(RMAT[k][NORTH_ID] > -1) 
          {
-
-               zStartP = roomProperty[k][1] + roomProperty[k][3] -1;
-               xStartP = roomProperty[k][0] + getRandomNumber(1,roomProperty[k][2]-doorWidth-1);
-
-               roomProperty[k][7] = roomProperty[k][7]*10;
-
+            RMAT[k][DOOR_NORTH_ZP] = RMAT[k][ROOM_ZP] + RMAT[k][ROOM_Z_LENGTH] -1;
+            do {RMAT[k][DOOR_NORTH_XP] = RMAT[k][ROOM_XP] + getRandomNumber(1,RMAT[k][ROOM_X_LENGTH]-doorWidth-1);}
+            while(RMAT[k][DOOR_NORTH_XP] == RMAT[RMAT[k][NORTH_ID]][DOOR_SOUTH_XP]);
                for(j = 0; j< doorHeight;j++)
                 for (i = 0; i < doorWidth; i++)
-                  world[xStartP+i][yStartP+j][zStartP] = 0;
+                  world[RMAT[k][DOOR_NORTH_XP]+i][yStartP+j][RMAT[k][DOOR_NORTH_ZP]] = 0;
          }
          // build  hallway and corridor
-         // w to e
-         if((roomProperty[k][4] > 8) && (roomProperty[k][5] > 8)) 
-         {
+         // west and east side
+         //RMAT[k][EAST_ID]
+         if((RMAT[k][DOOR_WEST_XP] > -1)&&(RMAT[RMAT[k][WEST_ID]][DOOR_EAST_XP] > -1))
+         {//AREA_X_LENGHT
+
+            oppositeRoomID = RMAT[k][WEST_ID];
+            int LL = 0;
+            int dXP = (areaAndDoorPosition[oppositeRoomID][AREA_XP] + areaAndDoorPosition[oppositeRoomID][AREA_X_LENGHT]) - (doorWidth/2) -1;
+            int dXL = dXP - RMAT[oppositeRoomID][DOOR_EAST_XP];
+            int dZP = RMAT[oppositeRoomID][DOOR_EAST_ZP]+doorWidth;
+
+
+
+            int aXP = dXP + doorWidth;
+            int aXL = dXL + doorWidth;
+            int aZP = RMAT[oppositeRoomID][DOOR_EAST_ZP]-1;
+
+            int bXP = aXP+1;
+            int bXL = RMAT[k][DOOR_WEST_XP] - bXP;
+            int bZP = RMAT[k][DOOR_WEST_ZP]-1;
+
+            int fXP = dXP+1;
+            int fXL = RMAT[k][DOOR_WEST_XP] - fXP;
+            int fZP = RMAT[k][DOOR_WEST_ZP]+ doorWidth;
+
+            int cXP = fXP-1;
+            int cZP = dZP+1;
+            int cZL = fZP-dZP;
+
+            int eXP = bXP;
+            int eZP = aZP;
+            int eZL = bZP-aZP;
+            if (RMAT[k][DOOR_WEST_ZP] < RMAT[oppositeRoomID][DOOR_EAST_ZP])
+            {
+               dZP = RMAT[oppositeRoomID][DOOR_EAST_ZP]-1; 
+               aZP = RMAT[oppositeRoomID][DOOR_EAST_ZP]+doorWidth;
+               bZP = RMAT[k][DOOR_WEST_ZP]+ doorWidth;
+               fZP = RMAT[k][DOOR_WEST_ZP]-1;
+               cZP = bZP;
+               cZL = 1+aZP-bZP;
+               eZP = fZP;
+               eZL = 1+dZP-fZP;
+               cXP = aXP+1;
+               eXP = dXP;
+
+
+            }
+            //printf("k:%d, AreaP(%d,%d), AreaL(%d,%d) DoorEastP(%d,%d),dP(%d,%d),aP(%d,%d), dL:%d, aL:%d",k,areaAndDoorPosition[oppositeRoomID][AREA_XP],areaAndDoorPosition[oppositeRoomID][AREA_ZP],areaAndDoorPosition[oppositeRoomID][AREA_X_LENGHT],areaAndDoorPosition[oppositeRoomID][AREA_Z_LENGHT],RMAT[oppositeRoomID][DOOR_EAST_XP],RMAT[oppositeRoomID][DOOR_EAST_ZP],dXP,dZP,aXP,aZP,dXL,aXL);
+            //printf(" DoorWestP(%d,%d), fP(%d,%d), bP(%d,%d), fL:%d, bL:%d \n",RMAT[k][DOOR_WEST_XP],RMAT[k][DOOR_WEST_ZP],fXP,fZP,bXP,bZP,fXL,bXL);
+            //printf("cP(%d,%d), eP(%d,%d)\n",cXP,cZP,eXP,eZP);
+            for(j = 0;j <doorHeight;j++)
+            {
+               LL = bXL;
+               if (fXL > bXL ) LL = fXL;
+               for (i = 0; i < LL;i++)
+               {
+                  if(i <bXL)world[bXP+i][yStartP+j][bZP] = wallColor;
+                  if(i <fXL)world[fXP+i][yStartP+j][fZP] = wallColor;
+               }
+
+               for (i = 0; i < aXL;i++)
+               {
+                   world[RMAT[oppositeRoomID][DOOR_EAST_XP]+i+1][yStartP+j][aZP] = wallColor;
+                   if(i < dXL)world[RMAT[oppositeRoomID][DOOR_EAST_XP]+i+1][yStartP+j][dZP] = wallColor;
+               }
+               LL=cZL;
+               if (cZL <eZL) LL =eZL;
+               for(i = 0;i<LL;i++)
+               {
+                  if(i<cZL)world[cXP][yStartP+j][cZP+i] = wallColor;
+                  if(i<eZL)world[eXP][yStartP+j][eZP+i] = wallColor;
+               }
+
+            }
+
 
          }
-         // n to s
-         if((roomProperty[k][6] > 8) && (roomProperty[k][7] > 8))
+         // south and north side 
+         if((RMAT[k][DOOR_SOUTH_ZP] > -1)&&(RMAT[RMAT[k][SOUTH_ID]][DOOR_NORTH_ZP] > -1))
          {
 
+            oppositeRoomID = RMAT[k][SOUTH_ID];
+            int LL = 0;
+            int dZP = (areaAndDoorPosition[oppositeRoomID][AREA_ZP] + areaAndDoorPosition[oppositeRoomID][AREA_Z_LENGHT]) - (doorWidth/2)-1;
+            int dZL = dZP - RMAT[oppositeRoomID][DOOR_NORTH_ZP];
+            int aZP = dZP + doorWidth;
+            int aZL = dZL + doorWidth;
+            int aXP = RMAT[oppositeRoomID][DOOR_NORTH_XP]-1;
+            int dXP = RMAT[oppositeRoomID][DOOR_NORTH_XP]+doorWidth;
+            int bZP = aZP+1;
+            int bZL = RMAT[k][DOOR_SOUTH_ZP] - bZP;
+            int bXP = RMAT[k][DOOR_SOUTH_XP]-1;
+
+            int fZP = dZP+1;
+            int fZL = RMAT[k][DOOR_SOUTH_ZP] - fZP;
+            int fXP = RMAT[k][DOOR_SOUTH_XP]+ doorWidth;
+
+            int cZP = fZP-1;
+            int cXP = dXP+1;
+            int cXL = fXP-dXP;
+
+            int eZP = bZP;
+            int eXP = aXP;
+            int eXL = bXP-aXP;
+            if (RMAT[k][DOOR_SOUTH_XP] < RMAT[oppositeRoomID][DOOR_NORTH_XP])
+            {
+               dXP = RMAT[oppositeRoomID][DOOR_NORTH_XP]-1; 
+               aXP = RMAT[oppositeRoomID][DOOR_NORTH_XP]+doorWidth;
+               bXP = RMAT[k][DOOR_SOUTH_XP]+ doorWidth;
+               fXP = RMAT[k][DOOR_SOUTH_XP]-1;
+               cXP = bXP;
+               cXL = 1+aXP-bXP;
+               eXP = fXP;
+               eXL = 1+dXP-fXP;
+               cZP = aZP+1;
+               eZP = dZP;
+
+
+            }
+            for(j = 0;j <doorHeight;j++)
+            {
+               LL = bZL;
+               if (fZL > bZL ) LL = fZL;
+               for (i = 0; i < LL;i++)
+               {
+                  if(i <bZL)world[bXP][yStartP+j][bZP+i] = wallColor;
+                  if(i <fZL)world[fXP][yStartP+j][fZP+i] = wallColor;
+               }
+
+               for (i = 0; i < aZL;i++)
+               {
+                   world[aXP][yStartP+j][RMAT[oppositeRoomID][DOOR_NORTH_ZP]+i+1] = wallColor;
+                   if(i < dZL)world[dXP][yStartP+j][RMAT[oppositeRoomID][DOOR_NORTH_ZP]+i+1] = wallColor;
+               }
+               LL=cXL;
+               if (cXL <eXL) LL =eXL;
+               for(i = 0;i<LL;i++)
+               {
+                  if(i<cXL)world[cXP+i][yStartP+j][cZP] = wallColor;
+                  if(i<eXL)world[eXP+i][yStartP+j][eZP] = wallColor;
+               }
+
+            }
          }
 
       }
-
-         
-
-
 
       //drawBorderTest3(33, 33, 33, 0, 6);
 
@@ -759,8 +902,8 @@ int i, j, k;
       // drawTestBlocks();
 
    setViewPosition(-1*xViewP, -48, -1*zViewP);
-   //setViewPosition(-1*xViewP, -1*yStartP, -1*zViewP);
    }
+
 
 
    /* starts the graphics processing loop */
@@ -858,6 +1001,7 @@ void drawTestBlocks()
       /* 3 high */
       draw_wall_3high(1,3,3);
 }
+
 
 
 
