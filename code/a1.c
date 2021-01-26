@@ -105,30 +105,65 @@ extern void getUserColour(int, GLfloat *, GLfloat *, GLfloat *, GLfloat *,
 void collisionResponse() {
 
    /* your code for collisions goes here */
-
+   float tempX,tempY,tempZ;
+   float margin = 0.2;
    float vxp = 0;
    float vyp = 0;
    float vzp = 0;
+   float Xdirection = 0; // - , + or 0
+   float Zdirection = 0; // - , + or 0
+   int floorLv = 20;
    int worldValue = 0;
    int worldValue2 = 0;
    int outOfSpace = 0;
+   int SpaceOverHeadPos = 0;
    getViewPosition(&vxp,&vyp,&vzp);
-   worldValue = world[-1*(int)vxp][-1*(int)vyp][-1*(int)vzp];
-   worldValue2= world[-1*(int)vxp][1+(-1)*(int)vyp][-1*(int)vzp];
+   getOldViewPosition(&tempX,&tempY,&tempZ);
+   Xdirection = -1*(vxp > tempX) + (vxp < tempX);
+   Zdirection = -1*(vzp > tempZ) + (vzp < tempZ);
+   int a,b,c,d;
+   SpaceOverHeadPos = 1+(-1)*(int)vyp;
+
+   a = world[-1*(int)vxp][-1*(int)vyp][-1*(int)vzp] ;
+   b = world[-1*(int)(vxp -margin*Xdirection)][-1*(int)vyp][-1*(int)vzp];
+   c = world[-1*(int)vxp][-1*(int)vyp][-1*(int)(vzp -margin*Zdirection)];
+   d = world[-1*(int)(vxp -margin*Xdirection)][-1*(int)vyp][-1*(int)(vzp -margin*Zdirection)];
+   worldValue = a+b+c+d;
+   worldValue2 = world[-1*(int)vxp][SpaceOverHeadPos][-1*(int)vzp] + 
+                 world[-1*(int)(vxp -margin*Xdirection)][SpaceOverHeadPos][-1*(int)vzp]+ 
+                 world[-1*(int)vxp][SpaceOverHeadPos][-1*(int)(vzp -margin*Zdirection)] + 
+                 world[-1*(int)(vxp -margin*Xdirection)][SpaceOverHeadPos][-1*(int)(vzp -margin*Zdirection)];
    outOfSpace = (((-1*(int)vxp)> 99) || ((-1*(int)vyp)> 49) || ((-1*(int)vzp)> 99));
-   outOfSpace = outOfSpace || (((-1*(int)vxp) < 0) || ((-1*(int)vyp) <11) || ((-1*(int)vzp) <0));
+   outOfSpace = outOfSpace || (((-1*(int)vxp) < 0) || ((-1*(int)vyp) <(floorLv+1)) || ((-1*(int)vzp) <0));
    // protect to pass through
-   if ((outOfSpace == 1)||((worldValue > 0) && (worldValue2 > 0)))
+   if ((outOfSpace == 1)||((worldValue != 0) && (worldValue2 != 0)))
    {
-      
-      getOldViewPosition(&vxp,&vyp,&vzp);
-      setViewPosition(vxp,vyp,vzp); 
+      setViewPosition(tempX,tempY,tempZ); 
    }
    // jump on the box
-   else if ((worldValue > 0) && (worldValue2 == 0))
+   else if ((worldValue != 0) && (worldValue2 == 0))
    {
-      getOldViewPosition(&vxp,&vyp,&vzp);
-      setViewPosition(vxp,vyp-1,vzp); 
+       if(a != 0)
+       {
+         tempX = (float)(int)vxp;
+         tempZ = (float)(int)vzp;
+       }
+       else if(b != 0)
+       {
+         tempX = (float)(int)(vxp -margin*Xdirection);
+         tempZ = (float)(int)vzp;
+       }
+       else if (c != 0)
+       {
+         tempX = (float)(int)vxp;
+         tempZ = (float)(int)(vzp -margin*Zdirection);
+       }
+       else if (d != 0)
+       {
+         tempX = (float)(int)(vxp -margin*Xdirection);
+         tempZ = (float)(int)(vzp -margin*Zdirection);
+       }
+      setViewPosition(tempX,tempY-1,tempZ); 
    }
 }
 
@@ -301,7 +336,7 @@ createTube(2, -xx, -yy, -zz, -xx-((x-xx)*25.0), -yy-((y-yy)*25.0), -zz-((z-zz)*2
 
          timePast = timeCurrent;
          timeCurrent = (float)(clock() - clkRef)/CLOCKS_PER_SEC;
-         newY = (-1.0)*vpy - 4.0*(timeCurrent*timeCurrent-timePast*timePast);
+         newY = (-1.0)*vpy - 200.0*(timeCurrent*timeCurrent-timePast*timePast);
          
          if (valOfWorldAtBelowVP != 0) 
          {
