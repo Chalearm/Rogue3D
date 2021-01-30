@@ -95,6 +95,7 @@ extern void getUserColour(int, GLfloat *, GLfloat *, GLfloat *, GLfloat *,
 
 /********* end of extern variable declarations **************/
 
+
 struct Point
 {
    int x;
@@ -108,26 +109,20 @@ struct Wall
    int width;
    int XorZSide; //0 = X side, 1 = Y side
    int color;
+   int (*generateColorStyle)(int,int,int,int);
 };
 struct Room
 {
-   struct Point StartPoint;        //count from ground point
-   struct Wall Walls[4];          // ID=0(WEST).1(EAST),2(SOUTH),3(NORTH)
-   struct Point DoorPosition[4];  // if point = {-1,-1,-1} = not defined, ID=0(WEST).1(EAST),2(SOUTH),3(NORTH)
+   struct Point StartPoint;      //count from ground point
+   struct Wall Walls[4];         // ID=0(WEST).1(EAST),2(SOUTH),3(NORTH)
+   struct Point DoorPosition[4]; // if point = {-1,-1,-1} = not defined, ID=0(WEST).1(EAST),2(SOUTH),3(NORTH)
    int doorHeight;
    int doorWidth;
-   int haveRoof; // 0 = no, 1 = yes
+   int haveRoof;   // 0 = no, 1 = yes
    int haveGround; //0 = no, 1 = yes
    int Roofcolor;
    int Groundcolor;
-
 };
-/*
-WestWall;
-   struct Wall EastWall;
-   struct Wall SouthWall;
-   struct Wall NorthWall;
-*/
 
 #define WEST 0
 #define EAST 1
@@ -139,38 +134,46 @@ WestWall;
 #define NOT_HAVE_GROUND 0
 #define HAVE_ROOF 1
 #define HAVE_GROUND 1
-void SetMAXandMINPoint(const int** MaxPoint,const int** MinPoint,const int* P1,const int* P2);
-void BuildABox(const struct Point *StartPoint,const struct Point *Endpoint,int color);
+void SetMAXandMINPoint(const int **MaxPoint, const int **MinPoint, const int *P1, const int *P2);
+void BuildABox(const struct Point *StartPoint, const struct Point *Endpoint, int color,int (*generateColorStyle)(int,int,int,int));
 void BuildAWall(const struct Wall *AWall);
-struct Room BuildEasyRoom(const struct Point *StartPoint,int xLenght,int zLenght,int height,int haveRoof,int haveGround,int color);
+struct Room BuildEasyRoom(const struct Point *StartPoint, int xLenght, int zLenght, int height, int haveRoof, int haveGround, int color);
 void BuildARoom(const struct Room *ARoom);
-void BuildDoorsWestVsEast(int roomID,struct Room *Room1,struct Room *Room2,int DirectionR1,int DirectionR2);
-void BuildDoorsSouthVsNorth(int roomID,struct Room *Room1,struct Room *Room2,int DirectionR1,int DirectionR2);
+void BuildDoorsWestVsEast(int roomID, struct Room *Rooms,int CorridorColor);
+void BuildDoorsSouthVsNorth(int roomID, struct Room *Rooms,int CorridorColor);
+#define READY 1
+#define NOT_READY 0
+int checkRoomAndOppositeRoomCanBuildCorridorAndHallway(int XorZSide,int roomID, struct Room *Rooms);
+
+
+int normalColorStyle(int originalColor,int i,int j,int z);
+int randomPinkWhiteStyle(int originalColor,int i,int j,int z);
 
 #define AREA_XP 0
 #define AREA_ZP 1
 #define AREA_X_LENGHT 2
 #define AREA_Z_LENGHT 3
 
-      int areaAndDoorPosition[9][4]= {{0,0,33,33},
-                        {33,0,34,33},
-                        {67,0,33,33},
-                        {0,33,33,34},
-                        {33,33,34,34},
-                        {67,33,33,34},
-                        {0,67,33,33},
-                        {33,67,34,33},
-                        {67,67,33,33}};
+// define the dimension of Grid 3X3
+int dimensionOfGrid3x3[9][4] = {{0, 0, 33, 33},
+                                {33, 0, 34, 33},
+                                {67, 0, 33, 33},
+                                {0, 33, 33, 34},
+                                {33, 33, 34, 34},
+                                {67, 33, 33, 34},
+                                {0, 67, 33, 33},
+                                {33, 67, 34, 33},
+                                {67, 67, 33, 33}};
 
-int DoorDirections[9][4] = {{1,1,-1,3},
-                            {0,2,-1,4},
-                            {1,-1,-1,5},
-                            {-1,4,0,6},
-                            {3,5,1,7},
-                            {4,-1,2,8},
-                            {-1,7,3,-1},
-                            {6,8,4,-1},
-                            {7,-1,5,-1}};
+int DoorDirections[9][4] = {{-1, 1, -1, 3},
+                            {0, 2, -1, 4},
+                            {1, -1, -1, 5},
+                            {-1, 4, 0, 6},
+                            {3, 5, 1, 7},
+                            {4, -1, 2, 8},
+                            {-1, 7, 3, -1},
+                            {6, 8, 4, -1},
+                            {7, -1, 5, -1}};
 
    /*** collisionResponse() ***/
    /* -performs collision detection and response */
@@ -465,9 +468,10 @@ int getRandomNumber(int minimum, int maximum) {
 
    return minimum + rand() % (maximum+1 - minimum);
 }
-int main(int argc, char** argv)
+
+int main(int argc, char **argv)
 {
-int i, j, k;
+   int i, j, k;
    /* initialize the graphics system */
    graphicsInit(&argc, argv);
    srand(time(NULL));
@@ -478,21 +482,24 @@ int i, j, k;
    /* Put your code in the else statment below */
    /* The testworld is only guaranteed to work with a world of
       with dimensions of 100,50,100. */
-   if (testWorld == 1) {
-   /* initialize world to empty */
-      for(i=0; i<WORLDX; i++)
-         for(j=0; j<WORLDY; j++)
-            for(k=0; k<WORLDZ; k++)
+   if (testWorld == 1)
+   {
+      /* initialize world to empty */
+      for (i = 0; i < WORLDX; i++)
+         for (j = 0; j < WORLDY; j++)
+            for (k = 0; k < WORLDZ; k++)
                world[i][j][k] = 0;
 
-   /* some sample objects */
-   /* build a red platform */
-      for(i=0; i<WORLDX; i++) {
-         for(j=0; j<WORLDZ; j++) {
+      /* some sample objects */
+      /* build a red platform */
+      for (i = 0; i < WORLDX; i++)
+      {
+         for (j = 0; j < WORLDZ; j++)
+         {
             world[i][24][j] = 3;
          }
       }
-   /* create some green and blue cubes */
+      /* create some green and blue cubes */
       world[50][25][50] = 1;
       world[49][25][50] = 1;
       world[49][26][50] = 1;
@@ -503,32 +510,48 @@ int i, j, k;
       setUserColour(9, 0.7, 0.3, 0.7, 1.0, 0.3, 0.15, 0.3, 1.0);
       world[54][25][50] = 9;
 
-
-   /* blue box shows xy bounds of the world */
-      for(i=0; i<WORLDX-1; i++) {
+      /* blue box shows xy bounds of the world */
+      for (i = 0; i < WORLDX - 1; i++)
+      {
          world[i][25][0] = 2;
-         world[i][25][WORLDZ-1] = 2;
+         world[i][25][WORLDZ - 1] = 2;
       }
-      for(i=0; i<WORLDZ-1; i++) {
+      for (i = 0; i < WORLDZ - 1; i++)
+      {
          world[0][25][i] = 2;
-         world[WORLDX-1][25][i] = 2;
+         world[WORLDX - 1][25][i] = 2;
       }
 
-   /* create two sample mobs */
-   /* these are animated in the update() function */
+      /* create two sample mobs */
+      /* these are animated in the update() function */
       createMob(0, 50.0, 25.0, 52.0, 0.0);
       createMob(1, 50.0, 25.0, 52.0, 0.0);
 
-   /* create sample player */
+      /* create sample player */
       createPlayer(0, 52.0, 27.0, 52.0, 0.0);
-   } else {
+   }
+   else
+   {
 
-   /* your code to build the world goes here */
+      /* your code to build the world goes here */
+
+      int GroundLv = 20;
+      flycontrol = 0;
       makeWorld();
-    for(i=0; i<WORLDX; i++) {
-         for(j=0; j<WORLDZ; j++) {
-            //world[i][10][j] = 4;    // entire black
-            world[i][10][j] = (((j%2==0)&&(i%2==1))||((j%2==1)&&(i%2==0)))?4:5;  // chessboard pattern
+
+      //ground custom colors (brown and light brown)
+      //light brown color
+      setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
+      //dark brown
+      setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
+
+
+      for (i = 0; i < WORLDX; i++)
+      {
+         for (j = 0; j < WORLDZ; j++)
+         {
+            //world[i][GroundLv][j] = 4*(i%(1+(i+j)%4) <1) + 7*(i%(1+(i+j)%4) >=1) ; // dark and light blown , mathematic pattern
+            world[i][GroundLv][j] = (((j%2==0)&&(i%2==1))||((j%2==1)&&(i%2==0)))?20:21;  // chessboard pattern
          }
       }
 
@@ -540,15 +563,16 @@ int i, j, k;
       int wallHeight = 3;
       int xViewP = 0;
       int zViewP = 0;
-      int yStartP = 11;
-      int GroundLv = 10;
+      int yStartP = GroundLv+1;
       int numberofCubes = 2;
       int colorID1 = 3;
-      const struct Point DoorInitialPoint = {-1,-1,-1};
+      int corridorColor = 5; // Pink
+      const struct Point DoorInitialPoint = {-1, -1, -1};
       const int numRoom = 9;
-      const int doorWidth = 5;
-      const int wallColor = 1; // Green
-      int ViewPointID = getRandomNumber(0,8); //which room the view point will be
+      const int doorWidth = 2;
+      const int wallColor = 1;                 // Green
+    //  int ViewPointID = getRandomNumber(0, 8); //which room the view point will be
+       int ViewPointID = 2;
       int doorHeight = 2;
       int oppositeRoomID = -1;
       int sparForCorridorsX = 4;
@@ -565,16 +589,16 @@ int i, j, k;
       for(k = 0;k<numRoom;k++)
       {
          // Find spar area between 2 rooms to build corridors and hallways
-         sparForCorridorsX = (areaAndDoorPosition[k][AREA_X_LENGHT] - sparForRoomSizeMax)/2;
-         sparForCorridorsZ = (areaAndDoorPosition[k][AREA_Z_LENGHT] - sparForRoomSizeMax)/2;
+         sparForCorridorsX = (dimensionOfGrid3x3[k][AREA_X_LENGHT] - sparForRoomSizeMax)/2;
+         sparForCorridorsZ = (dimensionOfGrid3x3[k][AREA_Z_LENGHT] - sparForRoomSizeMax)/2;
          // define door direction to Room attribute
 
          // random size of a room
          xLenght = getRandomNumber(sparForRoomSizeMin,sparForRoomSizeMax);
          zLenght = getRandomNumber(sparForRoomSizeMin,sparForRoomSizeMax);
          // Random location of a room
-         roomX = sparForCorridorsX + areaAndDoorPosition[k][AREA_XP] + getRandomNumber(0,areaAndDoorPosition[k][AREA_X_LENGHT]-xLenght-sparForCorridorsX-sparForCorridorsX);
-         roomZ=  sparForCorridorsZ + areaAndDoorPosition[k][AREA_ZP] + getRandomNumber(0,areaAndDoorPosition[k][AREA_Z_LENGHT]-zLenght-sparForCorridorsZ-sparForCorridorsZ);
+         roomX = sparForCorridorsX + dimensionOfGrid3x3[k][AREA_XP] + getRandomNumber(0,dimensionOfGrid3x3[k][AREA_X_LENGHT]-xLenght-sparForCorridorsX-sparForCorridorsX);
+         roomZ=  sparForCorridorsZ + dimensionOfGrid3x3[k][AREA_ZP] + getRandomNumber(0,dimensionOfGrid3x3[k][AREA_Z_LENGHT]-zLenght-sparForCorridorsZ-sparForCorridorsZ);
 
          // Reference point to build a room
          const struct Point RoomStartPoint = {roomX,GroundLv,roomZ};
@@ -598,121 +622,20 @@ int i, j, k;
 
          // build door and corridor for 4 directions
          // east to west
-         if(DoorDirections[k][EAST]> -1) 
-            BuildDoorsWestVsEast(k,&Rooms[k],&Rooms[DoorDirections[k][EAST]],EAST,WEST);
-         // west to east
-         if(DoorDirections[k][WEST] > -1) 
-            BuildDoorsWestVsEast(k,&Rooms[k],&Rooms[DoorDirections[k][WEST]],WEST,EAST);
-         // south to north
-         if(DoorDirections[k][SOUTH] > -1)
-            BuildDoorsSouthVsNorth(k,&Rooms[k],&Rooms[DoorDirections[k][SOUTH]],SOUTH,NORTH);
-         // north to south
-         if(DoorDirections[k][NORTH] > -1)
-            BuildDoorsSouthVsNorth(k,&Rooms[k],&Rooms[DoorDirections[k][NORTH]],NORTH,SOUTH);
-
+         BuildDoorsWestVsEast(k,Rooms,corridorColor);
+         BuildDoorsSouthVsNorth(k,Rooms,corridorColor+3);
       }
 
-   setViewPosition(-1*xViewP, -48, -1*zViewP);
+    setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
+
+      //setViewPosition(-1*xViewP, -1*48, -1*zViewP);
    }
-
-
 
    /* starts the graphics processing loop */
    /* code after this will not run until the program exits */
    glutMainLoop();
-   return 0; 
+   return 0;
 }
-
-
-
-void makeWall(int numOfBlocks, int color) {
-   int i = 0;
-   for (i = 0; i<numOfBlocks; i++) {
-
-   }
-}
-
-
-
-void drawBorder(int borderMinRange, int borderMaxRange)
-{
-   int i;
-
-   for(i=borderMinRange; i<borderMaxRange; i++) {
-      drawWallStacks(i, 3, borderMinRange,6);
-      drawWallStacks(i, 3, borderMaxRange,6);    
-   }
-   // for(i=borderMinRange; i<borderMaxRange; i++) {
-   //    drawWallStacks(borderMinRange, 3, i,6);
-   //    drawWallStacks(borderMaxRange, 3, i,6);
-   // }
-}
-
-
-
-
-
-void drawBorderTest4(int sidesLength, int endsLength, int xPosition, int zPosition, int color) {
-   int i;
-
-
-   for(i=66;i<99;i++)
-   {
-      //left side
-      drawWallStacks(i,3,33, color);
-      //right side
-      drawWallStacks(i,3,66, color);
-   }
-
-   for(i=33;i<66;i++)
-    {
-      //back side
-      drawWallStacks(66,3,i, color);
-      //front side
-      drawWallStacks(99,3,i, color);
-   }
-}
-
-
-
-
-
-
-void draw_wall_3high(int x, int z, int cubeStyle)
-{
-   world[x][21][z] = cubeStyle;
-   world[x][22][z] = cubeStyle;
-   world[x][23][z] = cubeStyle;
-}
-
-void drawPillars()
-{
-   int i, j;
-
-   for(i=0; i<28; i=i+4) {  
-      for(j=0; j<28; j=j+4) {
-         draw_wall_3high(i,j,2);
-         draw_wall_3high(j,i,2);
-      }
-   }
-}
-
-
-
-
-void drawTestBlocks()
-{
-      /* 1 high */
-      world[1][25][1] = 1;
-
-      /* 2 high */
-      world[1][25][2] = 8;
-      world[1][26][2] = 8;
-
-      /* 3 high */
-      draw_wall_3high(1,3,3);
-}
-
 
 
 void SetMAXandMINPoint(const int** MaxPoint,const int** MinPoint,const int* P1,const int* P2)
@@ -729,7 +652,7 @@ void SetMAXandMINPoint(const int** MaxPoint,const int** MinPoint,const int* P1,c
    }
 }
 
-void BuildABox(const struct Point *StartPoint,const struct Point *Endpoint,int color)
+void BuildABox(const struct Point *StartPoint,const struct Point *Endpoint,int color,int (*generateColorStyle)(int,int,int,int))
 {
    const int *MaxX;
    const int *MaxY;
@@ -744,7 +667,7 @@ void BuildABox(const struct Point *StartPoint,const struct Point *Endpoint,int c
    for(k=*MinZ;k<=*MaxZ;k++)
       for(j=*MinY;j<=*MaxY;j++)
          for(i=*MinX;i<=*MaxX;i++)
-            world[i][j][k] = color;
+            world[i][j][k] = generateColorStyle(color,i,j,k);
 }
 /*
 struct Wall
@@ -758,10 +681,7 @@ struct Wall
 void BuildAWall(const struct Wall *AWall)
 {
 
-   int EndXP = 0;
-   int EndYP = 0;
-   int EndZP = 0;
-   struct Point EndPoint;
+   struct Point EndPoint = {0,0,0};
    if(AWall->XorZSide == 0) //0 = X side, 1 = Y side  // Z is not changed
    {
       EndPoint.x = AWall->StartPoint.x + AWall->width - 1; // for example start X=1 ,length =3 --> There are 3 points (X = 1, X=2, X=3) --> End X at value = 1 + 3 -1 =3
@@ -773,36 +693,20 @@ void BuildAWall(const struct Wall *AWall)
       EndPoint.z = AWall->StartPoint.z + AWall->width - 1; //  same idea above (Xpoint )
    }
    EndPoint.y = AWall->StartPoint.y+AWall->height -1; //  same idea above (Xpoint )
-   BuildABox(&(AWall->StartPoint),&EndPoint,AWall->color);
+   BuildABox(&(AWall->StartPoint),&EndPoint,AWall->color,AWall->generateColorStyle);
    
 }
-/*
-struct Room
-{
-   struct Point StartPoint;
-   struct Wall WestWall;
-   struct Wall EastWall;
-   struct Wall SouthWall;
-   struct Wall NorthWall;
-   struct Point DoorPosition[4];  // if point = {-1,-1,-1} = not defined
-   int doorHeight;
-   int doorWidth;
-   int haveRoof; // 0 = no, 1 = yes
-   int Roofcolor;
-   int Groundcolor;
 
-};
-*/
 void BuildARoom(const struct Room *ARoom)
 {
    int i = WEST;
-   struct Point StartPoint;
-   struct Point EndPoint;
+   struct Point StartPoint = {0,0,0};
+   struct Point EndPoint= {0,0,0};
    for(i=WEST;i<=NORTH;i++)
    BuildAWall(&(ARoom->Walls[i]));
 
    // Build Roof
-   if (ARoom->haveRoof == 1)
+   if (ARoom->haveRoof == HAVE_ROOF)
    {
       StartPoint.x = ARoom->StartPoint.x;
       StartPoint.y = ARoom->StartPoint.y + ARoom->Walls[WEST].height+1; // Assume that all rooms have the same height, not count ground LV.
@@ -811,15 +715,15 @@ void BuildARoom(const struct Room *ARoom)
       EndPoint.x = ARoom->StartPoint.x + ARoom->Walls[SOUTH].width+1;
       EndPoint.y = ARoom->StartPoint.y + ARoom->Walls[WEST].height+1;// Assume that all rooms have the same height, not count ground LV.
       EndPoint.z = ARoom->StartPoint.z + ARoom->Walls[WEST].width-1;
-      BuildABox(&StartPoint,&EndPoint,ARoom->Roofcolor);
+      BuildABox(&StartPoint,&EndPoint,ARoom->Roofcolor,&normalColorStyle);
    }
    // Build Ground
-   if (ARoom->haveGround == 1)
+   if (ARoom->haveGround == HAVE_GROUND)
    {
       EndPoint.x = ARoom->StartPoint.x + ARoom->Walls[SOUTH].width +1;
       EndPoint.y = ARoom->StartPoint.y;
       EndPoint.z = ARoom->StartPoint.z + ARoom->Walls[WEST].width -1;
-      BuildABox(&(ARoom->StartPoint),&EndPoint,ARoom->Groundcolor);
+      BuildABox(&(ARoom->StartPoint),&EndPoint,ARoom->Groundcolor,&normalColorStyle);
    }
 }
 
@@ -878,7 +782,7 @@ West Wall Side i  |    |                       |    |                EAST Wall S
    ARoom.Walls[WEST].width        = zLenght;
    ARoom.Walls[WEST].XorZSide     = Z_SIDE_WALL;
    ARoom.Walls[WEST].color        = color;
-
+   ARoom.Walls[WEST].generateColorStyle = &normalColorStyle;
 
    // the wall at East side
    ARoom.Walls[EAST].StartPoint.x = x + xLenght - 1;
@@ -888,6 +792,7 @@ West Wall Side i  |    |                       |    |                EAST Wall S
    ARoom.Walls[EAST].width        = zLenght;
    ARoom.Walls[EAST].XorZSide     = Z_SIDE_WALL;
    ARoom.Walls[EAST].color        = color;
+   ARoom.Walls[EAST].generateColorStyle = &normalColorStyle;
 
    // the wall at South side
    ARoom.Walls[SOUTH].StartPoint.x = x + 1;
@@ -897,6 +802,7 @@ West Wall Side i  |    |                       |    |                EAST Wall S
    ARoom.Walls[SOUTH].width        = xLenght - 2;
    ARoom.Walls[SOUTH].XorZSide     = X_SIDE_WALL;
    ARoom.Walls[SOUTH].color        = color;
+   ARoom.Walls[SOUTH].generateColorStyle = &normalColorStyle;
 
 
    // the wall at North side
@@ -907,257 +813,311 @@ West Wall Side i  |    |                       |    |                EAST Wall S
    ARoom.Walls[NORTH].width        = xLenght - 2;
    ARoom.Walls[NORTH].XorZSide     = X_SIDE_WALL;
    ARoom.Walls[NORTH].color        = color;
+   ARoom.Walls[NORTH].generateColorStyle = &normalColorStyle;
    BuildARoom(&ARoom);
    return ARoom;
 }
+/*
 
+void BuildDoorsSouthVsNorth(int roomID, struct Room *Rooms);
+#define READY 1
+#define NOT_READY 0
+int checkRoomAndOppositeRoomCanBuildCorridorAndHallway(int XorZSide,int roomID, struct Room *Rooms);
 
-void BuildDoorsWestVsEast(int roomID, struct Room *Room1,struct Room *Room2,int DirectionR1,int DirectionR2)
+*/
+
+void BuildDoorsWestVsEast(int roomID, struct Room *Rooms,int CorridorColor)
 {
-         int x,z,y,i,j;
-         int x2=-1,z2=-1;
-         int doorWidth;
-         int doorHeight;
-         int color = 0;
-         int oppositeRoomID = -1;
-         if(Room1 != Room2)
-         {
-            color = Room1->Roofcolor;
-            doorWidth = Room1->doorWidth;
-            doorHeight = Room1->doorHeight;
-            oppositeRoomID = DoorDirections[roomID][DirectionR1];
-            x2 = Room2->DoorPosition[DirectionR2].x;
-            z2 = Room2->DoorPosition[DirectionR2].z;
-            Room1->DoorPosition[DirectionR1].x = Room1->Walls[DirectionR1].StartPoint.x;
-            Room1->DoorPosition[DirectionR1].y = Room1->Walls[DirectionR1].StartPoint.y;
+      int i=0,j=0;
+      struct Point DoorOfAroomPoint = {-1,-1,-1};
+      struct Point DoorOfOppositeRoomPoint = {-1,-1,-1};
+      int doorWidth = 0;
+      int doorHeight = 0;
+      int color = CorridorColor;
+      struct Room *Aroom = NULL;
+      struct Room *OpposisteRoom = NULL;
+      int oppositeRoomID = -1;
+      int AroomDirection = WEST;
+      int OppositeRoomDirection = EAST;
+      for(AroomDirection = WEST ; AroomDirection <= EAST;AroomDirection++)
+      {
+         if(DoorDirections[roomID][AroomDirection] >= 0)
+         { 
+            oppositeRoomID = DoorDirections[roomID][AroomDirection];
+            OppositeRoomDirection = (AroomDirection+1)%2; // Becasue there are only 2 direnctions: WEST(0) and EAST(1)
+            Aroom = &Rooms[roomID];
+            OpposisteRoom = &Rooms[oppositeRoomID];
+            doorWidth = Aroom->doorWidth;
+            doorHeight = Aroom->doorHeight;
+            oppositeRoomID = DoorDirections[roomID][AroomDirection];
+            DoorOfOppositeRoomPoint = OpposisteRoom->DoorPosition[OppositeRoomDirection];
+            Aroom->DoorPosition[AroomDirection]= Aroom->Walls[AroomDirection].StartPoint;
             i = 30; // Protect infinity loop
-            do {Room1->DoorPosition[DirectionR1].z = Room1->Walls[DirectionR1].StartPoint.z + getRandomNumber(1,Room1->Walls[DirectionR1].width-Room1->doorWidth-1);}
-            while((Room1->DoorPosition[DirectionR1].z  == z2) &&(i-- >=0) );
-
-            x = Room1->DoorPosition[DirectionR1].x;
-            z = Room1->DoorPosition[DirectionR1].z;
-            y = Room1->DoorPosition[DirectionR1].y;
-            for(j = 0; j< Room1->doorHeight;j++)
-             for (i = 0; i < Room1->doorWidth; i++)
-               world[x][y+j][z+i] = 0;
-
-         if((x > -1)&&(x2> -1) &&(DirectionR1 < DirectionR2))
-         {//AREA_X_LENGHT
-
-            int LL = 0;
-            int dXP = (areaAndDoorPosition[oppositeRoomID][AREA_XP] + areaAndDoorPosition[oppositeRoomID][AREA_X_LENGHT]) - (doorWidth/2) -1;
-            int dXL = dXP - x2;
-            int dZP = z2+doorWidth;
-
-
-
-            int aXP = dXP + doorWidth;
-            int aXL = dXL + doorWidth;
-            int aZP = z2-1;
-
-            int bXP = aXP+1;
-            int bXL = x - bXP;
-            int bZP = z-1;
-
-            int fXP = dXP+1;
-            int fXL = x - fXP;
-            int fZP = z+ doorWidth;
-
-            int cXP = fXP-1;
-            int cZP = dZP+1;
-            int cZL = fZP-dZP;
-
-            int eXP = bXP;
-            int eZP = aZP;
-            int eZL = bZP-aZP;
-            if (z < z2)
+            do
             {
-               dZP = z2-1; 
-               aZP = z2+doorWidth;
-               bZP = z+ doorWidth;
-               fZP = z-1;
-               cZP = bZP;
-               cZL = 1+aZP-bZP;
-               eZP = fZP;
-               eZL = 1+dZP-fZP;
-               cXP = aXP+1;
-               eXP = dXP;
+               Aroom->DoorPosition[AroomDirection].z = Aroom->Walls[AroomDirection].StartPoint.z + getRandomNumber(1, Aroom->Walls[AroomDirection].width - Aroom->doorWidth - 1);
+            } while ((Aroom->DoorPosition[AroomDirection].z == DoorOfOppositeRoomPoint.z) && (i-- >= 0));
+
+            DoorOfAroomPoint = Aroom->DoorPosition[AroomDirection];
+            const struct Wall ADoor = {DoorOfAroomPoint,Aroom->doorHeight,Aroom->doorWidth,Z_SIDE_WALL,0,&normalColorStyle};
+            BuildAWall(&ADoor);
+         }
+         if((DoorOfAroomPoint.x > -1)&&(DoorOfOppositeRoomPoint.x> -1) &&(AroomDirection < OppositeRoomDirection))
+         {
+            int turningPointX = (dimensionOfGrid3x3[oppositeRoomID][AREA_XP] + dimensionOfGrid3x3[oppositeRoomID][AREA_X_LENGHT]) - (doorWidth / 2);
+
+            struct Point AnOppositeCorridorRoofStartPoint = {turningPointX + doorWidth,DoorOfAroomPoint.y + doorHeight,DoorOfAroomPoint.z - 1};
+            struct Point AnOppositeCorridorRoofEndPoint =   {DoorOfAroomPoint.x-1 ,DoorOfAroomPoint.y + doorHeight,DoorOfAroomPoint.z +doorWidth};
+            struct Point ACorridorRoofStartPoint= {1+DoorOfOppositeRoomPoint.x,DoorOfAroomPoint.y + doorHeight,DoorOfOppositeRoomPoint.z-1};
+            struct Point ACorridorRoofEndPoint  = {turningPointX-2,DoorOfAroomPoint.y + doorHeight,DoorOfOppositeRoomPoint.z+doorWidth};
+            struct Point AMiddleCorridorRoofStartPoint = {turningPointX-1,DoorOfAroomPoint.y + doorHeight,DoorOfOppositeRoomPoint.z - 1};
+            struct Point AMiddleCorridorRoofEndPoint = {turningPointX+doorWidth,DoorOfAroomPoint.y + doorHeight,DoorOfAroomPoint.z+doorWidth};
 
 
+
+            struct Wall ALongCorridorWall ={{turningPointX,
+                                             DoorOfAroomPoint.y,
+                                             DoorOfAroomPoint.z+ doorWidth},
+                                             doorHeight,
+                                             DoorOfAroomPoint.x - turningPointX,
+                                             X_SIDE_WALL,
+                                             CorridorColor,
+                                             &randomPinkWhiteStyle};
+            struct Wall AShortOppositeCorridorWall ={{DoorOfOppositeRoomPoint.x+ 1,
+                                                      DoorOfOppositeRoomPoint.y,
+                                                      DoorOfOppositeRoomPoint.z + doorWidth},
+                                                      doorHeight,
+                                                      turningPointX - 1 - DoorOfOppositeRoomPoint.x,
+                                                      X_SIDE_WALL,
+                                                      CorridorColor,
+                                                      &randomPinkWhiteStyle};
+            struct Wall ALongOppositeCorridorWall = {{DoorOfOppositeRoomPoint.x+ 1,
+                                                      DoorOfOppositeRoomPoint.y,
+                                                      DoorOfOppositeRoomPoint.z-1},
+                                                      doorHeight,
+                                                      doorWidth + AShortOppositeCorridorWall.width,
+                                                      X_SIDE_WALL,
+                                                      CorridorColor,
+                                                      &randomPinkWhiteStyle};
+
+            struct Wall AShortCorridorWall = {{turningPointX + doorWidth,
+                                               DoorOfAroomPoint.y,
+                                               DoorOfAroomPoint.z-1},
+                                               doorHeight,
+                                               DoorOfAroomPoint.x - turningPointX - doorWidth,
+                                               X_SIDE_WALL,
+                                               CorridorColor,
+                                               &randomPinkWhiteStyle};
+
+
+            struct Wall AnOppositeZSIDECorridorWall= {{turningPointX - 1,
+                                                       DoorOfOppositeRoomPoint.y,
+                                                       DoorOfOppositeRoomPoint.z + doorWidth+1},
+                                                       doorHeight,
+                                                       DoorOfAroomPoint.z - DoorOfOppositeRoomPoint.z,
+                                                       Z_SIDE_WALL,
+                                                       CorridorColor,
+                                                       &randomPinkWhiteStyle};
+
+
+            struct Wall AZSIDECorridorWall = {{turningPointX + doorWidth,
+                                               DoorOfAroomPoint.y,
+                                               DoorOfOppositeRoomPoint.z-1},
+                                               doorHeight,
+                                               DoorOfAroomPoint.z - DoorOfOppositeRoomPoint.z,
+                                               Z_SIDE_WALL,
+                                               CorridorColor,
+                                               &randomPinkWhiteStyle};
+
+            if (DoorOfAroomPoint.z < DoorOfOppositeRoomPoint.z)
+            {
+               ALongCorridorWall.StartPoint.z = DoorOfAroomPoint.z - 1;
+               AShortOppositeCorridorWall.StartPoint.z = DoorOfOppositeRoomPoint.z- 1;
+               ALongOppositeCorridorWall.StartPoint.z = DoorOfOppositeRoomPoint.z + doorWidth; 
+               AShortCorridorWall.StartPoint.z = DoorOfAroomPoint.z + doorWidth;
+               AnOppositeZSIDECorridorWall.StartPoint.x = turningPointX  + doorWidth; 
+               AnOppositeZSIDECorridorWall.StartPoint.z = DoorOfAroomPoint.z + doorWidth;
+               AnOppositeZSIDECorridorWall.width =  1 + DoorOfOppositeRoomPoint.z - DoorOfAroomPoint.z;
+               AZSIDECorridorWall.StartPoint.x = turningPointX -1; 
+               AZSIDECorridorWall.StartPoint.z = DoorOfAroomPoint.z - 1;
+               AZSIDECorridorWall.width = AnOppositeZSIDECorridorWall.width;
             }
 
             // Build Roof for Hallway
-            if (z2 > z)
+            if (DoorOfOppositeRoomPoint.z > DoorOfAroomPoint.z)
             {
-               for(j = 0;j < doorWidth+2;j++)
-                  for(i=z-1;i<=z2+doorWidth;i++)
-                     world[dXP+j][y +doorHeight][i] = color;
-            }
-            else
-            {
-               for(j = 0;j < doorWidth+2;j++)
-                  for(i=z2-1;i<=z+doorWidth;i++)
-                     world[dXP+j][y +doorHeight][i] = color;
-            }
-            LL = bXL;
-            if (fXL < bXL ) LL = fXL;
-            for(j = 1;j < LL;j++)
-               for(i=0;i < doorWidth+2;i++)
-                  world[bXP+j][y +doorHeight][z-1+i]= color; 
-            LL = aXL;
-            for(j = 0;j < LL-doorWidth-1;j++)
-               for(i=0;i < doorWidth+2;i++)
-                  world[x2+j+1][y +doorHeight][z2-1+i]= color;
-
-            // Build hallway's walls
-            for(j = 0;j < doorHeight;j++)
-            {
-               LL = bXL;
-               if (fXL > bXL ) LL = fXL;
-               for (i = 0; i < LL;i++)
-               {
-                  if(i <bXL)world[bXP+i][y +j][bZP] = color;
-                  if(i <fXL)world[fXP+i][y +j][fZP] = color;
-               }
-               for (i = 0; i < aXL;i++)
-               {
-                   world[x2+i+1][y +j][aZP] = color;
-                   if(i < dXL)world[x2+i+1][y+j][dZP] = color;
-               }
-               LL=cZL;
-               if (cZL <eZL) LL =eZL;
-               for(i = 0;i<LL;i++)
-               {
-                  if(i<cZL)world[cXP][y +j][cZP+i] = color;
-                  if(i<eZL)world[eXP][y +j][eZP+i] = color;
-               }
-
-
+               AMiddleCorridorRoofEndPoint.z  =  DoorOfOppositeRoomPoint.z +doorWidth;
+               AMiddleCorridorRoofStartPoint.z = DoorOfAroomPoint.z -1;
             }
 
-          }
-         }
-}
-void BuildDoorsSouthVsNorth(int roomId,struct Room *Room1,struct Room *Room2,int DirectionR1,int DirectionR2)
-{
-      int x,z,y,i,j;
-      int x2=-1,z2=-1;
-      int doorWidth;
-      int doorHeight;
-      int color = 0;
-      int oppositeRoomID = -1;
-      if(Room1 != Room2)
-      {
-            color = Room1->Roofcolor;
-            doorWidth = Room1->doorWidth;
-            doorHeight = Room1->doorHeight;
-            oppositeRoomID = DoorDirections[roomId][DirectionR1];
-            Room1->DoorPosition[DirectionR1].z = Room1->Walls[DirectionR1].StartPoint.z;
-            Room1->DoorPosition[DirectionR1].y = Room1->Walls[DirectionR1].StartPoint.y;
-            x2 = Room2->DoorPosition[DirectionR2].x;
-            z2 = Room2->DoorPosition[DirectionR2].z;
-            i = 30; // Protect infinity loop
-            do {Room1->DoorPosition[DirectionR1].x = Room1->Walls[DirectionR1].StartPoint.x + getRandomNumber(0,Room1->Walls[DirectionR1].width-Room1->doorWidth-1);}
-            while((Room1->DoorPosition[DirectionR1].x  == x2) &&(i-- >=0) );
-
-            x = Room1->DoorPosition[DirectionR1].x;
-            z = Room1->DoorPosition[DirectionR1].z;
-            y = Room1->DoorPosition[DirectionR1].y;
-            for(j = 0; j< doorHeight;j++)
-             for (i = 0; i < doorWidth; i++)
-               world[x+i][y+j][z] = 0;
-
-
-         // south and north side 
+            BuildAWall(&AnOppositeZSIDECorridorWall);
+            BuildAWall(&AZSIDECorridorWall);
+            BuildAWall(&AShortCorridorWall);
+            BuildAWall(&ALongCorridorWall);
+            BuildAWall(&AShortOppositeCorridorWall);
+            BuildAWall(&ALongOppositeCorridorWall);
             
-         if((z > -1)&&(z2 > -1) &&(DirectionR1 < DirectionR2))
+            // Build Roofs of Corridors
+            BuildABox(&AMiddleCorridorRoofStartPoint,&AMiddleCorridorRoofEndPoint,color,&randomPinkWhiteStyle);
+            BuildABox(&ACorridorRoofStartPoint,&ACorridorRoofEndPoint,color,&randomPinkWhiteStyle);
+            BuildABox(&AnOppositeCorridorRoofStartPoint,&AnOppositeCorridorRoofEndPoint,color,&randomPinkWhiteStyle);
+      } 
+   }
+}
+void BuildDoorsSouthVsNorth(int roomID, struct Room *Rooms,int CorridorColor)
+{
+
+      int i=0,j=0;
+      struct Point DoorOfAroomPoint = {-1,-1,-1};
+      struct Point DoorOfOppositeRoomPoint = {-1,-1,-1};
+      int doorWidth = 0;
+      int doorHeight = 0;
+      int color = CorridorColor;
+      struct Room *Aroom = NULL;
+      struct Room *OpposisteRoom = NULL;
+      int oppositeRoomID = -1;
+      int AroomDirection = SOUTH;
+      int OppositeRoomDirection = NORTH;
+      for(AroomDirection = SOUTH ; AroomDirection <= NORTH;AroomDirection++)
+   {
+      if(DoorDirections[roomID][AroomDirection] >= 0)
+      { 
+         oppositeRoomID = DoorDirections[roomID][AroomDirection];
+         OppositeRoomDirection = 2+(AroomDirection-1)%2; // Becasue there are only 2 direnctions: SOUTH(2) and NORTH(3)
+         Aroom = &Rooms[roomID];
+         OpposisteRoom = &Rooms[oppositeRoomID];
+         doorWidth = Aroom->doorWidth;
+         doorHeight = Aroom->doorHeight;
+         oppositeRoomID = DoorDirections[roomID][AroomDirection];
+         DoorOfOppositeRoomPoint = OpposisteRoom->DoorPosition[OppositeRoomDirection];
+         Aroom->DoorPosition[AroomDirection] = Aroom->Walls[AroomDirection].StartPoint;
+
+         i = 30; // Protect infinity loop
+         do
          {
-            int LL = 0;
-            int dZP = (areaAndDoorPosition[oppositeRoomID][AREA_ZP] + areaAndDoorPosition[oppositeRoomID][AREA_Z_LENGHT]) - (doorWidth/2)-1;
-            int dZL = dZP - z2;
-            int aZP = dZP + doorWidth;
-            int aZL = dZL + doorWidth;
-            int aXP = x2-1;
-            int dXP = x2+doorWidth;
-            int bZP = aZP+1;
-            int bZL = z - bZP;
-            int bXP = x-1;
+            Aroom->DoorPosition[AroomDirection].x = Aroom->Walls[AroomDirection].StartPoint.x + getRandomNumber(0, Aroom->Walls[AroomDirection].width - Aroom->doorWidth - 1);
+         } while ((Aroom->DoorPosition[AroomDirection].x == DoorOfOppositeRoomPoint.x) && (i-- >= 0));
 
-            int fZP = dZP+1;
-            int fZL = z - fZP;
-            int fXP = x+ doorWidth;
-
-            int cZP = fZP-1;
-            int cXP = dXP+1;
-            int cXL = fXP-dXP;
-
-            int eZP = bZP;
-            int eXP = aXP;
-            int eXL = bXP-aXP;
-            if (x < x2)
-            {
-               dXP = x2-1; 
-               aXP = x2+doorWidth;
-               bXP = x+ doorWidth;
-               fXP = x-1;
-               cXP = bXP;
-               cXL = 1+aXP-bXP;
-               eXP = fXP;
-               eXL = 1+dXP-fXP;
-               cZP = aZP+1;
-               eZP = dZP;
-
-
-            }
-            // Build hallway's walls
-            for(j = 0;j <doorHeight;j++)
-            {
-               LL = bZL;
-               if (fZL > bZL ) LL = fZL;
-               for (i = 0; i < LL;i++)
-               {
-                  if(i <bZL)world[bXP][y+j][bZP+i] = color;
-                  if(i <fZL)world[fXP][y+j][fZP+i] = color;
-               }
-
-               for (i = 0; i < aZL;i++)
-               {
-                   world[aXP][y+j][z2+i+1] = color;
-                   if(i < dZL)world[dXP][y+j][z2+i+1] = color;
-               }
-               LL=cXL;
-               if (cXL <eXL) LL =eXL;
-               for(i = 0;i<LL;i++)
-               {
-                  if(i<cXL)world[cXP+i][y+j][cZP] = color;
-                  if(i<eXL)world[eXP+i][y+j][eZP] = color;
-               }
-
-            }
-            // Build hallway's Roof 
-            LL = bZL;
-            if (fZL < bZL ) LL = fZL;
-            for(j = 1;j < LL;j++)
-               for(i=0;i < doorWidth+2;i++)
-                  world[x-1+i][y+doorHeight][bZP+j]= color; 
-               
-            LL = aZL;
-            for(j = 0;j < LL-doorWidth-1;j++)
-               for(i=0;i < doorWidth+2;i++)
-                  world[x2-1+i][y+doorHeight][z2+j+1]= color; 
-            if (x2 > x)
-            {
-               for(j = 0;j < doorWidth+2;j++)
-                  for(i=x-1;i<=x2+doorWidth;i++)
-                     world[i][y+doorHeight][dZP+j] = color;
-            }
-            else
-            {
-               for(j = 0;j < doorWidth+2;j++)
-                  for(i=x2-1;i<=x+doorWidth;i++)
-                     world[i][y+doorHeight][dZP+j] = color;
-            }
-         }
+         DoorOfAroomPoint = Aroom->DoorPosition[AroomDirection];
+         const struct Wall ADoor = {DoorOfAroomPoint,Aroom->doorHeight,Aroom->doorWidth,X_SIDE_WALL,0,&normalColorStyle};
+         BuildAWall(&ADoor);
       }
+      // south and north side
+
+      if((DoorOfAroomPoint.z > -1)&&(DoorOfOppositeRoomPoint.z > -1) &&(AroomDirection < OppositeRoomDirection))
+      {
+
+            int turningPointZ = (dimensionOfGrid3x3[oppositeRoomID][AREA_ZP] + dimensionOfGrid3x3[oppositeRoomID][AREA_Z_LENGHT]) - (doorWidth / 2);
+
+            struct Point AnOppositeCorridorRoofStartPoint = {DoorOfAroomPoint.x - 1,DoorOfAroomPoint.y + doorHeight,turningPointZ + doorWidth};
+            struct Point AnOppositeCorridorRoofEndPoint =   {DoorOfAroomPoint.x +doorWidth ,DoorOfAroomPoint.y + doorHeight,DoorOfAroomPoint.z-1};
+            struct Point ACorridorRoofStartPoint= {DoorOfOppositeRoomPoint.x-1,DoorOfAroomPoint.y + doorHeight,1+DoorOfOppositeRoomPoint.z};
+            struct Point ACorridorRoofEndPoint  = {DoorOfOppositeRoomPoint.x+doorWidth,DoorOfAroomPoint.y + doorHeight,turningPointZ-2};
+            struct Point AMiddleCorridorRoofStartPoint = {DoorOfOppositeRoomPoint.x - 1,DoorOfAroomPoint.y + doorHeight,turningPointZ-1};
+            struct Point AMiddleCorridorRoofEndPoint = {DoorOfAroomPoint.x+doorWidth,DoorOfAroomPoint.y + doorHeight,turningPointZ+doorWidth};
+
+
+
+            struct Wall ALongCorridorWall ={{DoorOfAroomPoint.x+ doorWidth,
+                                             DoorOfAroomPoint.y,
+                                             turningPointZ},
+                                             doorHeight,
+                                             DoorOfAroomPoint.z - turningPointZ,
+                                             Z_SIDE_WALL,
+                                             CorridorColor,
+                                             &randomPinkWhiteStyle};
+            struct Wall AShortOppositeCorridorWall ={{DoorOfOppositeRoomPoint.x + doorWidth,
+                                                      DoorOfOppositeRoomPoint.y,
+                                                      DoorOfOppositeRoomPoint.z+ 1},
+                                                      doorHeight,
+                                                      turningPointZ - 1 - DoorOfOppositeRoomPoint.z,
+                                                      Z_SIDE_WALL,
+                                                      CorridorColor,
+                                                      &randomPinkWhiteStyle};
+            struct Wall ALongOppositeCorridorWall = {{DoorOfOppositeRoomPoint.x-1,
+                                                      DoorOfOppositeRoomPoint.y,
+                                                      DoorOfOppositeRoomPoint.z+ 1},
+                                                      doorHeight,
+                                                      doorWidth + AShortOppositeCorridorWall.width,
+                                                      Z_SIDE_WALL,
+                                                      CorridorColor,
+                                                      &randomPinkWhiteStyle};
+
+            struct Wall AShortCorridorWall = {{DoorOfAroomPoint.x-1,
+                                               DoorOfAroomPoint.y,
+                                               turningPointZ + doorWidth},
+                                               doorHeight,
+                                               DoorOfAroomPoint.z - turningPointZ - doorWidth,
+                                               Z_SIDE_WALL,
+                                               CorridorColor,
+                                               &randomPinkWhiteStyle};
+
+
+            struct Wall AnOppositeZSIDECorridorWall= {{DoorOfOppositeRoomPoint.x + doorWidth+1,
+                                                       DoorOfOppositeRoomPoint.y,
+                                                       turningPointZ - 1},
+                                                       doorHeight,
+                                                       DoorOfAroomPoint.x - DoorOfOppositeRoomPoint.x,
+                                                       X_SIDE_WALL,
+                                                       CorridorColor,
+                                                       &randomPinkWhiteStyle};
+
+
+            struct Wall AZSIDECorridorWall = {{DoorOfOppositeRoomPoint.x-1,
+                                               DoorOfAroomPoint.y,
+                                               turningPointZ + doorWidth},
+                                               doorHeight,
+                                               DoorOfAroomPoint.x - DoorOfOppositeRoomPoint.x,
+                                               X_SIDE_WALL,
+                                               CorridorColor,
+                                               &randomPinkWhiteStyle};
+
+            if (DoorOfAroomPoint.x < DoorOfOppositeRoomPoint.x)
+            {
+               ALongCorridorWall.StartPoint.x = DoorOfAroomPoint.x - 1;
+               AShortOppositeCorridorWall.StartPoint.x = DoorOfOppositeRoomPoint.x- 1;
+               ALongOppositeCorridorWall.StartPoint.x = DoorOfOppositeRoomPoint.x + doorWidth; 
+               AShortCorridorWall.StartPoint.x = DoorOfAroomPoint.x + doorWidth;
+               AnOppositeZSIDECorridorWall.StartPoint.z = turningPointZ  + doorWidth; 
+               AnOppositeZSIDECorridorWall.StartPoint.x = DoorOfAroomPoint.x + doorWidth;
+               AnOppositeZSIDECorridorWall.width =  1 + DoorOfOppositeRoomPoint.x - DoorOfAroomPoint.x;
+               AZSIDECorridorWall.StartPoint.z = turningPointZ -1; 
+               AZSIDECorridorWall.StartPoint.x = DoorOfAroomPoint.x - 1;
+               AZSIDECorridorWall.width = AnOppositeZSIDECorridorWall.width;
+            }
+
+            // Build Roof for Hallway
+            if (DoorOfOppositeRoomPoint.x > DoorOfAroomPoint.x)
+            {
+               AMiddleCorridorRoofEndPoint.x  =  DoorOfOppositeRoomPoint.x +doorWidth;
+               AMiddleCorridorRoofStartPoint.x = DoorOfAroomPoint.x -1;
+            }
+
+            BuildAWall(&AnOppositeZSIDECorridorWall);
+            BuildAWall(&AZSIDECorridorWall);
+            BuildAWall(&AShortCorridorWall);
+            BuildAWall(&ALongCorridorWall);
+            BuildAWall(&AShortOppositeCorridorWall);
+            BuildAWall(&ALongOppositeCorridorWall);
+            
+            // Build Roofs of Corridors
+            BuildABox(&AMiddleCorridorRoofStartPoint,&AMiddleCorridorRoofEndPoint,color,&randomPinkWhiteStyle);
+            BuildABox(&ACorridorRoofStartPoint,&ACorridorRoofEndPoint,color,&randomPinkWhiteStyle);
+            BuildABox(&AnOppositeCorridorRoofStartPoint,&AnOppositeCorridorRoofEndPoint,color,&randomPinkWhiteStyle);
+            
+
+
+      }
+   }
+}
+
+int normalColorStyle(int originalColor,int i,int j,int z)
+{
+   return originalColor;
+}
+
+int randomPinkWhiteStyle(int originalColor,int i,int j,int z)
+{
+   return getRandomNumber(5,6);
 }
 
