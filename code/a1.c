@@ -105,7 +105,9 @@ extern void getUserColour(int, GLfloat *, GLfloat *, GLfloat *, GLfloat *,
 void collisionResponse() {
 
    /* your code for collisions goes here */
-   float tempX,tempY,tempZ;
+   float tempX=0.0;
+   float tempY=0.0;
+   float tempZ=0.0;
    float margin = 0.2;
    float vxp = 0;
    float vyp = 0;
@@ -113,57 +115,60 @@ void collisionResponse() {
    float Xdirection = 0; // - , + or 0
    float Zdirection = 0; // - , + or 0
    int floorLv = 20;
-   int worldValue = 0;
-   int worldValue2 = 0;
+   int isHit = 0;
+   int isAble2Jump = 0;
    int outOfSpace = 0;
    int SpaceOverHeadPos = 0;
-   getViewPosition(&vxp,&vyp,&vzp);
-   getOldViewPosition(&tempX,&tempY,&tempZ);
-   Xdirection = -1*(vxp > tempX) + (vxp < tempX);
-   Zdirection = -1*(vzp > tempZ) + (vzp < tempZ);
-   int a,b,c,d;
-   SpaceOverHeadPos = 1+(-1)*(int)vyp;
+   getViewPosition(&vxp, &vyp, &vzp);
+   getOldViewPosition(&tempX, &tempY, &tempZ);
+   Xdirection = -1 * (vxp > tempX) + (vxp < tempX);
+   Zdirection = -1 * (vzp > tempZ) + (vzp < tempZ);
+   int ValueAtCubePointDetect     = 0;
+   int ValueAtMarginXOfCubeDetect = 0;
+   int ValueAtMarginZOfCubeDetect = 0;
+   int ValueAtMarginXZOfCubeDetect= 0;
+   SpaceOverHeadPos = 1 + (-1) * (int)vyp;
 
-   a = world[-1*(int)vxp][-1*(int)vyp][-1*(int)vzp] ;
-   b = world[-1*(int)(vxp -margin*Xdirection)][-1*(int)vyp][-1*(int)vzp];
-   c = world[-1*(int)vxp][-1*(int)vyp][-1*(int)(vzp -margin*Zdirection)];
-   d = world[-1*(int)(vxp -margin*Xdirection)][-1*(int)vyp][-1*(int)(vzp -margin*Zdirection)];
-   worldValue = a+b+c+d;
-   worldValue2 = world[-1*(int)vxp][SpaceOverHeadPos][-1*(int)vzp] + 
-                 world[-1*(int)(vxp -margin*Xdirection)][SpaceOverHeadPos][-1*(int)vzp]+ 
-                 world[-1*(int)vxp][SpaceOverHeadPos][-1*(int)(vzp -margin*Zdirection)] + 
-                 world[-1*(int)(vxp -margin*Xdirection)][SpaceOverHeadPos][-1*(int)(vzp -margin*Zdirection)];
-   outOfSpace = (((-1*(int)vxp)> 99) || ((-1*(int)vyp)> 49) || ((-1*(int)vzp)> 99));
-   outOfSpace = outOfSpace || (((-1*(int)vxp) < 0) || ((-1*(int)vyp) <(floorLv+1)) || ((-1*(int)vzp) <0));
+   ValueAtCubePointDetect     = world[-1 * (int)vxp][-1 * (int)vyp][-1 * (int)vzp];
+   ValueAtMarginXOfCubeDetect = world[-1 * (int)(vxp - margin * Xdirection)][-1 * (int)vyp][-1 * (int)vzp];
+   ValueAtMarginZOfCubeDetect = world[-1 * (int)vxp][-1 * (int)vyp][-1 * (int)(vzp - margin * Zdirection)];
+   ValueAtMarginXZOfCubeDetect= world[-1 * (int)(vxp - margin * Xdirection)][-1 * (int)vyp][-1 * (int)(vzp - margin * Zdirection)];
+   isHit = ((ValueAtCubePointDetect + ValueAtMarginXOfCubeDetect + ValueAtMarginZOfCubeDetect + ValueAtMarginXZOfCubeDetect) > 0);
+   isAble2Jump = world[-1 * (int)vxp][SpaceOverHeadPos][-1 * (int)vzp] +
+                 world[-1 * (int)(vxp - margin * Xdirection)][SpaceOverHeadPos][-1 * (int)vzp] +
+                 world[-1 * (int)vxp][SpaceOverHeadPos][-1 * (int)(vzp - margin * Zdirection)] +
+                 world[-1 * (int)(vxp - margin * Xdirection)][SpaceOverHeadPos][-1 * (int)(vzp - margin * Zdirection)];
+   outOfSpace = (((-1 * (int)vxp) > 99) || ((-1 * (int)vyp) > 49) || ((-1 * (int)vzp) > 99));
+   outOfSpace = outOfSpace || (((-1 * (int)vxp) < 0) || ((-1 * (int)vyp) < (floorLv + 1)) || ((-1 * (int)vzp) < 0));
    // protect to pass through
-   if ((outOfSpace == 1)||((worldValue != 0) && (worldValue2 != 0)))
+   if ((outOfSpace == 1) || ((isHit != 0) && (isAble2Jump != 0)))
    {
-      setViewPosition(tempX,tempY,tempZ); 
+      setViewPosition(tempX, tempY, tempZ);
    }
    // jump on the box
-   else if ((worldValue != 0) && (worldValue2 == 0))
+   else if ((isHit != 0) && (isAble2Jump == 0))
    {
-       if(a != 0)
-       {
+      if (ValueAtCubePointDetect != 0)
+      {
          tempX = (float)(int)vxp;
          tempZ = (float)(int)vzp;
-       }
-       else if(b != 0)
-       {
-         tempX = (float)(int)(vxp -margin*Xdirection);
+      }
+      else if (ValueAtMarginXOfCubeDetect != 0)
+      {
+         tempX = (float)(int)(vxp - margin * Xdirection);
          tempZ = (float)(int)vzp;
-       }
-       else if (c != 0)
-       {
+      }
+      else if (ValueAtMarginZOfCubeDetect != 0)
+      {
          tempX = (float)(int)vxp;
-         tempZ = (float)(int)(vzp -margin*Zdirection);
-       }
-       else if (d != 0)
-       {
-         tempX = (float)(int)(vxp -margin*Xdirection);
-         tempZ = (float)(int)(vzp -margin*Zdirection);
-       }
-      setViewPosition(tempX,tempY-1,tempZ); 
+         tempZ = (float)(int)(vzp - margin * Zdirection);
+      }
+      else if (ValueAtMarginXZOfCubeDetect != 0)
+      {
+         tempX = (float)(int)(vxp - margin * Xdirection);
+         tempZ = (float)(int)(vzp - margin * Zdirection);
+      }
+      setViewPosition(tempX, tempY - 1, tempZ);
    }
 }
 
@@ -307,17 +312,18 @@ createTube(2, -xx, -yy, -zz, -xx-((x-xx)*25.0), -yy-((y-yy)*25.0), -zz-((z-zz)*2
    /* your code goes here */
       
       int valOfWorldAtBelowVP = 0;
-      static float vpx = 0;
-      static float vpy = 0;
-      static float vpz = 0;
+      float vpx = 0;
+      float vpy = 0;
+      float vpz = 0;
+      float gravityVal = 21;
       float newY = 0;
-      float floorLv = 10;
+      float floorLv = 20;
       static int fallState = 0;
       // yn = y(n-1) - 0.5*g*(tn^2-t(n-1)^2)
-      static clock_t timeCount,clkRef;
-      static float timePast,timeCurrent;
-      getViewPosition(&vpx,&vpy,&vpz);
-      valOfWorldAtBelowVP = world[-1*(int)vpx][(-1*(int)vpy)-1][-1*(int)vpz];
+      static clock_t timeCount, clkRef;
+      static float timePast, timeCurrent;
+      getViewPosition(&vpx, &vpy, &vpz);
+      valOfWorldAtBelowVP = world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz];
       timeCount = clock();
 
       if (fallState == 0)
@@ -336,23 +342,22 @@ createTube(2, -xx, -yy, -zz, -xx-((x-xx)*25.0), -yy-((y-yy)*25.0), -zz-((z-zz)*2
 
          timePast = timeCurrent;
          timeCurrent = (float)(clock() - clkRef)/CLOCKS_PER_SEC;
-         newY = (-1.0)*vpy - 200.0*(timeCurrent*timeCurrent-timePast*timePast);
+         newY = (-1.0)*vpy - gravityVal*(timeCurrent*timeCurrent-timePast*timePast);
          
          if (valOfWorldAtBelowVP != 0) 
          {
             floorLv = (-1*(int)vpy)-1;
          }
 
-         if((valOfWorldAtBelowVP != 0) && ((((float)((int)vpy)) - vpy) <= 0.0))
+         if ((valOfWorldAtBelowVP != 0) && ((((float)((int)vpy)) - vpy) <= 0.0))
          {
             fallState = 0;
-            newY =floorLv+1.0;
+            newY = floorLv + 1.0;
          }
-         if ((newY < (floorLv+1))||(newY > 49.0)) newY =floorLv+1.0;
-         setViewPosition(vpx,newY*(-1.0),vpz);
-         //printf("newY:%f , dffY:%f time diff :%f, tC:%f, tP:%f, floorLv:%f\n",newY,(((float)((int)vpy)) - vpy) ,(timeCurrent*timeCurrent-timePast*timePast),timeCurrent,timePast,floorLv);
-         }
-
+         if ((newY < (floorLv + 1)) || (newY > 49.0))
+            newY = floorLv + 1.0;
+         setViewPosition(vpx, newY * (-1.0), vpz);
+      }
 
    }
 }
@@ -421,7 +426,7 @@ void drawFloor()
 
    for(i=0; i<WORLDX; i++) {
          for(j=0; j<WORLDZ; j++) {
-            world[i][10][j] = 4;
+            world[i][20][j] = 4;
          }
       }
 }
@@ -628,7 +633,7 @@ int i, j, k;
       int wallHeight = 3;
       int xViewP = 0;
       int zViewP = 0;
-      int yStartP = 11;
+      int yStartP = 21;
       int colorID1 = 3;
       const int numRoom = 9;
       const int doorWidth = 2;
