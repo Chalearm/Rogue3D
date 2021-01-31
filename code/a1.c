@@ -148,6 +148,8 @@ int checkRoomAndOppositeRoomCanBuildCorridorAndHallway(int XorZSide,int roomID, 
 int normalColorStyle(int originalColor,int i,int j,int z);
 int randomPinkWhiteStyle(int originalColor,int i,int j,int z);
 
+int boundValue(int max,int min,int originValue);
+
 #define AREA_XP 0
 #define AREA_ZP 1
 #define AREA_X_LENGHT 2
@@ -193,7 +195,7 @@ void collisionResponse()
    float vzp = 0;
    float Xdirection = 0; // - , + or 0
    float Zdirection = 0; // - , + or 0
-   int floorLv = 20;
+   int floorLv = 26;
    int isHit = 0;
    int isAble2Jump = 0;
    int outOfSpace = 0;
@@ -401,7 +403,7 @@ createTube(2, -xx, -yy, -zz, -xx-((x-xx)*25.0), -yy-((y-yy)*25.0), -zz-((z-zz)*2
       float vpx = 0;
       float vpy = 0;
       float vpz = 0;
-      float gravityVal = 21;
+      float gravityVal = 0.00001;
       float newY = 0;
       float floorLv = 20;
       static int fallState = 0;
@@ -642,10 +644,81 @@ int main(int argc, char **argv)
          BuildDoorsWestVsEast(k,Rooms,corridorColor);
          BuildDoorsSouthVsNorth(k,Rooms,corridorColor+3);
       }
+/////////// terrain test
 
-    setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
+      int previousHeight = 26;
+      int notOver = 40;
+      int notUnder = 26;
+     int delta;
+     int previousDelta = 0;
+   int maxRangVal = 5;
+   int minRangVal = 2;
+     int DeltaStartPoint = 0;
+     int DeltaEndPoint = 0;    
+     int terrain[WORLDX][WORLDZ];
+     int color3 = 0;
+     int count0 = 0;
+     int countM = 0;
+     int countP = 0;
+     previousHeight = (notOver + notUnder)/2; // at center
+///////////
+     for (i =0 ; i <WORLDX;i++)
+     {
+      /*
+         if (DeltaEndPoint == DeltaStartPoint)
+         {
+            DeltaStartPoint = 0;
+            DeltaEndPoint = getRandomNumber(minRangVal,maxRangVal);
+            do{
+            delta = (getRandomNumber(1,3) -2);
+            }
+            while(delta == previousDelta);
+         }
+         DeltaStartPoint++;
 
-      //setViewPosition(-1*xViewP, -1*48, -1*zViewP);
+         */
+            delta = (getRandomNumber(1,3) -2);
+         previousHeight = previousHeight + delta;
+         previousHeight = boundValue(notOver,notUnder,previousHeight);
+
+            terrain[i][0] = previousHeight;
+         //world[i][terrain[i][0]][0] = 2 + (terrain[i][0]==notOver);
+     }
+
+     for (i = 0 ;i < WORLDZ;i++)
+     {
+/*
+         if (DeltaEndPoint == DeltaStartPoint)
+         {
+            DeltaStartPoint = 0;
+            DeltaEndPoint = getRandomNumber(minRangVal,maxRangVal);
+            do{
+            delta = (getRandomNumber(1,3) -2);
+            }
+            while(delta == previousDelta);
+         }
+         DeltaStartPoint++;
+         */
+            delta = (getRandomNumber(1,3) -2);
+         for (j = 0; j < WORLDX;j++)
+         {
+            if(i > 0)
+               previousHeight = delta+terrain[j][i-1];
+            else
+               previousHeight =delta + terrain[j][0];
+            terrain[j][i]  = previousHeight;
+            previousHeight = boundValue(notOver,notUnder,previousHeight);
+            color3 = 1;
+            if (previousHeight == notOver)
+               color3 = 5;
+            if (previousHeight == notUnder)
+               color3 = 21;
+            world[j][previousHeight][i] = color3;
+         }
+     }
+   // setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
+
+      setViewPosition(-1*xViewP, -1*48, -1*zViewP);
    }
 
    /* starts the graphics processing loop */
@@ -1136,4 +1209,16 @@ int normalColorStyle(int originalColor,int i,int j,int z)
 int randomPinkWhiteStyle(int originalColor,int i,int j,int z)
 {
    return getRandomNumber(5,6);
+}
+
+
+
+int boundValue(int max,int min,int originValue)
+{
+   int ret = originValue;
+   if(originValue > max)
+      ret = max;
+   if(originValue < min)
+      ret = min;
+   return ret;
 }
