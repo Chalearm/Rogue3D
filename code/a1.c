@@ -149,6 +149,8 @@ int normalColorStyle(int originalColor,int i,int j,int z);
 int randomPinkWhiteStyle(int originalColor,int i,int j,int z);
 
 int boundValue(int max,int min,int originValue);
+int findMaxValue(int a,int b);
+int findMinValue(int a,int b);
 
 #define AREA_XP 0
 #define AREA_ZP 1
@@ -646,9 +648,10 @@ int main(int argc, char **argv)
       }
 /////////// terrain test
 
+      int currentHeight = 0;
       int previousHeight = 26;
-      int notOver = 40;
-      int notUnder = 26;
+      int notOver = 46;
+      int notUnder = 25;
      int delta;
      int previousDelta = 0;
    int maxRangVal = 5;
@@ -660,60 +663,65 @@ int main(int argc, char **argv)
      int count0 = 0;
      int countM = 0;
      int countP = 0;
+     int westHeight = notOver;
+     int westSouthHeight = notOver;
+     int southHeight = notOver;
+     int eastSouthHeight = notOver;
      previousHeight = (notOver + notUnder)/2; // at center
 ///////////
-     for (i =0 ; i <WORLDX;i++)
+
+     for (i =0 ; i <WORLDZ;i++)
      {
-      /*
-         if (DeltaEndPoint == DeltaStartPoint)
+         maxRangVal = -1;
+         minRangVal = 100;
+         for (j = 0;j < WORLDX;j++)
          {
-            DeltaStartPoint = 0;
-            DeltaEndPoint = getRandomNumber(minRangVal,maxRangVal);
-            do{
-            delta = (getRandomNumber(1,3) -2);
-            }
-            while(delta == previousDelta);
-         }
-         DeltaStartPoint++;
-
-         */
-            delta = (getRandomNumber(1,3) -2);
-         previousHeight = previousHeight + delta;
-         previousHeight = boundValue(notOver,notUnder,previousHeight);
-
-            terrain[i][0] = previousHeight;
-         //world[i][terrain[i][0]][0] = 2 + (terrain[i][0]==notOver);
-     }
-
-     for (i = 0 ;i < WORLDZ;i++)
-     {
-/*
-         if (DeltaEndPoint == DeltaStartPoint)
-         {
-            DeltaStartPoint = 0;
-            DeltaEndPoint = getRandomNumber(minRangVal,maxRangVal);
-            do{
-            delta = (getRandomNumber(1,3) -2);
-            }
-            while(delta == previousDelta);
-         }
-         DeltaStartPoint++;
-         */
-            delta = (getRandomNumber(1,3) -2);
-         for (j = 0; j < WORLDX;j++)
-         {
-            if(i > 0)
-               previousHeight = delta+terrain[j][i-1];
-            else
-               previousHeight =delta + terrain[j][0];
-            terrain[j][i]  = previousHeight;
-            previousHeight = boundValue(notOver,notUnder,previousHeight);
-            color3 = 1;
-            if (previousHeight == notOver)
-               color3 = 5;
-            if (previousHeight == notUnder)
-               color3 = 21;
-            world[j][previousHeight][i] = color3;
+               if(j > 0)
+               {
+                  westHeight = terrain[i][j-1];
+                  maxRangVal = westHeight;
+                  minRangVal = westHeight;
+               }
+               if(i > 0)
+               {
+                  southHeight = terrain[i-1][j];
+                  maxRangVal = findMaxValue(maxRangVal,southHeight);
+                  minRangVal = findMinValue(minRangVal,southHeight);
+               }
+               if((i > 0) && (j > 0))
+               {
+                  westSouthHeight = terrain[i-1][j-1];
+                  maxRangVal = findMaxValue(maxRangVal,westSouthHeight);
+                  minRangVal = findMinValue(minRangVal,westSouthHeight);
+               }
+               if((i > 0) && (j < (WORLDX-1)))
+               {
+                  eastSouthHeight = terrain[i-1][j+1];
+                  maxRangVal = findMaxValue(maxRangVal,eastSouthHeight);
+                  minRangVal = findMinValue(minRangVal,eastSouthHeight);
+               }
+               if (maxRangVal == minRangVal)
+               {
+                 currentHeight = minRangVal + getRandomNumber(1,3)-2;
+                  
+               }
+               else if ((i ==0) && (j==0))
+               {
+                  currentHeight =  (notOver+notUnder)/2;
+               }
+               else if (maxRangVal == (minRangVal+1))
+               {
+                  currentHeight =  getRandomNumber(minRangVal,maxRangVal);
+               }
+               else
+               {
+                  currentHeight =  (maxRangVal + minRangVal)/2;
+               }
+               currentHeight = boundValue(notOver,notUnder,currentHeight);
+              // printf("WS:%d, W,%d, S:%d, SE:%d MN(%d,%d) c:%d\n",westSouthHeight,westHeight,southHeight,eastSouthHeight,maxRangVal,minRangVal,currentHeight);
+               terrain[i][j] = currentHeight;
+               world[j][currentHeight][i] = 1;
+               world[j][currentHeight][i] += 20*(currentHeight == notUnder) + 5*(currentHeight== notOver);
          }
      }
    // setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
@@ -1212,6 +1220,18 @@ int randomPinkWhiteStyle(int originalColor,int i,int j,int z)
 }
 
 
+int findMaxValue(int a,int b)
+{
+   int ret = a;
+   if (a < b)ret = b;
+   return ret;
+}
+int findMinValue(int a,int b)
+{
+   int ret = a;
+   if (a > b)ret = b;
+   return ret;
+}
 
 int boundValue(int max,int min,int originValue)
 {
