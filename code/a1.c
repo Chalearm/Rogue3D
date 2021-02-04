@@ -614,8 +614,7 @@ int main(int argc, char **argv)
 //printf("Addr1:%p, Addr2:%p ,Size of mem : %d ,sizeof(%lu) , worldSize:%lu\n",&world[0][0][1],&world[0][0][0], (unsigned int)&world[0][0][1] - (unsigned int)&world[0][0][0],sizeof(GLubyte),sizeof(world));
 
       int currentHeight = 0;
-      int previousHeight = 20;
-      int notOver = 37;
+      int notOver = 43;
       int notUnder = 5;
      int delta;
      int previousDelta = 0;
@@ -624,10 +623,6 @@ int main(int argc, char **argv)
      int DeltaStartPoint = 0;
      int DeltaEndPoint = 0;    
      int terrain[WORLDX][WORLDZ];
-     int color3 = 0;
-     int count0 = 0;
-     int countM = 0;
-     int countP = 0;
      int westHeight = notOver;
      int westSouthHeight = notOver;
      int southHeight = notOver;
@@ -635,9 +630,29 @@ int main(int argc, char **argv)
 
      int maxHeight = 0;
      int minHeight = 100;
-     previousHeight = (notOver + notUnder)/2; // at center
 ///////////
+/*
+struct Room
+{
+   struct Point StartPoint;      //count from ground point
+   struct Wall Walls[4];         // ID=0(WEST).1(EAST),2(SOUTH),3(NORTH)
+   struct Point DoorPosition[4]; // if point = {-1,-1,-1} = not defined, ID=0(WEST).1(EAST),2(SOUTH),3(NORTH)
+   int doorHeight;
+   int doorWidth;
+   int haveRoof;   // 0 = no, 1 = yes
+   int haveGround; //0 = no, 1 = yes
+   int Roofcolor;
+   int Groundcolor;
+   int unitCubeColor;
+   int numUnitCubes; // 1 or 2
+   struct Point unitCubePoint[2];
 
+};
+*/
+     //void BuildARoom(const struct Room *ARoom)
+
+     struct Point StairPoint = {30,25,30};
+     struct Room stair1 = BuildEasyRoom(&StairPoint,6,6,5,NOT_HAVE_ROOF,HAVE_GROUND,3,0);
    setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
    setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
      for (i =0 ; i <WORLDZ;i++)
@@ -733,6 +748,7 @@ int main(int argc, char **argv)
 
             }
       }
+     BuildARoom(&stair1);
    //setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
 
      setViewPosition(-1*10, -1*48, -1*10);
