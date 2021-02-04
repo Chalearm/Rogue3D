@@ -132,7 +132,7 @@ struct Room
 #define DEFAULT_DOOR_HEIGHT 2
 #define DEFAULT_DOOR_WIDTH 2
 #define DEFAULT_ROOM_HEIGHT 3
-#define DEFAULT_GRAVITY 20.0
+#define DEFAULT_GRAVITY 23
 #define DEFAULT_COLLISION_MARGIN 0.4
 #define DEFAULT_SPARFORCORRIDORS_X 4
 #define DEFAULT_SPARFORCORRIDORS_Z 4
@@ -204,7 +204,6 @@ int findMinValue(int a,int b);
 #define AREA_ZP 1
 #define AREA_X_LENGHT 2
 #define AREA_Z_LENGHT 3
-
 
 // define the dimension of Grid 3X3
 int dimensionOfGrid3x3[9][4] = {{0, 0, 33, 33},
@@ -604,77 +603,19 @@ int main(int argc, char **argv)
    {
 
       /* your code to build the world goes here */
-
-      int GroundLv = DEFAULT_UNDERGROUND_LV;
       flycontrol = 0;
       makeWorld();
 
-
-
-      int l,m,n,o,p;
-      int xLenght = 0;
-      int zLenght = 0;
-      int roomX = 0;
-      int roomZ = 0;
-      int wallHeight = 3;
-      int xViewP = 0;
-      int zViewP = 0;
-      int yStartP = GroundLv+1;
-      int numberofCubes = 2;
-      int colorID1 = 3;
-      int corridorColor = 5; // Pink
-      const struct Point DoorInitialPoint = {-1, -1, -1};
-      const int numRoom = 9;
-      const int doorWidth = 2;
-      const int wallColor = 1;                 // Green
-    //  int ViewPointID = getRandomNumber(0, 8); //which room the view point will be
-       int ViewPointID = 2;
-      int doorHeight = 2;
-      int oppositeRoomID = -1;
-      int sparForCorridorsX = 4;
-      int sparForCorridorsZ = 4;
-      int sparForRoomSizeMax = 24;  // sparForRoomSize >= 3+doorWidth
-      int sparForRoomSizeMin = 8;
-      struct Room Rooms[9];
-
       struct Underground AnUnderground;
       setParameterOfUnderground_defaultValeu1(&AnUnderground);
-      createUnderground(&AnUnderground);
-      // Build 9 Rooms
-      for(k = 0;k<numRoom;k++)
-      {
+     // createUnderground(&AnUnderground);
 
-          // Initial value or set default value to Door position Point (X,Y,Z)
-         for (i = WEST; i <=NORTH;i++)
-            Rooms[k].DoorPosition[i] = DoorInitialPoint;
-         // Find spar area between 2 rooms to build corridors and hallways
-         sparForCorridorsX = (dimensionOfGrid3x3[k][AREA_X_LENGHT] - sparForRoomSizeMax)/2;
-         sparForCorridorsZ = (dimensionOfGrid3x3[k][AREA_Z_LENGHT] - sparForRoomSizeMax)/2;
-         // define door direction to Room attribute
-
-         // random size of a room
-         xLenght = getRandomNumber(sparForRoomSizeMin,sparForRoomSizeMax);
-         zLenght = getRandomNumber(sparForRoomSizeMin,sparForRoomSizeMax);
-         // Random location of a room
-         roomX = sparForCorridorsX + dimensionOfGrid3x3[k][AREA_XP] + getRandomNumber(0,dimensionOfGrid3x3[k][AREA_X_LENGHT]-xLenght-sparForCorridorsX-sparForCorridorsX);
-         roomZ=  sparForCorridorsZ + dimensionOfGrid3x3[k][AREA_ZP] + getRandomNumber(0,dimensionOfGrid3x3[k][AREA_Z_LENGHT]-zLenght-sparForCorridorsZ-sparForCorridorsZ);
-
-         // Reference point to build a room
-         const struct Point RoomStartPoint = {roomX,GroundLv,roomZ};
-         // find view point
-         if (k == ViewPointID)
-         {
-            xViewP = 2 + RoomStartPoint.x + getRandomNumber(0,xLenght-4);
-            zViewP = 2 + RoomStartPoint.z + getRandomNumber(0,zLenght-4);
-         }
-
-      }
 /////////// terrain test
 //printf("Addr1:%p, Addr2:%p ,Size of mem : %d ,sizeof(%lu) , worldSize:%lu\n",&world[0][0][1],&world[0][0][0], (unsigned int)&world[0][0][1] - (unsigned int)&world[0][0][0],sizeof(GLubyte),sizeof(world));
 
       int currentHeight = 0;
       int previousHeight = 20;
-      int notOver = 46;
+      int notOver = 37;
       int notUnder = 5;
      int delta;
      int previousDelta = 0;
@@ -691,9 +632,14 @@ int main(int argc, char **argv)
      int westSouthHeight = notOver;
      int southHeight = notOver;
      int eastSouthHeight = notOver;
+
+     int maxHeight = 0;
+     int minHeight = 100;
      previousHeight = (notOver + notUnder)/2; // at center
 ///////////
 
+   setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
+   setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
      for (i =0 ; i <WORLDZ;i++)
      {
          maxRangVal = -1;
@@ -726,7 +672,7 @@ int main(int argc, char **argv)
                }
                if (maxRangVal == minRangVal)
                {
-                  
+                  /*
                   if (DeltaEndPoint == DeltaStartPoint)
                   {
                      delta = getRandomNumber(1,3)-2;
@@ -737,6 +683,8 @@ int main(int argc, char **argv)
 
                   DeltaStartPoint++;
                  currentHeight = minRangVal + delta;
+                  */
+                 currentHeight = minRangVal + getRandomNumber(1,3)-2;
                   
                }
                else if ((i ==0) && (j==0))
@@ -755,6 +703,8 @@ int main(int argc, char **argv)
                terrain[i][j] = currentHeight;
 
                currentHeight = boundValue(notOver,notUnder,currentHeight);
+               if(maxHeight < currentHeight)maxHeight = currentHeight;
+               if(minHeight > currentHeight)minHeight = currentHeight;
                if((i==0) && (j==0))
                {
 
@@ -763,16 +713,31 @@ int main(int argc, char **argv)
                else
                {
 
-             //  world[j][currentHeight][i] = 1;
-              // world[j][currentHeight][i] += 20*(currentHeight == notUnder) + 4*(currentHeight== notOver);
+               world[j][currentHeight][i] = 1;
+               world[j][currentHeight][i] += 20*(currentHeight == notUnder) + 4*(currentHeight== notOver);
                }
          }
      }
+   for(i = 0; i < WORLDX;i++)
+      for(j = 0; j < WORLDZ;j++)
+      {
+         if (world[i][maxHeight][j] != 0) 
+            {
+               world[i][maxHeight][j] = 5;
+              // printf("Highest :[%d,%d,%d] \n",i,maxHeight,j);
+            }
+         if (world[i][minHeight][j] != 0) 
+            {
+               world[i][minHeight][j] = 21;
+//               printf("Lowest :[%d,%d,%d] \n",i,minHeight,j);
+
+            }
+      }
    //setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
 
- //     setViewPosition(-1*xViewP, -1*48, -1*zViewP);
+     setViewPosition(-1*10, -1*48, -1*10);
 
-     setViewPosition(-1 * 10, -1 * 5, -1 * 15);
+  
    }
 
    /* starts the graphics processing loop */
@@ -813,15 +778,7 @@ void BuildABox(const struct Point *StartPoint,const struct Point *Endpoint,int c
          for(i=*MinX;i<=*MaxX;i++)
             world[i][j][k] = generateColorStyle(color,i,j,k);
 }
-/*
-struct Wall
-{
-   struct Point StartPoint;
-   int height;
-   int width;
-   int XorZSide; //0 = X side, 1 = Y side
-   int color;
-};*/
+
 void BuildAWall(const struct Wall *AWall)
 {
 
@@ -1019,8 +976,6 @@ void BuildDoorsWestVsEast(int roomID, struct Room *Rooms,int CorridorColor)
             DoorOfAroomPoint = Aroom->DoorPosition[AroomDirection];
             const struct Wall ADoor = {DoorOfAroomPoint,Aroom->doorHeight,Aroom->doorWidth,Z_SIDE_WALL,0,&normalColorStyle};
             BuildAWall(&ADoor);
-
-            printf("A room point [%d,%d,%d] ,h:%d, w:%d \n",DoorOfAroomPoint.x,DoorOfAroomPoint.y,DoorOfAroomPoint.z,Aroom->doorHeight,Aroom->doorWidth);
          }
          if((DoorOfAroomPoint.x > -1)&&(DoorOfOppositeRoomPoint.x> -1) &&(AroomDirection < OppositeRoomDirection))
          {
@@ -1331,6 +1286,7 @@ void createUnderground(struct Underground *obj)
    int indexOfRoom = 0;
    int numRoom = DEFAULT_NUM_ROOM;
    const struct Point DoorInitialPoint = {-1, -1, -1};
+   int ViewPointID = getRandomNumber(0, DEFAULT_NUM_ROOM-1); //which room the view point will be
    // Room's attributes
    int xLenght = 0;
    int zLenght = 0;
@@ -1366,24 +1322,24 @@ void createUnderground(struct Underground *obj)
          // Reference point to build a room
          const struct Point RoomStartPoint = {roomX,obj->m_groundLv ,roomZ};
          // find view point
-         /*
-         if (k == ViewPointID)
+         
+         if (indexOfRoom == ViewPointID)
          {
-            xViewP = 2 + RoomStartPoint.x + getRandomNumber(0,xLenght-4);
-            zViewP = 2 + RoomStartPoint.z + getRandomNumber(0,zLenght-4);
+            obj->m_currentViewPoint = (struct Point){2 + RoomStartPoint.x + getRandomNumber(0,xLenght-4),
+                                                     1+obj->m_groundLv,
+                                                     2 + RoomStartPoint.z + getRandomNumber(0,zLenght-4)};
          }
-         */
+         
          // create a few Cubes 1 high
 
-         printf("width ,height : %d %d \n",obj->Rooms[indexOfRoom].doorWidth ,obj->Rooms[indexOfRoom].doorHeight);
+         //printf("width ,height : %d %d \n",obj->Rooms[indexOfRoom].doorWidth ,obj->Rooms[indexOfRoom].doorHeight);
          // build A room
-         obj->Rooms[indexOfRoom]= BuildEasyRoom(&RoomStartPoint,xLenght,zLenght,obj->m_roomWallHeight,HAVE_ROOF,NOT_HAVE_GROUND,obj->m_defaultRoomColor,obj->m_defaultUnitCubeColor); //8 = yellow
-
+         obj->Rooms[indexOfRoom]= BuildEasyRoom(&RoomStartPoint,xLenght,zLenght,obj->m_roomWallHeight,HAVE_ROOF,NOT_HAVE_GROUND,obj->m_defaultRoomColor,obj->m_defaultUnitCubeColor);
          obj->Rooms[indexOfRoom].doorWidth = obj->m_doorWidth;
          obj->Rooms[indexOfRoom].doorHeight = obj->m_doorHeight;
          BuildDoorsWestVsEast(indexOfRoom,obj->Rooms,obj->m_defaultRoomColor);
          BuildDoorsSouthVsNorth(indexOfRoom,obj->Rooms,obj->m_defaultRoomColor);
    }
-
+      setViewPosition(-1 * (obj->m_currentViewPoint.x), -1 * (obj->m_currentViewPoint.y), -1 * (obj->m_currentViewPoint.z));
 }
 
