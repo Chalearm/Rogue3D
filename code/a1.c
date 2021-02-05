@@ -127,6 +127,14 @@ struct Room
 
 };
 
+struct stair
+{
+   struct Room aRoom;
+   int color;
+   int numberStair;
+   int direction;
+};
+
 #define DEFAULT_NUM_ROOM 9
 #define DEFAULT_UNDERGROUND_LV 5
 #define DEFAULT_DOOR_HEIGHT 2
@@ -191,6 +199,10 @@ int checkRoomAndOppositeRoomCanBuildCorridorAndHallway(int XorZSide,int roomID, 
 
 void setParameterOfUnderground_defaultValeu1(struct Underground *obj);
 void createUnderground(struct Underground *obj);
+
+struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int color);
+void LocateAndBuildStairOnTerrain(const struct stair *obj);
+void BuildStair(const struct stair *obj);
 
 int normalColorStyle(int originalColor,int x,int y,int z);
 int pinkWhiteStyle(int originalColor,int x,int y,int z);
@@ -650,9 +662,7 @@ struct Room
 };
 */
      //void BuildARoom(const struct Room *ARoom)
-
-     struct Point StairPoint = {30,25,30};
-     struct Room stair1 = BuildEasyRoom(&StairPoint,6,6,5,NOT_HAVE_ROOF,HAVE_GROUND,3,0);
+     struct stair downStair = setStairAttribute((struct Point){30,25,30},SOUTH,8,9,2);
    setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
    setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
      for (i =0 ; i <WORLDZ;i++)
@@ -748,7 +758,8 @@ struct Room
 
             }
       }
-     BuildARoom(&stair1);
+      BuildStair(&downStair);
+
    //setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
 
      setViewPosition(-1*10, -1*48, -1*10);
@@ -888,14 +899,15 @@ West Wall Side i  |    |                       |    |                EAST Wall S
    // create a few Cubes 1 high
    ARoom.numUnitCubes = getRandomNumber(1,2);
    ARoom.unitCubeColor = unitCubeColor;
-   for(i = 0; i < ARoom.numUnitCubes;i++)
-   {
-      ARoom.unitCubePoint[i] = (struct Point){
-                                x + 2 + getRandomNumber(0,xLenght-4),
-                                onFloorLv,
-                                z + 2 + getRandomNumber(0,zLenght -4)};
-      BuildABox(&( ARoom.unitCubePoint[i]),&(ARoom.unitCubePoint[i]),unitCubeColor,&normalColorStyle);
-   }
+   if((zLenght > 5)&&(xLenght > 5))
+      for(i = 0; i < ARoom.numUnitCubes;i++)
+      {
+         ARoom.unitCubePoint[i] = (struct Point){
+                                   x + 2 + getRandomNumber(0,xLenght-4),
+                                   onFloorLv,
+                                   z + 2 + getRandomNumber(0,zLenght -4)};
+         BuildABox(&( ARoom.unitCubePoint[i]),&(ARoom.unitCubePoint[i]),unitCubeColor,&normalColorStyle);
+      }
       
    // Set Attribute to Wall 
    ARoom.StartPoint            = *StartPoint;
@@ -1358,4 +1370,78 @@ void createUnderground(struct Underground *obj)
    }
       setViewPosition(-1 * (obj->m_currentViewPoint.x), -1 * (obj->m_currentViewPoint.y), -1 * (obj->m_currentViewPoint.z));
 }
+/*
 
+struct stair
+{
+   struct Room aRoom;
+   int color;
+   int numberStair;
+};
+
+struct Room BuildEasyRoom(int xLenght,int zLenght,int height,int haveRoof,int haveGround,int color,int unitCubeColor)
+*/
+
+struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int color)
+{
+/*
+     struct Point StairPoint = {30,25,30};
+     struct Room stair1 = BuildEasyRoom(&StairPoint,6,6,5,NOT_HAVE_ROOF,HAVE_GROUND,3,0);
+
+*/
+   struct stair obj;
+   obj.numberStair = numStair;
+   obj.direction = frontOfStairDirection;
+   if(frontOfStairDirection <= EAST)
+   {
+
+      obj.aRoom = BuildEasyRoom(&StartPoint,numStair+1,stairWidth+2,numStair+2,HAVE_ROOF,HAVE_GROUND,color,0);
+   }
+   else
+   {
+      obj.aRoom = BuildEasyRoom(&StartPoint,stairWidth+2,numStair+1,numStair+2,HAVE_ROOF,HAVE_GROUND,color,0);
+   }
+   return obj;
+}
+void LocateAndBuildStairOnTerrain(const struct stair *obj)
+{
+
+}
+void BuildStair(const struct stair *obj)
+{
+   int i,j,k;  
+   const struct Room *aRoom = &(obj->aRoom);
+   const struct Wall *Walls = aRoom->Walls;
+   int direction = obj->direction;
+   BuildARoom(&(obj->aRoom));
+
+   struct Point StartPoint;
+   struct Point StopPoint;
+   if (direction <= EAST)
+   {
+         StartPoint = (struct Point){Walls[direction].StartPoint.x,
+                                     Walls[direction].StartPoint.y,
+                                     Walls[direction].StartPoint.z + 1};
+         StopPoint  = (struct Point){StartPoint.x,
+                                     StartPoint.y+Walls[direction].width-3,
+                                     StartPoint.z+Walls[direction].width-3};   
+   }
+   else
+   {
+
+         StartPoint = (struct Point){Walls[direction].StartPoint.x,
+                                     Walls[direction].StartPoint.y,
+                                     Walls[direction].StartPoint.z};
+         StopPoint  = (struct Point){StartPoint.x+Walls[direction].width-1,
+                                     StartPoint.y+Walls[direction].width-1,
+                                     StartPoint.z};  
+   }
+/*
+pinkWhiteStyle
+
+normalColorStyle
+void BuildABox(const struct Point *StartPoint, const struct Point *Endpoint, int color,int (*generateColorStyle)(int,int,int,int));
+*/
+   BuildABox(&StartPoint,&StopPoint,0,&normalColorStyle);
+
+}
