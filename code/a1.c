@@ -133,14 +133,16 @@ struct stair
    int color;
    int numberStair;
    int direction;
+   int type; //0 = up, 1 = down
 };
-
+#define UP_STAIR 0
+#define DOWN_STAIR 1
 #define DEFAULT_NUM_ROOM 9
 #define DEFAULT_UNDERGROUND_LV 5
 #define DEFAULT_DOOR_HEIGHT 2
 #define DEFAULT_DOOR_WIDTH 2
 #define DEFAULT_ROOM_HEIGHT 3
-#define DEFAULT_GRAVITY 23
+#define DEFAULT_GRAVITY 0.01
 #define DEFAULT_COLLISION_MARGIN 0.4
 #define DEFAULT_SPARFORCORRIDORS_X 4
 #define DEFAULT_SPARFORCORRIDORS_Z 4
@@ -200,7 +202,7 @@ int checkRoomAndOppositeRoomCanBuildCorridorAndHallway(int XorZSide,int roomID, 
 void setParameterOfUnderground_defaultValeu1(struct Underground *obj);
 void createUnderground(struct Underground *obj);
 
-struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int color);
+struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int type,const int color);
 void LocateAndBuildStairOnTerrain(const struct stair *obj);
 void BuildStair(const struct stair *obj);
 
@@ -661,8 +663,9 @@ struct Room
 
 };
 */
+     //jj
      //void BuildARoom(const struct Room *ARoom)
-     struct stair downStair = setStairAttribute((struct Point){30,25,30},SOUTH,8,9,2);
+     struct stair downStair = setStairAttribute((struct Point){30,25,30},NORTH,5,9,DOWN_STAIR,5);
    setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
    setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
      for (i =0 ; i <WORLDZ;i++)
@@ -1382,24 +1385,21 @@ struct stair
 struct Room BuildEasyRoom(int xLenght,int zLenght,int height,int haveRoof,int haveGround,int color,int unitCubeColor)
 */
 
-struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int color)
+struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int type,const int color)
 {
-/*
-     struct Point StairPoint = {30,25,30};
-     struct Room stair1 = BuildEasyRoom(&StairPoint,6,6,5,NOT_HAVE_ROOF,HAVE_GROUND,3,0);
-
-*/
    struct stair obj;
    obj.numberStair = numStair;
    obj.direction = frontOfStairDirection;
+   obj.color = color;
+   obj.type = type;
    if(frontOfStairDirection <= EAST)
    {
 
-      obj.aRoom = BuildEasyRoom(&StartPoint,numStair+1,stairWidth+2,numStair+2,HAVE_ROOF,HAVE_GROUND,color,0);
+      obj.aRoom = BuildEasyRoom(&StartPoint,numStair+2,stairWidth+2,numStair,HAVE_ROOF,HAVE_GROUND,color,0);
    }
    else
    {
-      obj.aRoom = BuildEasyRoom(&StartPoint,stairWidth+2,numStair+1,numStair+2,HAVE_ROOF,HAVE_GROUND,color,0);
+      obj.aRoom = BuildEasyRoom(&StartPoint,stairWidth+2,numStair+2,numStair,HAVE_ROOF,HAVE_GROUND,color,0);
    }
    return obj;
 }
@@ -1412,36 +1412,93 @@ void BuildStair(const struct stair *obj)
    int i,j,k;  
    const struct Room *aRoom = &(obj->aRoom);
    const struct Wall *Walls = aRoom->Walls;
-   int direction = obj->direction;
+   const int color = obj->color;
+   const int direction = obj->direction;
    BuildARoom(&(obj->aRoom));
 
-   struct Point StartPoint;
-   struct Point StopPoint;
+   struct Point downSideStartPoint;
+   struct Point downSideStopPoint;
+
+   struct Point upSideStartPoint;
+   struct Point upSideStopPoint;
    if (direction <= EAST)
    {
-         StartPoint = (struct Point){Walls[direction].StartPoint.x,
+         downSideStartPoint = (struct Point){Walls[direction].StartPoint.x,
                                      Walls[direction].StartPoint.y,
                                      Walls[direction].StartPoint.z + 1};
-         StopPoint  = (struct Point){StartPoint.x,
-                                     StartPoint.y+Walls[direction].width-3,
-                                     StartPoint.z+Walls[direction].width-3};   
+         downSideStopPoint  = (struct Point){downSideStartPoint.x,
+                                     downSideStartPoint.y+Walls[direction].width-3,
+                                     downSideStartPoint.z+Walls[direction].width-3}; 
+         upSideStartPoint = (struct Point){Walls[NORTH].StartPoint.x ,
+                                     Walls[NORTH].StartPoint.y + Walls[NORTH].height,
+                                     Walls[NORTH].StartPoint.z- Walls[direction].width+2};
+         upSideStopPoint  = (struct Point){Walls[NORTH].StartPoint.x + Walls[direction].width-3,
+                                     upSideStartPoint.y,
+                                     Walls[NORTH].StartPoint.z-1}; 
+
+         if(direction == WEST)
+         {
+            upSideStartPoint = (struct Point){Walls[NORTH].StartPoint.x +Walls[NORTH].width-1,
+                                        Walls[NORTH].StartPoint.y + Walls[NORTH].height,
+                                        Walls[NORTH].StartPoint.z- Walls[direction].width+2};
+            upSideStopPoint  = (struct Point){Walls[NORTH].StartPoint.x+Walls[NORTH].width - Walls[direction].width+2,
+                                        upSideStartPoint.y,
+                                        Walls[NORTH].StartPoint.z-1};
+         }  
+
    }
    else
    {
-
-         StartPoint = (struct Point){Walls[direction].StartPoint.x,
+         downSideStartPoint = (struct Point){Walls[direction].StartPoint.x,
                                      Walls[direction].StartPoint.y,
                                      Walls[direction].StartPoint.z};
-         StopPoint  = (struct Point){StartPoint.x+Walls[direction].width-1,
-                                     StartPoint.y+Walls[direction].width-1,
-                                     StartPoint.z};  
+         downSideStopPoint  = (struct Point){downSideStartPoint.x+Walls[direction].width-1,
+                                     downSideStartPoint.y+Walls[direction].width-1,
+                                     downSideStartPoint.z};  
+         upSideStartPoint = (struct Point){Walls[NORTH].StartPoint.x,
+                                     Walls[NORTH].StartPoint.y + Walls[NORTH].height,
+                                     Walls[NORTH].StartPoint.z-Walls[EAST].width +Walls[direction].width+1};
+         upSideStopPoint  = (struct Point){Walls[NORTH].StartPoint.x +Walls[NORTH].width-1,
+                                     upSideStartPoint.y,
+                                     Walls[NORTH].StartPoint.z-Walls[EAST].width+2}; 
+         if(direction == SOUTH)
+         {
+            upSideStartPoint = (struct Point){Walls[NORTH].StartPoint.x,
+                                        Walls[NORTH].StartPoint.y + Walls[NORTH].height,
+                                        Walls[NORTH].StartPoint.z -Walls[direction].width };
+            upSideStopPoint  = (struct Point){Walls[NORTH].StartPoint.x+Walls[direction].width-1,
+                                        upSideStartPoint.y,
+                                        Walls[NORTH].StartPoint.z-1}; 
+         }
    }
-/*
-pinkWhiteStyle
+   if(direction == WEST)
+   {
+      for(j=0;j<Walls[direction].height;j++ )
+         for(k = 0; k <Walls[direction].width-2;k++)
+            world[Walls[NORTH].StartPoint.x+j][Walls[NORTH].StartPoint.y+j][Walls[NORTH].StartPoint.z+2- Walls[WEST].width+k] = color;
+   }
+   else if(direction == EAST)
+   {
+      for(j=0;j<Walls[direction].height;j++ )
+         for(k = 0; k <Walls[direction].width-2;k++)
+            world[Walls[EAST].StartPoint.x-j-1][Walls[NORTH].StartPoint.y+j][1+Walls[EAST].StartPoint.z+k] = color;
+      
+   }
+   else if(direction == SOUTH)
+   {
+      for(j=0;j<Walls[direction].height;j++ )
+         for(k = 0; k <Walls[direction].width;k++)
+            world[Walls[SOUTH].StartPoint.x+k][Walls[NORTH].StartPoint.y+j][1+Walls[SOUTH].StartPoint.z+j] = color;
+      
+   }
+   else if (direction == NORTH)
+   {
+      for(j=0;j<Walls[direction].height;j++ )
+         for(k = 0; k <Walls[direction].width;k++)
+            world[Walls[NORTH].StartPoint.x+k][Walls[NORTH].StartPoint.y+j][1+Walls[NORTH].StartPoint.z-2-j] = color;
+      
+   }
 
-normalColorStyle
-void BuildABox(const struct Point *StartPoint, const struct Point *Endpoint, int color,int (*generateColorStyle)(int,int,int,int));
-*/
-   BuildABox(&StartPoint,&StopPoint,0,&normalColorStyle);
-
+   BuildABox(&downSideStartPoint,&downSideStopPoint,0,&normalColorStyle);
+   BuildABox(&upSideStartPoint,&upSideStopPoint,0,&normalColorStyle);
 }
