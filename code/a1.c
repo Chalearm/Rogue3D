@@ -205,6 +205,7 @@ void createUnderground(struct Underground *obj);
 struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int type,const int color);
 void LocateAndBuildStairOnTerrain(const struct stair *obj);
 void BuildStair(const struct stair *obj);
+struct Point getReferentStairPoint(const struct stair *obj);
 
 int normalColorStyle(int originalColor,int x,int y,int z);
 int pinkWhiteStyle(int originalColor,int x,int y,int z);
@@ -665,9 +666,10 @@ struct Room
 */
      //jj
      //void BuildARoom(const struct Room *ARoom)
-     struct stair downStair = setStairAttribute((struct Point){30,25,30},NORTH,5,9,DOWN_STAIR,5);
+     struct stair downStair = setStairAttribute((struct Point){10+getRandomNumber(0,30),notUnder+4+getRandomNumber(0,notOver-notUnder-6),10+getRandomNumber(0,30)},getRandomNumber(WEST,NORTH),3,4,DOWN_STAIR,5);
    setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
    setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
+   struct Point referentStairPoint =  getReferentStairPoint(&downStair);
      for (i =0 ; i <WORLDZ;i++)
      {
          maxRangVal = -1;
@@ -762,6 +764,7 @@ struct Room
             }
       }
       BuildStair(&downStair);
+      referentStairPoint =  getReferentStairPoint(&downStair);
 
    //setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
 
@@ -1501,4 +1504,31 @@ void BuildStair(const struct stair *obj)
 
    BuildABox(&downSideStartPoint,&downSideStopPoint,0,&normalColorStyle);
    BuildABox(&upSideStartPoint,&upSideStopPoint,0,&normalColorStyle);
+}
+
+struct Point getReferentStairPoint(const struct stair *obj)
+{
+   struct Point referentPoint;
+   const struct Room *aRoom = &(obj->aRoom);
+   const struct Wall *Walls = aRoom->Walls;
+   const int direction = obj->direction;
+   switch (direction)
+   {
+      case WEST:
+            referentPoint = (struct Point){Walls[EAST].StartPoint.x,Walls[EAST].StartPoint.y+Walls[EAST].height,Walls[EAST].StartPoint.z};
+      break;
+      case EAST:
+            referentPoint = (struct Point){Walls[WEST].StartPoint.x,Walls[WEST].StartPoint.y+Walls[WEST].height,Walls[WEST].width-1 +Walls[WEST].StartPoint.z};
+      break;
+      case SOUTH:
+            referentPoint = (struct Point){Walls[NORTH].width +Walls[NORTH].StartPoint.x,Walls[NORTH].StartPoint.y+Walls[NORTH].height,Walls[NORTH].StartPoint.z};
+      break;
+      case NORTH:
+            referentPoint = (struct Point){Walls[SOUTH].width +Walls[SOUTH].StartPoint.x,Walls[SOUTH].StartPoint.y+Walls[SOUTH].height,Walls[SOUTH].StartPoint.z};   
+      break;
+      default:
+            referentPoint = (struct Point){0,0,0};
+      break;
+   }
+   return referentPoint;
 }
