@@ -155,6 +155,9 @@ struct stair
 #define DEFAULT_VIEW_POINT_Y 48
 #define DEFAULT_VIEW_POINT_Z 1
 
+#define DEFAULT_HIGHEST_TERRAIN 36
+#define DEFAULT_LOWEST_TERRAIN 7
+
 struct Underground
 {
    // method interface
@@ -182,12 +185,19 @@ struct Underground
 #define EAST 1
 #define SOUTH 2
 #define NORTH 3
+#define NORTH_WEST 4
+#define NORTH_EAST 5
+#define SOUTH_EAST 6
+#define SOUTH_WEST 7
+
 #define X_SIDE_WALL 0
 #define Z_SIDE_WALL 1
 #define NOT_HAVE_ROOF 0
 #define NOT_HAVE_GROUND 0
 #define HAVE_ROOF 1
 #define HAVE_GROUND 1
+#define START_POINT 0
+#define STOP_POINT 1
 void SetMAXandMINPoint(const int **MaxPoint, const int **MinPoint, const int *P1, const int *P2);
 void BuildABox(const struct Point *StartPoint, const struct Point *Endpoint, int color,int (*generateColorStyle)(int,int,int,int));
 void BuildAWall(const struct Wall *AWall);
@@ -202,24 +212,29 @@ int checkRoomAndOppositeRoomCanBuildCorridorAndHallway(int XorZSide,int roomID, 
 void setParameterOfUnderground_defaultValeu1(struct Underground *obj);
 void createUnderground(struct Underground *obj);
 
+void generateTerrain();
+void generateTerrainStyle2(const struct Point *refPoint,const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
+
 struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int type,const int color);
 void LocateAndBuildStairOnTerrain(const struct stair *obj);
 void BuildStair(const struct stair *obj);
-struct Point getReferentStairPoint(const struct stair *obj);
+struct Point getReferentStairPoint(const struct stair *obj,int startOrStop); // 0 = start, 1 = stop
 
 int normalColorStyle(int originalColor,int x,int y,int z);
 int pinkWhiteStyle(int originalColor,int x,int y,int z);
 int darkAndLightBrownFloorStyle(int originalColor,int x,int y,int z);
 
+int isInRectangleBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref); // yes = 1, otherwise = 0
 int boundValue(int max,int min,int originValue);
 int findMaxValue(int a,int b);
 int findMinValue(int a,int b);
-
+ 
 #define AREA_XP 0
 #define AREA_ZP 1
 #define AREA_X_LENGHT 2
 #define AREA_Z_LENGHT 3
 
+      int terrain[WORLDX][WORLDZ];
 // define the dimension of Grid 3X3
 int dimensionOfGrid3x3[9][4] = {{0, 0, 33, 33},
                                 {33, 0, 34, 33},
@@ -511,6 +526,7 @@ createTube(2, -xx, -yy, -zz, -xx-((x-xx)*25.0), -yy-((y-yy)*25.0), -zz-((z-zz)*2
             newY = floorLv + 1.0;
          setViewPosition(vpx, newY * (-1.0), vpz);
       }
+
    }
 }
 
@@ -620,157 +636,25 @@ int main(int argc, char **argv)
       /* your code to build the world goes here */
       flycontrol = 0;
       makeWorld();
-
+      memset(terrain,-1,sizeof(terrain));
       struct Underground AnUnderground;
       setParameterOfUnderground_defaultValeu1(&AnUnderground);
-     // createUnderground(&AnUnderground);
+      // createUnderground(&AnUnderground);
 
-/////////// terrain test
-//printf("Addr1:%p, Addr2:%p ,Size of mem : %d ,sizeof(%lu) , worldSize:%lu\n",&world[0][0][1],&world[0][0][0], (unsigned int)&world[0][0][1] - (unsigned int)&world[0][0][0],sizeof(GLubyte),sizeof(world));
-
-      int currentHeight = 0;
-      int notOver = 43;
-      int notUnder = 5;
-     int delta;
-     int previousDelta = 0;
-   int maxRangVal = 5;
-   int minRangVal = 2;
-     int DeltaStartPoint = 0;
-     int DeltaEndPoint = 0;    
-     int terrain[WORLDX][WORLDZ];
-     int westHeight = notOver;
-     int westSouthHeight = notOver;
-     int southHeight = notOver;
-     int eastSouthHeight = notOver;
-
-     int maxHeight = 0;
-     int minHeight = 100;
-///////////
-/*
-struct Room
-{
-   struct Point StartPoint;      //count from ground point
-   struct Wall Walls[4];         // ID=0(WEST).1(EAST),2(SOUTH),3(NORTH)
-   struct Point DoorPosition[4]; // if point = {-1,-1,-1} = not defined, ID=0(WEST).1(EAST),2(SOUTH),3(NORTH)
-   int doorHeight;
-   int doorWidth;
-   int haveRoof;   // 0 = no, 1 = yes
-   int haveGround; //0 = no, 1 = yes
-   int Roofcolor;
-   int Groundcolor;
-   int unitCubeColor;
-   int numUnitCubes; // 1 or 2
-   struct Point unitCubePoint[2];
-
-};
-*/
-     //jj
-     //void BuildARoom(const struct Room *ARoom)
-     struct stair downStair = setStairAttribute((struct Point){10+getRandomNumber(0,30),notUnder+4+getRandomNumber(0,notOver-notUnder-6),10+getRandomNumber(0,30)},getRandomNumber(WEST,NORTH),3,4,DOWN_STAIR,5);
-   setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
-   setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
-   struct Point referentStairPoint =  getReferentStairPoint(&downStair);
-     for (i =0 ; i <WORLDZ;i++)
-     {
-         maxRangVal = -1;
-         minRangVal = 100;
-         for (j = 0;j < WORLDX;j++)
-         {
-               if(j > 0)
-               {
-                  westHeight = terrain[i][j-1];
-                  maxRangVal = westHeight;
-                  minRangVal = westHeight;
-               }
-               if(i > 0)
-               {
-                  southHeight = terrain[i-1][j];
-                  maxRangVal = findMaxValue(maxRangVal,southHeight);
-                  minRangVal = findMinValue(minRangVal,southHeight);
-               }
-               if((i > 0) && (j > 0))
-               {
-                  westSouthHeight = terrain[i-1][j-1];
-                  maxRangVal = findMaxValue(maxRangVal,westSouthHeight);
-                  minRangVal = findMinValue(minRangVal,westSouthHeight);
-               }
-               if((i > 0) && (j < (WORLDX-1)))
-               {
-                  eastSouthHeight = terrain[i-1][j+1];
-                  maxRangVal = findMaxValue(maxRangVal,eastSouthHeight);
-                  minRangVal = findMinValue(minRangVal,eastSouthHeight);
-               }
-               if (maxRangVal == minRangVal)
-               {
-                  /*
-                  if (DeltaEndPoint == DeltaStartPoint)
-                  {
-                     delta = getRandomNumber(1,3)-2;
-                     DeltaEndPoint = getRandomNumber(2,6);
-                     DeltaStartPoint = 0;
-                     printf("Round:%d delta: %d\n",DeltaEndPoint,delta);
-                  }
-
-                  DeltaStartPoint++;
-                 currentHeight = minRangVal + delta;
-                  */
-                 currentHeight = minRangVal + getRandomNumber(1,3)-2;
-                  
-               }
-               else if ((i ==0) && (j==0))
-               {
-                  currentHeight =  (notOver+notUnder)/2;
-               }
-               else if (maxRangVal == (minRangVal+1))
-               {
-                  currentHeight =  getRandomNumber(minRangVal,maxRangVal);
-               }
-               else
-               {
-                  currentHeight =  (maxRangVal + minRangVal)/2;
-               }
-              // printf("WS:%d, W,%d, S:%d, SE:%d MN(%d,%d) c:%d\n",westSouthHeight,westHeight,southHeight,eastSouthHeight,maxRangVal,minRangVal,currentHeight);
-               terrain[i][j] = currentHeight;
-
-               currentHeight = boundValue(notOver,notUnder,currentHeight);
-               if(maxHeight < currentHeight)maxHeight = currentHeight;
-               if(minHeight > currentHeight)minHeight = currentHeight;
-               if((i==0) && (j==0))
-               {
-
-               world[j][currentHeight][i] = 3;
-               }
-               else
-               {
-
-               world[j][currentHeight][i] = 1;
-               world[j][currentHeight][i] += 20*(currentHeight == notUnder) + 4*(currentHeight== notOver);
-               }
-         }
-     }
-   for(i = 0; i < WORLDX;i++)
-      for(j = 0; j < WORLDZ;j++)
-      {
-         if (world[i][maxHeight][j] != 0) 
-            {
-               world[i][maxHeight][j] = 5;
-              // printf("Highest :[%d,%d,%d] \n",i,maxHeight,j);
-            }
-         if (world[i][minHeight][j] != 0) 
-            {
-               world[i][minHeight][j] = 21;
-//               printf("Lowest :[%d,%d,%d] \n",i,minHeight,j);
-
-            }
-      }
+      struct stair downStair = setStairAttribute((struct Point){10+getRandomNumber(0,30),DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-6),10+getRandomNumber(0,30)},getRandomNumber(WEST,NORTH),3,4,DOWN_STAIR,5);
+      setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
+      setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
+      struct Point startStairPoint =  getReferentStairPoint(&downStair,START_POINT);
+      struct Point stopStairPoint =  getReferentStairPoint(&downStair,STOP_POINT);
+    //  generateTerrain();
+   
       BuildStair(&downStair);
-      referentStairPoint =  getReferentStairPoint(&downStair);
 
-   //setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
 
-     setViewPosition(-1*10, -1*48, -1*10);
+      generateTerrainStyle2(&startStairPoint,&startStairPoint,&stopStairPoint);
 
-  
+      //　setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
+      setViewPosition(-1*10, -1*38, -1*10);
    }
 
    /* starts the graphics processing loop */
@@ -1506,8 +1390,10 @@ void BuildStair(const struct stair *obj)
    BuildABox(&upSideStartPoint,&upSideStopPoint,0,&normalColorStyle);
 }
 
-struct Point getReferentStairPoint(const struct stair *obj)
+struct Point getReferentStairPoint(const struct stair *obj,int startOrStop) // 0 = start, 1 = stop
 {
+   struct Point startPoint;
+   struct Point stopPoint;
    struct Point referentPoint;
    const struct Room *aRoom = &(obj->aRoom);
    const struct Wall *Walls = aRoom->Walls;
@@ -1515,20 +1401,411 @@ struct Point getReferentStairPoint(const struct stair *obj)
    switch (direction)
    {
       case WEST:
-            referentPoint = (struct Point){Walls[EAST].StartPoint.x,Walls[EAST].StartPoint.y+Walls[EAST].height,Walls[EAST].StartPoint.z};
+            startPoint = (struct Point){Walls[EAST].StartPoint.x, Walls[EAST].StartPoint.y+Walls[EAST].height,Walls[EAST].StartPoint.z};
+            stopPoint  = (struct Point){Walls[WEST].StartPoint.x, Walls[EAST].StartPoint.y+Walls[EAST].height, Walls[WEST].StartPoint.z + Walls[WEST].width -1};
       break;
       case EAST:
-            referentPoint = (struct Point){Walls[WEST].StartPoint.x,Walls[WEST].StartPoint.y+Walls[WEST].height,Walls[WEST].width-1 +Walls[WEST].StartPoint.z};
+            startPoint = (struct Point){Walls[WEST].StartPoint.x, Walls[WEST].StartPoint.y+Walls[WEST].height,Walls[WEST].width-1 +Walls[WEST].StartPoint.z};
+            stopPoint  = (struct Point){Walls[EAST].StartPoint.x, Walls[EAST].StartPoint.y+Walls[EAST].height, Walls[EAST].StartPoint.z};
       break;
       case SOUTH:
-            referentPoint = (struct Point){Walls[NORTH].width +Walls[NORTH].StartPoint.x,Walls[NORTH].StartPoint.y+Walls[NORTH].height,Walls[NORTH].StartPoint.z};
+            startPoint = (struct Point){Walls[NORTH].width +Walls[NORTH].StartPoint.x,Walls[NORTH].StartPoint.y+Walls[NORTH].height,Walls[NORTH].StartPoint.z};
+            stopPoint  = (struct Point){Walls[SOUTH].StartPoint.x-1, Walls[SOUTH].StartPoint.y+Walls[SOUTH].height, Walls[SOUTH].StartPoint.z};
       break;
       case NORTH:
-            referentPoint = (struct Point){Walls[SOUTH].width +Walls[SOUTH].StartPoint.x,Walls[SOUTH].StartPoint.y+Walls[SOUTH].height,Walls[SOUTH].StartPoint.z};   
+            startPoint = (struct Point){Walls[SOUTH].width +Walls[SOUTH].StartPoint.x,Walls[SOUTH].StartPoint.y+Walls[SOUTH].height,Walls[SOUTH].StartPoint.z}; 
+            stopPoint  = (struct Point){Walls[NORTH].StartPoint.x-1, Walls[NORTH].StartPoint.y+Walls[NORTH].height, Walls[NORTH].StartPoint.z};
       break;
       default:
             referentPoint = (struct Point){0,0,0};
       break;
    }
+   referentPoint = stopPoint;
+   if (startOrStop == 0)
+   {
+      referentPoint = startPoint;
+   }
    return referentPoint;
+}
+
+void generateTerrain()
+{
+   int i,j,k;
+   int currentHeight = 0;
+   int notOver = DEFAULT_HIGHEST_TERRAIN;
+   int notUnder = DEFAULT_LOWEST_TERRAIN;
+   int delta;
+   int previousDelta = 0;
+   int maxRangVal = 5;
+   int minRangVal = 2;
+   int DeltaStartPoint = 0;
+   int DeltaEndPoint = 0;    
+   int terrain[WORLDX][WORLDZ];
+   int westHeight = notOver;
+   int westSouthHeight = notOver;
+   int southHeight = notOver;
+   int eastSouthHeight = notOver;
+   int maxHeight = 0;
+   int minHeight = 100;
+   for (i =0 ; i <WORLDZ;i++)
+   {
+      maxRangVal = -1;
+      minRangVal = 100;
+      for (j = 0;j < WORLDX;j++)
+      {
+         if(j > 0)
+         {
+            westHeight = terrain[i][j-1];
+            maxRangVal = westHeight;
+            minRangVal = westHeight;
+         }
+         if(i > 0)
+         {
+            southHeight = terrain[i-1][j];
+            maxRangVal = findMaxValue(maxRangVal,southHeight);
+            minRangVal = findMinValue(minRangVal,southHeight);
+         }
+         if((i > 0) && (j > 0))
+         {
+            westSouthHeight = terrain[i-1][j-1];
+            maxRangVal = findMaxValue(maxRangVal,westSouthHeight);
+            minRangVal = findMinValue(minRangVal,westSouthHeight);
+         }
+         if((i > 0) && (j < (WORLDX-1)))
+         {
+            eastSouthHeight = terrain[i-1][j+1];
+            maxRangVal = findMaxValue(maxRangVal,eastSouthHeight);
+            minRangVal = findMinValue(minRangVal,eastSouthHeight);
+         }
+         if (maxRangVal == minRangVal)
+         {
+            /*
+            if (DeltaEndPoint == DeltaStartPoint)
+            {
+            delta = getRandomNumber(1,3)-2;
+            DeltaEndPoint = getRandomNumber(2,6);
+            DeltaStartPoint = 0;
+            printf("Round:%d delta: %d\n",DeltaEndPoint,delta);
+            }
+            DeltaStartPoint++;
+            currentHeight = minRangVal + delta;
+            */
+            currentHeight = minRangVal + getRandomNumber(1,3)-2;
+
+         }
+         else if ((i ==0) && (j==0))
+         {
+            currentHeight =  (notOver+notUnder)/2;
+         }
+         else if (maxRangVal == (minRangVal+1))
+         {
+            currentHeight =  getRandomNumber(minRangVal,maxRangVal);
+         }
+         else
+         {
+            currentHeight =  (maxRangVal + minRangVal)/2;
+         }
+         // printf("WS:%d, W,%d, S:%d, SE:%d MN(%d,%d) c:%d\n",westSouthHeight,westHeight,southHeight,eastSouthHeight,maxRangVal,minRangVal,currentHeight);
+         terrain[i][j] = currentHeight;
+
+         currentHeight = boundValue(notOver,notUnder,currentHeight);
+         if(maxHeight < currentHeight)maxHeight = currentHeight;
+         if(minHeight > currentHeight)minHeight = currentHeight;
+         if((i==0) && (j==0))
+         {
+            world[j][currentHeight][i] = 3;
+         }
+         else
+         {
+            world[j][currentHeight][i] = 1;
+            world[j][currentHeight][i] += 20*(currentHeight == notUnder) + 4*(currentHeight== notOver);
+         }  
+      }
+   }
+   for(i = 0; i < WORLDX;i++)
+      for(j = 0; j < WORLDZ;j++)
+      {
+         if (world[i][maxHeight][j] != 0) 
+         {
+            world[i][maxHeight][j] = 5;
+         }
+         if (world[i][minHeight][j] != 0) 
+         {
+            world[i][minHeight][j] = 21;
+         }
+      }
+}
+
+void generateTerrainStyle2(const struct Point *refPoint,const struct Point *startBoundPoint,const struct Point *stopBoundPoint)
+{
+      int i =0;
+      int minRangVal = WORLDY;
+      int maxRangVal = -1;
+      int currentHeight = 0;
+      int maxHeight = 0;
+      int minHeight = 100;
+      printf("Stair Point :(%d,%d,%d) \n",refPoint->x,refPoint->y,refPoint->z);
+      unsigned char direction[8];
+
+      memset(direction,1,sizeof(direction));
+      // search all direction
+
+      // check range      
+      // WEST
+      if ((refPoint->x-1) > -1)
+         if (terrain[refPoint->x-1][refPoint->z] < 1)
+         {
+            if (world[refPoint->x-1][refPoint->y][refPoint->z] != 0)
+            {
+               terrain[refPoint->x-1][refPoint->z] = refPoint->y;
+            }
+            else
+            {
+               direction[WEST] = 0;
+            }
+         }
+            
+      // EAST
+      if ((refPoint->x+1) < 50)
+         if (terrain[refPoint->x+1][refPoint->z] < 1)
+         {
+            if (world[refPoint->x+1][refPoint->y][refPoint->z] != 0)
+            {
+               terrain[refPoint->x+1][refPoint->z] = refPoint->y;
+            }
+            else
+            {
+
+               direction[EAST] = 0;
+            }
+         }
+
+      // SOUTH
+      if ((refPoint->z-1) > -1)
+         if (terrain[refPoint->x][refPoint->z-1] < 1)
+         {
+            if (world[refPoint->x][refPoint->y][refPoint->z-1] != 0)
+            {
+               terrain[refPoint->x][refPoint->z-1] = refPoint->y;
+            }
+            else
+            {
+
+               direction[SOUTH] = 0;
+            }
+         }
+
+      // NORTH
+      if ((refPoint->z+1) < 50)
+         if (terrain[refPoint->x][refPoint->z+1] < 1)
+         {
+            if (world[refPoint->x][refPoint->y][refPoint->z+1] != 0)
+            {
+               terrain[refPoint->x][refPoint->z+1] = refPoint->y;
+            }
+            else
+            {
+               direction[NORTH] = 0;
+            }
+         }
+      // WEST-NORTH
+      if (((refPoint->x-1) > -1) && ((refPoint->z+1) < 50))
+         if (terrain[refPoint->x-1][refPoint->z+1] < 1)
+         {
+            if (world[refPoint->x-1][refPoint->y][refPoint->z+1] != 0)
+            {
+               terrain[refPoint->x-1][refPoint->z+1] = refPoint->y;
+            }
+            else
+            {
+               direction[4] = 0;
+            }
+         }
+
+      // EAST-NORTH
+      if (((refPoint->x+1) < 50) && ((refPoint->z+1) < 50))
+         if (terrain[refPoint->x+1][refPoint->z+1] < 1)
+         {
+            if (world[refPoint->x+1][refPoint->y][refPoint->z+1] != 0)
+            {
+               terrain[refPoint->x+1][refPoint->z+1] = refPoint->y;
+            }
+            else
+            {
+               direction[5] = 0;
+            }
+         }
+      // WEST-SOUTH
+      if (((refPoint->x-1) > -1) && ((refPoint->z-1) > -1))
+         if (terrain[refPoint->x-1][refPoint->z-1] < 1)
+         {
+            if (world[refPoint->x-1][refPoint->y][refPoint->z-1] != 0)
+            {
+               terrain[refPoint->x-1][refPoint->z-1] = refPoint->y;
+            }
+            else
+            {
+               direction[6] = 0;
+            }
+         }
+      // EAST-SOUTH
+      if (((refPoint->x+1) < 50) && ((refPoint->z-1) > -1))
+         if (terrain[refPoint->x+1][refPoint->z-1] < 1)
+         {
+            if (world[refPoint->x+1][refPoint->y][refPoint->z-1] != 0)
+            {
+               terrain[refPoint->x+1][refPoint->z-1] = refPoint->y;
+            }
+            else
+            {
+               direction[7] = 0;
+            }
+         }
+
+
+      for (i = 0;i < 8;i++)
+      {
+         if(direction[i] == 0)
+         {
+            // i = west
+            int score = 0;
+            // WEST
+            if ((refPoint->x-1) > -1)
+               if (terrain[refPoint->x-1][refPoint->z] > -1)
+               {
+                  maxRangVal = findMaxValue(maxRangVal,terrain[refPoint->x-1][refPoint->z]);
+                  minRangVal = findMinValue(minRangVal,terrain[refPoint->x-1][refPoint->z]);
+                  score++;
+               }
+
+            // EAST
+            if ((refPoint->x+1) < 50)
+               if (terrain[refPoint->x+1][refPoint->z] > -1)
+               {
+                  maxRangVal = findMaxValue(maxRangVal,terrain[refPoint->x+1][refPoint->z]);
+                  minRangVal = findMinValue(minRangVal,terrain[refPoint->x+1][refPoint->z]);
+                  score++;
+               }
+
+            // SOUTH
+            if ((refPoint->z-1) > -1)
+               if (terrain[refPoint->x][refPoint->z-1] > -1)
+               {
+                  maxRangVal = findMaxValue(maxRangVal,terrain[refPoint->x][refPoint->z-1]);
+                  minRangVal = findMinValue(minRangVal,terrain[refPoint->x][refPoint->z-1]);
+                  score++;
+               }
+
+            // NORTH
+            if ((refPoint->z+1) < 50)
+               if (terrain[refPoint->x][refPoint->z+1] > -1)
+               {
+                  maxRangVal = findMaxValue(maxRangVal,terrain[refPoint->x][refPoint->z+1]);
+                  minRangVal = findMinValue(minRangVal,terrain[refPoint->x][refPoint->z+1]);
+                  score++;
+               }
+
+            // WEST-NORTH
+            if (((refPoint->x-1) > -1) && ((refPoint->z+1) < 50))
+               if (terrain[refPoint->x-1][refPoint->z+1] > -1)
+               {
+                  maxRangVal = findMaxValue(maxRangVal,terrain[refPoint->x-1][refPoint->z+1]);
+                  minRangVal = findMinValue(minRangVal,terrain[refPoint->x-1][refPoint->z+1]);
+                  score++;
+               }
+
+            // EAST-NORTH
+            if (((refPoint->x+1) < 50) && ((refPoint->z+1) < 50))
+               if (terrain[refPoint->x+1][refPoint->z+1] > -1)
+               {
+                  maxRangVal = findMaxValue(maxRangVal,terrain[refPoint->x+1][refPoint->z+1]);
+                  minRangVal = findMinValue(minRangVal,terrain[refPoint->x+1][refPoint->z+1]);
+                  score++;
+               }
+
+            // WEST-SOUTH
+            if (((refPoint->x-1) > -1) && ((refPoint->z-1) > -1))
+               if (terrain[refPoint->x-1][refPoint->z-1] > -1)
+               {
+                  maxRangVal = findMaxValue(maxRangVal,terrain[refPoint->x-1][refPoint->z-1]);
+                  minRangVal = findMinValue(minRangVal,terrain[refPoint->x-1][refPoint->z-1]);
+                  score++;
+               }
+
+            // EAST-SOUTH
+            if (((refPoint->x+1) < 50) && ((refPoint->z-1) > -1))
+               if (terrain[refPoint->x+1][refPoint->z-1] > -1)
+               {
+                  maxRangVal = findMaxValue(maxRangVal,terrain[refPoint->x+1][refPoint->z-1]);
+                  minRangVal = findMinValue(minRangVal,terrain[refPoint->x+1][refPoint->z-1]);
+                  score++;
+               }  
+            if (maxRangVal == minRangVal)
+            {
+
+               currentHeight = minRangVal + getRandomNumber(1,3)-2;
+
+            }
+            else if (maxRangVal == (minRangVal+1))
+            {
+               currentHeight =  getRandomNumber(minRangVal,maxRangVal);
+            }
+            else
+            {
+               currentHeight =  (maxRangVal + minRangVal)/2;
+            }
+            // printf("WS:%d, W,%d, S:%d, SE:%d MN(%d,%d) c:%d\n",westSouthHeight,westHeight,southHeight,eastSouthHeight,maxRangVal,minRangVal,currentHeight);
+           
+            struct Point p1;
+            if(maxHeight < currentHeight)maxHeight = currentHeight;
+            if(minHeight > currentHeight)minHeight = currentHeight;
+            switch(i)
+            {
+               case WEST:
+                  p1 = (struct Point){refPoint->x-1,refPoint->y,refPoint->z};
+               break;
+               case EAST:
+                  p1 = (struct Point){refPoint->x+1,refPoint->y,refPoint->z};
+               break;
+               case SOUTH:
+                  p1 = (struct Point){refPoint->x,refPoint->y,refPoint->z-1};
+               break;
+               case NORTH:
+                  p1 = (struct Point){refPoint->x,refPoint->y,refPoint->z+1};
+               break;
+               case NORTH_WEST:
+                  p1 = (struct Point){refPoint->x-1,refPoint->y,refPoint->z+1};
+               break;
+               case NORTH_EAST:
+                  p1 = (struct Point){refPoint->x+1,refPoint->y,refPoint->z+1};
+               break;
+               case SOUTH_WEST:
+                  p1 = (struct Point){refPoint->x-1,refPoint->y,refPoint->z-1};
+               break;
+               case SOUTH_EAST:
+                  p1 = (struct Point){refPoint->x+1,refPoint->y,refPoint->z-1};
+               break;
+            }
+            struct Point startWorldP = {0,0,0};
+            struct Point stopWorldP = {99,49,99};
+            if ((isInRectangleBound(startBoundPoint,stopBoundPoint,&p1) == 0) && (isInRectangleBound(&startWorldP,&stopWorldP,&p1) == 1))
+            {
+               terrain[p1.x][p1.z] = currentHeight;
+               currentHeight = boundValue(DEFAULT_HIGHEST_TERRAIN,DEFAULT_LOWEST_TERRAIN,currentHeight);
+
+               world[p1.x][currentHeight][p1.z] = 1;
+              // if(score >= 2)
+               generateTerrainStyle2(&p1,startBoundPoint,stopBoundPoint); 
+            }
+         }
+      }
+
+}
+
+int isInRectangleBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref) // yes = 1, otherwise = 
+{
+   int isInX = (ref->x >= findMinValue(startP->x,stopP->x)) && (ref->x <= findMaxValue(startP->x,stopP->x));
+   int isInY = (ref->y >= findMinValue(startP->y,stopP->y)) && (ref->y <= findMaxValue(startP->y,stopP->y));
+   int isInZ = (ref->z >= findMinValue(startP->z,stopP->z)) && (ref->z <= findMaxValue(startP->z,stopP->z));
+   return ((isInX+isInY+isInZ) == 3);
 }
