@@ -665,10 +665,12 @@ int main(int argc, char **argv)
       /* your code to build the world goes here */
       flycontrol = 0;
       makeWorld();
+
+      setUserColour(22, 0.604, 0.604, 0.604, 1.0, 0.2, 0.2, 0.2, 1.0); //Grey
       memset(terrain,0,sizeof(terrain));
       int numStairSteps = 4;
       int StairStepWidth = 4;
-      int stairColor = 5;
+      int stairColor = 22;
       struct Underground AnUnderground;
       setParameterOfUnderground_defaultValeu1(&AnUnderground);
       // createUnderground(&AnUnderground);
@@ -1765,18 +1767,18 @@ void generateTerrainStyle2(const struct Point *startBoundPoint,const struct Poin
       setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
       setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0); 
       // fill color to highest cubes and lowest cubes
-       for(i = 0; i < WORLDX;i++)
-      for(j = 0; j < WORLDZ;j++)
-      {
-         if (world[i][maxHeight][j] != 0) 
+      for(i = 0; i < WORLDX;i++)
+         for(j = 0; j < WORLDZ;j++)
          {
-            world[i][maxHeight][j] = 5;
+            if (world[i][maxHeight][j] != 0) 
+            {
+               world[i][maxHeight][j] = 5;
+            }
+            if (world[i][minHeight][j] != 0) 
+            {
+               world[i][minHeight][j] = 21;
+            }
          }
-         if (world[i][minHeight][j] != 0) 
-         {
-            world[i][minHeight][j] = 21;
-         }
-      }
 /*
       printf("read Ter(%d,%d) :%d ,%d(%d,%d),%d(%d,%d),%d(%d,%d),%d(%d,%d) kkkk:%d\n",p1.x,p1.z,readTerrain(terrain,p1.x,p1.z),((southWestP.x <= 0) && (southWestP.z <= 0)),southWestP.x,southWestP.z,((northWestP.x <= 0) && (northWestP.z>= WORLDZ-1)),northWestP.x,northWestP.z,((northEastP.x >= WORLDX-1) && (northEastP.z >= WORLDZ-1)),northEastP.x,northEastP.z,((southEastP.x >= WORLDX-1) && (southEastP.z <= 0)),southEastP.x,southEastP.z,protectInfinityLoopVal);
 
