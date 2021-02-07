@@ -213,7 +213,8 @@ void setParameterOfUnderground_defaultValeu1(struct Underground *obj);
 void createUnderground(struct Underground *obj);
 
 void generateTerrain();
-void generateTerrainStyle2(const struct Point *refPoint,const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
+void generateTerrainStyle2(const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
+void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point *northWestP, struct Point *northEastP, struct Point *southEastP);
 
 struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int type,const int color);
 void LocateAndBuildStairOnTerrain(const struct stair *obj);
@@ -665,8 +666,8 @@ int main(int argc, char **argv)
       struct Underground AnUnderground;
       setParameterOfUnderground_defaultValeu1(&AnUnderground);
       // createUnderground(&AnUnderground);
-
-      struct stair downStair = setStairAttribute((struct Point){10+getRandomNumber(0,30),DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-numStairSteps-10),10+getRandomNumber(0,30)},getRandomNumber(WEST,NORTH),3,numStairSteps,DOWN_STAIR,5);
+struct stair downStair = setStairAttribute((struct Point){10,DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-numStairSteps-10),55},getRandomNumber(WEST,NORTH),3,numStairSteps,DOWN_STAIR,5);
+   //   struct stair downStair = setStairAttribute((struct Point){10+getRandomNumber(0,80),DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-numStairSteps-10),10+getRandomNumber(0,80)},getRandomNumber(WEST,NORTH),3,numStairSteps,DOWN_STAIR,5);
       setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
       setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
       struct Point startStairPoint =  getReferentStairPoint(&downStair,START_POINT);
@@ -674,10 +675,10 @@ int main(int argc, char **argv)
     //  generateTerrain();
    
       BuildStair(&downStair);
-      generateTerrainStyle2(&startStairPoint,&startStairPoint,&stopStairPoint);
+      generateTerrainStyle2(&startStairPoint,&stopStairPoint);
 
       //　setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
-      setViewPosition(-1*10, -1*38, -1*10);
+      setViewPosition(-1*10, -1*48, -1*10);
    }
 
    /* starts the graphics processing loop */
@@ -1558,9 +1559,10 @@ void generateTerrain()
          }
       }
 }
-int kkkk =192200;
-void generateTerrainStyle2(const struct Point *refPoint,const struct Point *startBoundPoint,const struct Point *stopBoundPoint)
+
+void generateTerrainStyle2(const struct Point *startBoundPoint,const struct Point *stopBoundPoint)
 {
+      int protectInfinityLoopVal =180000;
       int i =0;
       int j= 0;
       int minRangVal = WORLDY;
@@ -1576,16 +1578,26 @@ void generateTerrainStyle2(const struct Point *refPoint,const struct Point *star
       struct Point northWestP = {findMaxValue(minX+directionOffset[NORTH_WEST][0],0),startBoundPoint->y,findMinValue(maxZ+directionOffset[NORTH_WEST][1],WORLDZ-1)};
       struct Point northEastP = {findMinValue(maxX+directionOffset[NORTH_EAST][0],WORLDX-1),startBoundPoint->y,findMinValue(maxZ+directionOffset[NORTH_EAST][1],WORLDZ-1)};
       struct Point southEastP = {findMinValue(maxX+directionOffset[SOUTH_EAST][0],WORLDX-1),startBoundPoint->y,findMaxValue(minZ+directionOffset[SOUTH_EAST][1],0)};
+      struct Point bountPoint[4]; 
+/*
+#define NORTH_WEST 4
+#define NORTH_EAST 5
+#define SOUTH_EAST 6
+#define SOUTH_WEST 7
+ boundValue(WORLDX-1,0,p1.x);
 
-      int fullfillArea = (southWestP.x == 0) && (southWestP.z == 0);
-          fullfillArea = fullfillArea && (northWestP.x == 0) && (northWestP.z == WORLDZ-1);
-          fullfillArea = fullfillArea && (northEastP.x == WORLDX-1) && (northEastP.z == WORLDZ-1);
-          fullfillArea = fullfillArea && (southEastP.x == WORLDX-1) && (southEastP.z == 0);
+*/
+      int fullfillNorthEastArea = (northEastP.x == WORLDX-1)&&(northEastP.z == WORLDZ-1)&&(readTerrain(terrain,northEastP.x-1,northEastP.z) >0) &&  (readTerrain(terrain,northEastP.x,northEastP.z-1) >0);
+      int fullfillSouthEastArea = (southEastP.x == WORLDX-1)&&(southEastP.z == 0)&&(readTerrain(terrain,southEastP.x,southEastP.z+1) >0) &&  (readTerrain(terrain,southEastP.x-1,southEastP.z) >0);
+      int fullfillNorthWestArea = (northWestP.x == 0)&&(northWestP.z == WORLDZ-1)&&(readTerrain(terrain,northWestP.x+1,northWestP.z) >0) &&  (readTerrain(terrain,northWestP.x,northWestP.z-1) >0);
+      int fullfillSouthWestArea = (southWestP.x == 0)&&(southWestP.z == 0)&&(readTerrain(terrain,southWestP.x+1,southWestP.z) >0) &&  (readTerrain(terrain,southWestP.x,southWestP.z+1) >0);
+      int fullfillArea = fullfillNorthEastArea && fullfillSouthEastArea && fullfillNorthWestArea && fullfillSouthWestArea;
+
      // printf("Stair Point :(%d,%d,%d), End(%d,%d,%d) \n",refPoint->x,refPoint->y,refPoint->z,stopBoundPoint->x,stopBoundPoint->y,stopBoundPoint->z);
 
          struct Point p1 = southWestP;
          struct Point p2 = southWestP;
-      while ((fullfillArea == 0) && (kkkk-- > 0))
+      while ((fullfillArea == 0) && (protectInfinityLoopVal-- > 0))
       {
          unsigned char direction[8];
 
@@ -1653,18 +1665,18 @@ void generateTerrainStyle2(const struct Point *refPoint,const struct Point *star
          if ((((southWestP.x < 0) && (southWestP.z < 0)) == 0) && (p1.z < northWestP.z) && (p1.x == northWestP.x))
          {
             p1.z++;
-          //  printf("it is true(%d), p1:(%d,%d),northWestP.z:%d \n",(((southWestP.x == 0) && (southWestP.z == 0)) == 0),p1.x,p1.z,northWestP.z);
+           //printf("it is true(%d), p1:(%d,%d),northWestP.z:%d \n",(((southWestP.x == 0) && (southWestP.z == 0)) == 0),p1.x,p1.z,northWestP.z);
          }
          else if ((((northWestP.x < 0) && (northWestP.z > WORLDZ-1)) == 0) && (p1.x < northEastP.x) && (p1.z == northEastP.z))
          {
 
             p1.x++;
-         //   printf("it is false1(%d), p1:(%d,%d), northEastP.x:%d \n",(((northWestP.x == 0) && (northWestP.z == WORLDZ-1)) == 0),p1.x,p1.z,northEastP.x);
+           //printf("it is false1(%d), p1:(%d,%d), northEastP.x:%d \n",(((northWestP.x == 0) && (northWestP.z == WORLDZ-1)) == 0),p1.x,p1.z,northEastP.x);
          }
          else if ((((northEastP.x> WORLDX-1) && (northEastP.z > WORLDZ-1)) == 0) && (p1.z > southEastP.z) && (p1.x == southEastP.x))
          {
             p1.z--;
-        //    printf("it is false2(%d), p1:(%d,%d), southEastP.z:%d \n",(((northEastP.x == WORLDX-1) && (northEastP.z == WORLDZ-1)) == 0),p1.x,p1.z,southEastP.z);
+          // printf("it is false2(%d), p1:(%d,%d), southEastP.z:%d \n",(((northEastP.x == WORLDX-1) && (northEastP.z == WORLDZ-1)) == 0),p1.x,p1.z,southEastP.z);
          }
          else if ((((southEastP.x > WORLDX-1) && (southEastP.z <0)) == 0) && (p1.x > southWestP.x) && (p1.z == southWestP.z))
          {
@@ -1672,57 +1684,67 @@ void generateTerrainStyle2(const struct Point *refPoint,const struct Point *star
           //  printf("it is false3(%d), p1:(%d,%d), southEastP.z:%d \n",(((northEastP.x == WORLDX-1) && (northEastP.z == WORLDZ-1)) == 0),p1.x,p1.z,southEastP.z);
          }
 
-         if ((southWestP.x == p1.x) && (southWestP.z == p1.z) && (((southWestP.x < 0) && (southWestP.z< 0)) == 0))
+
+          if ((southWestP.x == p1.x) && (southWestP.z == p1.z))
          {
-            southWestP = (struct Point){findMaxValue(southWestP.x+directionOffset[SOUTH_WEST][0],0),startBoundPoint->y,findMaxValue(southWestP.z+directionOffset[SOUTH_WEST][1],0)};
-            northWestP = (struct Point){findMaxValue(northWestP.x+directionOffset[NORTH_WEST][0],0),startBoundPoint->y,findMinValue(northWestP.z+directionOffset[NORTH_WEST][1],WORLDZ-1)};
-            northEastP = (struct Point){findMinValue(northEastP.x+directionOffset[NORTH_EAST][0],WORLDX-1),startBoundPoint->y,findMinValue(northEastP.z+directionOffset[NORTH_EAST][1],WORLDZ-1)};
-            southEastP = (struct Point){findMinValue(southEastP.x+directionOffset[SOUTH_EAST][0],WORLDX-1),startBoundPoint->y,findMaxValue(southEastP.z+directionOffset[SOUTH_EAST][1],0)};
+            //printf("Set1 terrain(%d,%d) : %d, kkkk:%d  ,fullfillNorthEastArea:%d , fullfillSouthEastArea:%d\n",p1.x,p1.z,readTerrain(terrain,p1.x,p1.z),protectInfinityLoopVal,fullfillNorthEastArea,fullfillSouthEastArea);
+            updateBoundaryPointsForTerrainStyle2(&southWestP,&northWestP,&northEastP,&southEastP);
             p1 = southWestP;
             //printf("Reset 1 p1(%d,%d)\n",p1.x,p1.z);
          }
-         else if ((((southWestP.x < 0) && (southWestP.z < 0)) == 1) && (p1.x == 0) && (((northWestP.x <= 0) && (northWestP.z >= WORLDZ-1)) == 0))
+         else if ((fullfillNorthEastArea == 1) && (fullfillSouthEastArea == 0) && (readTerrain(terrain,northWestP.x,northWestP.z) > 0) && (p1.z == northWestP.z) && (p1.x > northWestP.x))
          {
-            southWestP = (struct Point){findMaxValue(southWestP.x+directionOffset[SOUTH_WEST][0],0),startBoundPoint->y,findMaxValue(southWestP.z+directionOffset[SOUTH_WEST][1],0)};
-            northWestP = (struct Point){findMaxValue(northWestP.x+directionOffset[NORTH_WEST][0],0),startBoundPoint->y,findMinValue(northWestP.z+directionOffset[NORTH_WEST][1],WORLDZ-1)};
-            northEastP = (struct Point){findMinValue(northEastP.x+directionOffset[NORTH_EAST][0],WORLDX-1),startBoundPoint->y,findMinValue(northEastP.z+directionOffset[NORTH_EAST][1],WORLDZ-1)};
-            southEastP = (struct Point){findMinValue(southEastP.x+directionOffset[SOUTH_EAST][0],WORLDX-1),startBoundPoint->y,findMaxValue(southEastP.z+directionOffset[SOUTH_EAST][1],0)};
+            //printf("Reset2 terrain(%d,%d) : %d, kkkk:%d \n",p1.x,p1.z,readTerrain(terrain,p1.x,p1.z),protectInfinityLoopVal);
+            p1 = southEastP;
+         }
+         else if ((fullfillNorthWestArea == 1) && (fullfillSouthWestArea == 0) && (readTerrain(terrain,southWestP.x,southWestP.z) > 0) && (p1.z > southWestP.z) && (p1.x == southWestP.x))
+         {
+            //printf("Reset3 terrain(%d,%d) : %d, kkkk:%d \n",p1.x,p1.z,readTerrain(terrain,p1.x,p1.z),protectInfinityLoopVal);
+            p1 = northEastP;
+         }
+         else if ((fullfillSouthWestArea == 1)&&(fullfillNorthWestArea == 0) && (readTerrain(terrain,southEastP.x,southEastP.z) > 0) && (p1.z == southEastP.z) && (p1.x < southEastP.x))
+         {
+            //printf("Reset4 terrain(%d,%d) : %d, kkkk:%d \n",p1.x,p1.z,readTerrain(terrain,p1.x,p1.z),protectInfinityLoopVal);
+            updateBoundaryPointsForTerrainStyle2(&southWestP,&northWestP,&northEastP,&southEastP);
             p1 = northWestP;
-          //  printf("Reset 2 p1(%d,%d)\n",p1.x,p1.z);
+
          }
-         else if ((((southEastP.x > WORLDX-1) && (southEastP.z < 0)) == 1) && (northEastP.x == p1.x) && (northEastP.z == p1.z) && (((northEastP.x > WORLDX-1) && (northEastP.z > WORLDZ-1)) == 0))
+         else if ((fullfillSouthEastArea == 1)&&(fullfillSouthWestArea == 0) && (readTerrain(terrain,northEastP.x,northEastP.z) > 0) && (p1.z < northEastP.z) && (p1.x == northEastP.x))
          {
-            southWestP = (struct Point){findMaxValue(southWestP.x+directionOffset[SOUTH_WEST][0],0),startBoundPoint->y,findMaxValue(southWestP.z+directionOffset[SOUTH_WEST][1],0)};
-            northWestP = (struct Point){findMaxValue(northWestP.x+directionOffset[NORTH_WEST][0],0),startBoundPoint->y,findMinValue(northWestP.z+directionOffset[NORTH_WEST][1],WORLDZ-1)};
-            northEastP = (struct Point){findMinValue(northEastP.x+directionOffset[NORTH_EAST][0],WORLDX-1),startBoundPoint->y,findMinValue(northEastP.z+directionOffset[NORTH_EAST][1],WORLDZ-1)};
-            southEastP = (struct Point){findMinValue(southEastP.x+directionOffset[SOUTH_EAST][0],WORLDX-1),startBoundPoint->y,findMaxValue(southEastP.z+directionOffset[SOUTH_EAST][1],0)};
+            //printf("Reset5 terrain(%d,%d) : %d, kkkk:%d \n",p1.x,p1.z,readTerrain(terrain,p1.x,p1.z),protectInfinityLoopVal);
+            updateBoundaryPointsForTerrainStyle2(&southWestP,&northWestP,&northEastP,&southEastP);
             p1 = southWestP;
-         //   printf("Reset 3 p1(%d,%d)\n",p1.x,p1.z);
          }
-         else if ((((southEastP.x > WORLDX-1) && (southEastP.z< 0)) == 1) && (northEastP.x == p1.x) && (northEastP.z == p1.z) && (((northEastP.x >= WORLDX-1) && (northEastP.z >= WORLDZ-1)) == 0))
+         else if ((fullfillSouthEastArea == 0)&&(fullfillSouthWestArea == 0) && (readTerrain(terrain,southEastP.x,southEastP.z) > 0) && (readTerrain(terrain,southWestP.x+1,southWestP.z) > 0) && (p1.z == southEastP.z) && (p1.x < southEastP.x))
          {
-            southWestP = (struct Point){findMaxValue(southWestP.x+directionOffset[SOUTH_WEST][0],0),startBoundPoint->y,findMaxValue(southWestP.z+directionOffset[SOUTH_WEST][1],0)};
-            northWestP = (struct Point){findMaxValue(northWestP.x+directionOffset[NORTH_WEST][0],0),startBoundPoint->y,findMinValue(northWestP.z+directionOffset[NORTH_WEST][1],WORLDZ-1)};
-            northEastP = (struct Point){findMinValue(northEastP.x+directionOffset[NORTH_EAST][0],WORLDX-1),startBoundPoint->y,findMinValue(northEastP.z+directionOffset[NORTH_EAST][1],WORLDZ-1)};
-            southEastP = (struct Point){findMinValue(southEastP.x+directionOffset[SOUTH_EAST][0],WORLDX-1),startBoundPoint->y,findMaxValue(southEastP.z+directionOffset[SOUTH_EAST][1],0)};
+            printf("Reset6 terrain(%d,%d) : %d, kkkk:%d \n",p1.x,p1.z,readTerrain(terrain,p1.x,p1.z),protectInfinityLoopVal);
+            updateBoundaryPointsForTerrainStyle2(&southWestP,&northWestP,&northEastP,&southEastP);
             p1 = southWestP;
-          //  printf("Reset 4 p1(%d,%d)\n",p1.x,p1.z);
+         }       
+         else if ((fullfillNorthWestArea == 0) && (fullfillSouthWestArea == 0) && (readTerrain(terrain,northWestP.x,northWestP.z-1) > 0) && (southWestP.x == northWestP.x) && (southWestP.x == 0) && (p1.z > southWestP.z) && (p1.x == southWestP.x))
+         {
+            printf("Reset7 terrain(%d,%d) : %d, kkkk:%d \n",p1.x,p1.z,readTerrain(terrain,p1.x,p1.z),protectInfinityLoopVal);
+            p1 = northWestP;
          }
          else
          {
           //  printf(" kkk - fullfillArea:%d, p1(%d,%d) \n",fullfillArea,p1.x,p1.z);
          }
+         p1.x =  boundValue(WORLDX-1,0,p1.x);
+         p1.z =  boundValue(WORLDZ-1,0,p1.z);
 
-          fullfillArea = (southWestP.x < 0) && (southWestP.z < 0);
-          fullfillArea = fullfillArea && (northWestP.x < 0) && (northWestP.z> WORLDZ-1);
-          fullfillArea = fullfillArea && (northEastP.x > WORLDX-1) && (northEastP.z > WORLDZ-1);
-          fullfillArea = fullfillArea && (southEastP.x > WORLDX-1) && (southEastP.z < 0);
+         fullfillNorthEastArea = (northEastP.x == WORLDX-1)&&(northEastP.z == WORLDZ-1)&&(readTerrain(terrain,northEastP.x,northEastP.z) >0) && (readTerrain(terrain,northEastP.x-1,northEastP.z) >0) &&  (readTerrain(terrain,northEastP.x,northEastP.z-1) >0);
+         fullfillSouthEastArea = (southEastP.x == WORLDX-1)&&(southEastP.z == 0)&&(readTerrain(terrain,southEastP.x,southEastP.z) >0)&&(readTerrain(terrain,southEastP.x,southEastP.z+1) >0) &&  (readTerrain(terrain,southEastP.x-1,southEastP.z) >0);
+         fullfillNorthWestArea = (northWestP.x == 0)&&(northWestP.z == WORLDZ-1)&&(readTerrain(terrain,northWestP.x,northWestP.z) >0) &&(readTerrain(terrain,northWestP.x+1,northWestP.z) >0) &&  (readTerrain(terrain,northWestP.x,northWestP.z-1) >0);
+         fullfillSouthWestArea = (southWestP.x == 0)&&(southWestP.z == 0)&&(readTerrain(terrain,southWestP.x,southWestP.z) >0) &&(readTerrain(terrain,southWestP.x+1,southWestP.z) >0) &&  (readTerrain(terrain,southWestP.x,southWestP.z+1) >0);
+         fullfillArea = fullfillNorthEastArea && fullfillSouthEastArea && fullfillNorthWestArea && fullfillSouthWestArea;
       }
-      printf(" kkk - fullfillArea:%d, p1(%d,%d) \n",fullfillArea,p1.x,p1.z);
-      world[0][terrain[0][0]][0] = 3;
+
+      printf("read Ter(%d,%d) :%d ,%d(%d,%d),%d(%d,%d),%d(%d,%d),%d(%d,%d) kkkk:%d\n",p1.x,p1.z,readTerrain(terrain,p1.x,p1.z),((southWestP.x <= 0) && (southWestP.z <= 0)),southWestP.x,southWestP.z,((northWestP.x <= 0) && (northWestP.z>= WORLDZ-1)),northWestP.x,northWestP.z,((northEastP.x >= WORLDX-1) && (northEastP.z >= WORLDZ-1)),northEastP.x,northEastP.z,((southEastP.x >= WORLDX-1) && (southEastP.z <= 0)),southEastP.x,southEastP.z,protectInfinityLoopVal);
+      world[0][terrain[0][0]][0] = 5;
       world[WORLDX-1][terrain[WORLDX-1][0]][0] = 3;
-      world[WORLDX-1][terrain[WORLDX-1][WORLDZ-1]][WORLDZ-1] = 3;
-      world[0][terrain[0][WORLDZ-1]][WORLDZ-1] = 3;
+      world[WORLDX-1][terrain[WORLDX-1][WORLDZ-1]][WORLDZ-1] = 7;
+      world[0][terrain[0][WORLDZ-1]][WORLDZ-1] = 6;
 }
 
 int isIn3DBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref) // yes = 1, otherwise = 
@@ -1763,4 +1785,12 @@ int isIn2DBound(const struct Point *startP,const struct Point *stopP,const struc
    int isInX = (ref->x >= findMinValue(startP->x,stopP->x)) && (ref->x <= findMaxValue(startP->x,stopP->x));
    int isInZ = (ref->z >= findMinValue(startP->z,stopP->z)) && (ref->z <= findMaxValue(startP->z,stopP->z));
    return ((isInX+isInZ) == 2);
+}
+
+void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point *northWestP, struct Point *northEastP, struct Point *southEastP)
+{
+   *southWestP = (struct Point){findMaxValue(southWestP->x+directionOffset[SOUTH_WEST][0],0),0,findMaxValue(southWestP->z+directionOffset[SOUTH_WEST][1],0)};
+   *northWestP = (struct Point){findMaxValue(northWestP->x+directionOffset[NORTH_WEST][0],0),0,findMinValue(northWestP->z+directionOffset[NORTH_WEST][1],WORLDZ-1)};
+   *northEastP = (struct Point){findMinValue(northEastP->x+directionOffset[NORTH_EAST][0],WORLDX-1),0,findMinValue(northEastP->z+directionOffset[NORTH_EAST][1],WORLDZ-1)};
+   *southEastP = (struct Point){findMinValue(southEastP->x+directionOffset[SOUTH_EAST][0],WORLDX-1),0,findMaxValue(southEastP->z+directionOffset[SOUTH_EAST][1],0)};  
 }
