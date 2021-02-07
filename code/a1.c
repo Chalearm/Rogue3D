@@ -159,6 +159,12 @@ struct stair
 #define DEFAULT_HIGHEST_TERRAIN 36
 #define DEFAULT_LOWEST_TERRAIN 7
 
+#define DEFAULT_STAIR_STEP_NUM 4
+#define DEFAULT_STAIR_WIDTH 4
+
+#define DEFAULT_HIGHEST_TERRAIN_NUM 321
+#define DEFAULT_LOWEST_TERRAIN_NUM 256
+
 struct Underground
 {
    // method interface
@@ -182,6 +188,22 @@ struct Underground
    struct Point m_currentViewPoint;
 
 };
+
+struct OnGround
+{
+   unsigned char state; // 1 = already set (READY STATE), 2 = Terrain and Stair already create, otherwise = not ready
+   unsigned char terrain[WORLDX][WORLDZ];
+   unsigned char cloudSpace[WORLDX][3][WORLDZ];
+   struct stair downStair;
+   int highestLv;
+   int lowestLv;
+
+   int highestLvOfCubesNum;
+   int lowestLvOfCubesNum;
+};
+#define READY 1
+#define NOT_READY 0
+#define TERRAIN_AND_STAIR_IS_BUILT 2
 #define WEST 0
 #define EAST 1
 #define SOUTH 2
@@ -209,18 +231,21 @@ struct Room BuildEasyRoom(const struct Point *StartPoint, int xLenght, int zLeng
 void BuildARoom(const struct Room *ARoom);
 void BuildDoorsWestVsEast(int roomID, struct Room *Rooms,int CorridorColor);
 void BuildDoorsSouthVsNorth(int roomID, struct Room *Rooms,int CorridorColor);
-#define READY 1
-#define NOT_READY 0
+
 int checkRoomAndOppositeRoomCanBuildCorridorAndHallway(int XorZSide,int roomID, struct Room *Rooms);
 
-void setParameterOfUnderground_defaultValeu1(struct Underground *obj);
+void setPrameterOfOnGround_defauleValue1(struct OnGround *obj);
+void createOnGround(struct OnGround *obj);
+int isOnDownStair(struct OnGround *obj);
+
+void setParameterOfUnderground_defaultValue1(struct Underground *obj);
 void createUnderground(struct Underground *obj);
 
-void generateTerrain(const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
+void generateTerrain(struct OnGround *obj,unsigned char terrain[WORLDX][WORLDZ], const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
 void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point *northWestP, struct Point *northEastP, struct Point *southEastP);
 
 struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int type,const int color);
-void locateAndBuildStairOnTerrain(int terrain[WORLDX][WORLDZ],const struct stair *obj);
+void locateAndBuildStairOnTerrain(struct OnGround *obj);
 void BuildStair(const struct stair *obj);
 struct Point getReferentStairPoint(const struct stair *obj,int startOrStop); // 0 = start, 1 = stop
 
@@ -228,8 +253,8 @@ int normalColorStyle(int originalColor,int x,int y,int z);
 int pinkWhiteStyle(int originalColor,int x,int y,int z);
 int darkAndLightBrownFloorStyle(int originalColor,int x,int y,int z);
 
-int getMaxMinAtTerrainPoint(const int terrain[WORLDX][WORLDZ],const struct Point *refP,int direction,int *maxVal,int *minVal);
-int readTerrain(const int terrain[WORLDX][WORLDZ],const int x,const int z);
+int getMaxMinAtTerrainPoint(const unsigned char terrain[WORLDX][WORLDZ],const struct Point *refP,int direction,int *maxVal,int *minVal);
+int readTerrain(const unsigned char terrain[WORLDX][WORLDZ],const int x,const int z);
 int isIn3DBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref); // yes = 1, otherwise = 0
 int isIn2DBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref); // yes = 1, otherwise = 0
 int boundValue(int max,int min,int originValue);
@@ -241,10 +266,8 @@ int findMinValue(int a,int b);
 #define AREA_X_LENGHT 2
 #define AREA_Z_LENGHT 3
 
-      struct Point startStairPoint;
-      struct Point stopStairPoint;
-
-      int terrain[WORLDX][WORLDZ];
+struct OnGround OutsideLand;
+struct Underground AnUnderground;
 // define the dimension of Grid 3X3
 int dimensionOfGrid3x3[9][4] = {{0, 0, 33, 33},
                                 {33, 0, 34, 33},
@@ -284,6 +307,9 @@ int directionOffset[8][2] = {{-1,0},
                               {1,-1},
                               {-1,-1}};
 
+
+   float g_floorLv = (float)DEFAULT_UNDERGROUND_LV;
+
 /*** collisionResponse() ***/
 /* -performs collision detection and response */
 /*  sets new xyz  to position of the viewpoint after collision */
@@ -303,7 +329,6 @@ void collisionResponse()
    float vzp = 0;
    float Xdirection = 0; // - , + or 0
    float Zdirection = 0; // - , + or 0
-   int floorLv = DEFAULT_UNDERGROUND_LV;
    int isHit = 0;
    int isAble2Jump = 0;
    int outOfSpace = 0;
@@ -328,7 +353,7 @@ void collisionResponse()
                  world[-1 * (int)vxp][SpaceOverHeadPos][-1 * (int)(vzp - margin * Zdirection)] +
                  world[-1 * (int)(vxp - margin * Xdirection)][SpaceOverHeadPos][-1 * (int)(vzp - margin * Zdirection)];
    outOfSpace = (((-1 * (int)vxp) > 99) || ((-1 * (int)vyp) > 49) || ((-1 * (int)vzp) > 99));
-   outOfSpace = outOfSpace || (((-1 * (int)vxp) < 0) || ((-1 * (int)vyp) < (floorLv + 1)) || ((-1 * (int)vzp) < 0));
+   outOfSpace = outOfSpace || (((-1 * (int)vxp) < 0) || ((-1 * (int)vyp) < (g_floorLv + 1)) || ((-1 * (int)vzp) < 0));
    // protect to pass through
    if ((outOfSpace == 1) || ((isHit != 0) && (isAble2Jump != 0)))
    {
@@ -513,12 +538,13 @@ createTube(2, -xx, -yy, -zz, -xx-((x-xx)*25.0), -yy-((y-yy)*25.0), -zz-((z-zz)*2
       float vpz = 0;
       float gravityVal =DEFAULT_GRAVITY;
       float newY = 0;
-      float floorLv = DEFAULT_UNDERGROUND_LV;
+      float floorLv = g_floorLv -1;
       static int fallState = 0;
       // yn = y(n-1) - 0.5*g*(tn^2-t(n-1)^2)
       static clock_t timeCount, clkRef;
       static float timePast, timeCurrent;
       getViewPosition(&vpx, &vpy, &vpz);
+      floorLv = (floorLv>= 0.0)*floorLv;
       valOfWorldAtBelowVP = world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz];
       timeCount = clock();
 
@@ -554,7 +580,17 @@ createTube(2, -xx, -yy, -zz, -xx-((x-xx)*25.0), -yy-((y-yy)*25.0), -zz-((z-zz)*2
             newY = floorLv + 1.0;
          setViewPosition(vpx, newY * (-1.0), vpz);
       }
+      static int stage_Lv = 0;
+         if(isOnDownStair(&OutsideLand) == 1)
+         {
+            stage_Lv = -1;
+         }
+         if (stage_Lv == -1)
+         {
+            createUnderground(&AnUnderground);
+            stage_Lv = -2;
 
+         }
    }
 }
 
@@ -665,19 +701,9 @@ int main(int argc, char **argv)
       flycontrol = 0;
       makeWorld();
 
-      setUserColour(22, 0.604, 0.604, 0.604, 1.0, 0.2, 0.2, 0.2, 1.0); //Grey
-      memset(terrain,0,sizeof(terrain));
-      int numStairSteps = 4;
-      int StairStepWidth = 4;
-      int stairColor = 22;
-      struct Underground AnUnderground;
-      setParameterOfUnderground_defaultValeu1(&AnUnderground);
-      // createUnderground(&AnUnderground);
-//struct stair downStair = setStairAttribute((struct Point){49,DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-numStairSteps-10),47},getRandomNumber(WEST,NORTH),StairStepWidth,numStairSteps,DOWN_STAIR,stairColor);
-      struct stair downStair = setStairAttribute((struct Point){10+getRandomNumber(0,80),DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-numStairSteps-10),10+getRandomNumber(0,80)},getRandomNumber(WEST,NORTH),StairStepWidth,numStairSteps,DOWN_STAIR,stairColor);
-
-      locateAndBuildStairOnTerrain(terrain,&downStair);
-
+      setParameterOfUnderground_defaultValue1(&AnUnderground);
+      setPrameterOfOnGround_defauleValue1(&OutsideLand);
+      createOnGround(&OutsideLand);
       //　setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
       setViewPosition(-1*10, -1*48, -1*10);
    }
@@ -1211,7 +1237,7 @@ int boundValue(int max,int min,int originValue)
 }
 
 
-void setParameterOfUnderground_defaultValeu1(struct Underground *obj)
+void setParameterOfUnderground_defaultValue1(struct Underground *obj)
 {
    obj->m_groundLv   = DEFAULT_UNDERGROUND_LV;
    obj->m_doorHeight = DEFAULT_DOOR_HEIGHT;
@@ -1225,7 +1251,7 @@ void setParameterOfUnderground_defaultValeu1(struct Underground *obj)
    obj->m_sparForRoomSizeMax = DEFAULT_ROOM_SIZE_MAX;
    obj->m_defaultRoomColor = DEFAULT_ROOM_COLOR;
    obj->m_defaultUnitCubeColor = DEFAULT_CUBE_COLOR;
-   obj->m_currentViewPoint = (struct Point){DEFAULT_VIEW_POINT_X,DEFAULT_VIEW_POINT_Y,DEFAULT_VIEW_POINT_Z};
+   obj->m_currentViewPoint = (struct Point){-1,-1,-1};
 }
 void createUnderground(struct Underground *obj)
 {
@@ -1240,6 +1266,8 @@ void createUnderground(struct Underground *obj)
    int roomZ = 0;
    int i =0;
 
+   flycontrol = 0;
+   makeWorld();
    //ground custom colors (brown and light brown)
    //light brown color
    setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
@@ -1269,7 +1297,7 @@ void createUnderground(struct Underground *obj)
          const struct Point RoomStartPoint = {roomX,obj->m_groundLv ,roomZ};
          // find view point
          
-         if (indexOfRoom == ViewPointID)
+         if ((indexOfRoom == ViewPointID) && (obj->m_currentViewPoint.y == -1) && (obj->m_currentViewPoint.z == -1) && (obj->m_currentViewPoint.x == -1))
          {
             obj->m_currentViewPoint = (struct Point){2 + RoomStartPoint.x + getRandomNumber(0,xLenght-4),
                                                      1+obj->m_groundLv,
@@ -1286,19 +1314,10 @@ void createUnderground(struct Underground *obj)
          BuildDoorsWestVsEast(indexOfRoom,obj->Rooms,obj->m_defaultRoomColor);
          BuildDoorsSouthVsNorth(indexOfRoom,obj->Rooms,obj->m_defaultRoomColor);
    }
-      setViewPosition(-1 * (obj->m_currentViewPoint.x), -1 * (obj->m_currentViewPoint.y), -1 * (obj->m_currentViewPoint.z));
+   g_floorLv = obj->m_groundLv;
+   setViewPosition(-1 * (obj->m_currentViewPoint.x), -1 * (obj->m_currentViewPoint.y), -1 * (obj->m_currentViewPoint.z));
 }
-/*
 
-struct stair
-{
-   struct Room aRoom;
-   int color;
-   int numberStair;
-};
-
-struct Room BuildEasyRoom(int xLenght,int zLenght,int height,int haveRoof,int haveGround,int color,int unitCubeColor)
-*/
 
 struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int type,const int color)
 {
@@ -1319,24 +1338,73 @@ struct stair setStairAttribute(const struct Point StartPoint,const int frontOfSt
    }
    return obj;
 }
-void locateAndBuildStairOnTerrain(int terrain[WORLDX][WORLDZ],const struct stair *obj)
+void locateAndBuildStairOnTerrain(struct OnGround *obj)
 {
+      setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
+      setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0); 
 
       int i,j;
-      struct Point startStairPoint =  getReferentStairPoint(obj,START_POINT);
-      struct Point stopStairPoint =  getReferentStairPoint(obj,STOP_POINT);
+      int k = 300000;
+      struct Point startStairPoint =  getReferentStairPoint(&(obj->downStair),START_POINT);
+      struct Point stopStairPoint =  getReferentStairPoint(&(obj->downStair),STOP_POINT);
       int xMin = findMinValue(startStairPoint.x,stopStairPoint.x);
       int xMax = findMaxValue(startStairPoint.x,stopStairPoint.x);
       int zMin = findMinValue(startStairPoint.z,stopStairPoint.z);
       int zMax = findMaxValue(startStairPoint.z,stopStairPoint.z);
+      int highestLvOfCubesNum = 0;
+      int lowestLvOfCubesNum = 0;
+      if(obj->state == READY)
+      {
+         while(((obj->highestLvOfCubesNum >= highestLvOfCubesNum)||(obj->lowestLvOfCubesNum >= lowestLvOfCubesNum))&&(k-- > 0))
+         {  
+            highestLvOfCubesNum = 0;  
+            lowestLvOfCubesNum = 0;
+            makeWorld();        
+            memset(obj->terrain,0,sizeof(obj->terrain));
+            for (i=xMin;i<=xMax;i++)
+               for(j=zMin;j<=zMax;j++)
+                  obj->terrain[i][j] = startStairPoint.y;
+            generateTerrain(obj,obj->terrain,&startStairPoint,&stopStairPoint);
+            for(i=0;i<WORLDX;i++)
+               for(j=0;j<WORLDZ;j++)
+                  if (obj->terrain[i][j] == obj->highestLv) 
+                  {
+                     world[i][obj->highestLv][j] = 5;
+                     highestLvOfCubesNum++;
 
-      for (i=xMin;i<=xMax;i++)
-         for(j=zMin;j<=zMax;j++)
-            terrain[i][j] = startStairPoint.y;
+                  }
+                  else if (obj->terrain[i][j] == obj->lowestLv) 
+                  {
+                     world[i][obj->lowestLv][j] = 21;
+                     lowestLvOfCubesNum++;
+                  }
+         }
+
+         printf("HCN:%d, LCN:%d ,highestLvOfCubesNum:%d, lowestLvOfCubesNum:%d k:%d\n",highestLvOfCubesNum,lowestLvOfCubesNum,obj->highestLvOfCubesNum,obj->lowestLvOfCubesNum,k);
+         obj->highestLvOfCubesNum = highestLvOfCubesNum;
+         obj->lowestLvOfCubesNum = lowestLvOfCubesNum;
 
 
-      generateTerrain(&startStairPoint,&stopStairPoint);
-      BuildStair(obj);
+      }
+      else if (obj->state == TERRAIN_AND_STAIR_IS_BUILT)
+      {
+         for(i=0;i<WORLDX;i++)
+            for(j=0;j<WORLDZ;j++)
+               if (obj->terrain[i][j] == obj->highestLv) 
+               {
+                  world[i][obj->highestLv][j] = 5;
+               }
+               else if (obj->terrain[i][j] == obj->lowestLv) 
+               {
+                  world[i][obj->lowestLv][j] = 21;
+               }
+               else
+               {
+                  world[i][obj->terrain[i][j]][j] = 1;
+               }
+      }
+      g_floorLv = obj->lowestLv;
+      BuildStair(&(obj->downStair));
 
 }
 void BuildStair(const struct stair *obj)
@@ -1473,7 +1541,7 @@ struct Point getReferentStairPoint(const struct stair *obj,int startOrStop) // 0
    return referentPoint;
 }
 
-void generateTerrain(const struct Point *startBoundPoint,const struct Point *stopBoundPoint)
+void generateTerrain(struct OnGround *obj,unsigned char terrain[WORLDX][WORLDZ],const struct Point *startBoundPoint,const struct Point *stopBoundPoint)
 {
       int protectInfinityLoopVal =20000;
       int i =0;
@@ -1511,9 +1579,8 @@ void generateTerrain(const struct Point *startBoundPoint,const struct Point *sto
          {
             maxRangVal = -1;
             minRangVal = 100;
-            int score = 0;
             for(j=0;j<8;j++)
-               score +=getMaxMinAtTerrainPoint(terrain,&p2,j,&maxRangVal,&minRangVal);
+               getMaxMinAtTerrainPoint(terrain,&p2,j,&maxRangVal,&minRangVal);
 
             if (maxRangVal == minRangVal)
             {
@@ -1654,21 +1721,9 @@ void generateTerrain(const struct Point *startBoundPoint,const struct Point *sto
          fullfillSouthWestArea = (southWestP.x == 0)&&(southWestP.z == 0)&&(readTerrain(terrain,southWestP.x,southWestP.z) >0) &&(readTerrain(terrain,southWestP.x+1,southWestP.z) >0) &&  (readTerrain(terrain,southWestP.x,southWestP.z+1) >0);
          fullfillArea = fullfillNorthEastArea && fullfillSouthEastArea && fullfillNorthWestArea && fullfillSouthWestArea;
       }
-      setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
-      setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0); 
-      // fill color to highest cubes and lowest cubes
-      for(i = 0; i < WORLDX;i++)
-         for(j = 0; j < WORLDZ;j++)
-         {
-            if (world[i][maxHeight][j] != 0) 
-            {
-               world[i][maxHeight][j] = 5;
-            }
-            if (world[i][minHeight][j] != 0) 
-            {
-               world[i][minHeight][j] = 21;
-            }
-         }
+      obj->highestLv = maxHeight;
+      obj->lowestLv = minHeight;
+
 /*
       printf("read Ter(%d,%d) :%d ,%d(%d,%d),%d(%d,%d),%d(%d,%d),%d(%d,%d) kkkk:%d\n",p1.x,p1.z,readTerrain(terrain,p1.x,p1.z),((southWestP.x <= 0) && (southWestP.z <= 0)),southWestP.x,southWestP.z,((northWestP.x <= 0) && (northWestP.z>= WORLDZ-1)),northWestP.x,northWestP.z,((northEastP.x >= WORLDX-1) && (northEastP.z >= WORLDZ-1)),northEastP.x,northEastP.z,((southEastP.x >= WORLDX-1) && (southEastP.z <= 0)),southEastP.x,southEastP.z,protectInfinityLoopVal);
 
@@ -1698,7 +1753,7 @@ int isIn3DBound(const struct Point *startP,const struct Point *stopP,const struc
    return ((isInX+isInY+isInZ) == 3);
 }
 
-int readTerrain(const int terrain[WORLDX][WORLDZ],const int x,const int z)
+int readTerrain(const unsigned char terrain[WORLDX][WORLDZ],const int x,const int z)
 {
    int canAccess = (x > -1) && (x <WORLDX) && (z > -1) && (z <WORLDZ);
    int ret = -1;
@@ -1709,13 +1764,12 @@ int readTerrain(const int terrain[WORLDX][WORLDZ],const int x,const int z)
    return ret;
 }
 
-int getMaxMinAtTerrainPoint(const int terrain[WORLDX][WORLDZ],const struct Point *refP,int direction,int *maxVal,int *minVal)
+int getMaxMinAtTerrainPoint(const unsigned char terrain[WORLDX][WORLDZ],const struct Point *refP,int direction,int *maxVal,int *minVal)
 {
    int heightVal = readTerrain(terrain,refP->x+directionOffset[direction][0],refP->z+directionOffset[direction][1]);
    int ret = 0;
    if (heightVal > 0)
    {
-     // printf("%d ",heightVal);
       *maxVal = findMaxValue(*maxVal,heightVal);
       *minVal = findMinValue(*minVal,heightVal);
       ret = 1;
@@ -1738,4 +1792,44 @@ void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point
    *northWestP = (struct Point){findMaxValue(northWestP->x+directionOffset[NORTH_WEST][0],minVal),0,findMinValue(northWestP->z+directionOffset[NORTH_WEST][1],maxVal)};
    *northEastP = (struct Point){findMinValue(northEastP->x+directionOffset[NORTH_EAST][0],maxVal),0,findMinValue(northEastP->z+directionOffset[NORTH_EAST][1],maxVal)};
    *southEastP = (struct Point){findMinValue(southEastP->x+directionOffset[SOUTH_EAST][0],maxVal),0,findMaxValue(southEastP->z+directionOffset[SOUTH_EAST][1],minVal)};  
+}
+
+void setPrameterOfOnGround_defauleValue1(struct OnGround *obj)
+{
+      int numStairSteps = DEFAULT_STAIR_STEP_NUM;
+      int StairStepWidth = DEFAULT_STAIR_WIDTH;
+      int stairColor = 22;
+      int stairType = DOWN_STAIR;
+      setUserColour(22, 0.604, 0.604, 0.604, 1.0, 0.2, 0.2, 0.2, 1.0); //Grey
+      memset(obj->terrain,0,sizeof(obj->terrain));
+      obj->downStair = setStairAttribute((struct Point){10+getRandomNumber(0,80),DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-numStairSteps-10),10+getRandomNumber(0,80)},getRandomNumber(WEST,NORTH),StairStepWidth,numStairSteps,stairType,stairColor);
+      obj->highestLv = -1;
+      obj->lowestLv = WORLDY;
+      obj->highestLvOfCubesNum = DEFAULT_HIGHEST_TERRAIN_NUM;
+      obj->lowestLvOfCubesNum = DEFAULT_LOWEST_TERRAIN_NUM;
+      obj->state = READY;
+}
+void createOnGround(struct OnGround *obj)
+{
+   locateAndBuildStairOnTerrain(obj);
+   obj->state = TERRAIN_AND_STAIR_IS_BUILT;
+}
+int isOnDownStair(struct OnGround *obj)
+{
+   float vxp,vyp,vzp;
+   struct Point viewPosition = {-1,-1,-1};
+   int ret = 0;
+   if ((obj->state) == READY || obj->state == TERRAIN_AND_STAIR_IS_BUILT)
+   {      
+      struct Point startStairPoint =  getReferentStairPoint(&(obj->downStair),START_POINT);
+      struct Point stopStairPoint =  getReferentStairPoint(&(obj->downStair),STOP_POINT);
+      getViewPosition(&vxp,&vyp,&vzp);
+      viewPosition.x = viewPosition.x*((int)vxp);
+      viewPosition.y = viewPosition.y*((int)vyp);
+      viewPosition.z = viewPosition.z*((int)vzp);
+      //printf("VP(%d,%d,%d)\n",viewPosition.x,viewPosition.y,viewPosition.z);
+      ret = isIn2DBound(&startStairPoint,&stopStairPoint,&viewPosition);
+   } 
+   return ret;
+
 }
