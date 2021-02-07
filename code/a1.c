@@ -143,7 +143,7 @@ struct stair
 #define DEFAULT_DOOR_HEIGHT 2
 #define DEFAULT_DOOR_WIDTH 2
 #define DEFAULT_ROOM_HEIGHT 3
-#define DEFAULT_GRAVITY 0.01
+#define DEFAULT_GRAVITY 21
 #define DEFAULT_COLLISION_MARGIN 0.4
 #define DEFAULT_SPARFORCORRIDORS_X 4
 #define DEFAULT_SPARFORCORRIDORS_Z 4
@@ -216,8 +216,7 @@ int checkRoomAndOppositeRoomCanBuildCorridorAndHallway(int XorZSide,int roomID, 
 void setParameterOfUnderground_defaultValeu1(struct Underground *obj);
 void createUnderground(struct Underground *obj);
 
-void generateTerrain();
-void generateTerrainStyle2(const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
+void generateTerrain(const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
 void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point *northWestP, struct Point *northEastP, struct Point *southEastP);
 
 struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int type,const int color);
@@ -677,7 +676,6 @@ int main(int argc, char **argv)
 //struct stair downStair = setStairAttribute((struct Point){49,DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-numStairSteps-10),47},getRandomNumber(WEST,NORTH),StairStepWidth,numStairSteps,DOWN_STAIR,stairColor);
       struct stair downStair = setStairAttribute((struct Point){10+getRandomNumber(0,80),DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-numStairSteps-10),10+getRandomNumber(0,80)},getRandomNumber(WEST,NORTH),StairStepWidth,numStairSteps,DOWN_STAIR,stairColor);
 
-    //  generateTerrain();
       locateAndBuildStairOnTerrain(terrain,&downStair);
 
       //　setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
@@ -1337,7 +1335,7 @@ void locateAndBuildStairOnTerrain(int terrain[WORLDX][WORLDZ],const struct stair
             terrain[i][j] = startStairPoint.y;
 
 
-      generateTerrainStyle2(&startStairPoint,&stopStairPoint);
+      generateTerrain(&startStairPoint,&stopStairPoint);
       BuildStair(obj);
 
 }
@@ -1475,115 +1473,7 @@ struct Point getReferentStairPoint(const struct stair *obj,int startOrStop) // 0
    return referentPoint;
 }
 
-void generateTerrain()
-{
-   int i,j,k;
-   int currentHeight = 0;
-   int notOver = DEFAULT_HIGHEST_TERRAIN;
-   int notUnder = DEFAULT_LOWEST_TERRAIN;
-   int delta;
-   int previousDelta = 0;
-   int maxRangVal = 5;
-   int minRangVal = 2;
-   int DeltaStartPoint = 0;
-   int DeltaEndPoint = 0;    
-   int terrain[WORLDX][WORLDZ];
-   int westHeight = notOver;
-   int westSouthHeight = notOver;
-   int southHeight = notOver;
-   int eastSouthHeight = notOver;
-   int maxHeight = 0;
-   int minHeight = 100;
-   for (i =0 ; i <WORLDZ;i++)
-   {
-      maxRangVal = -1;
-      minRangVal = 100;
-      for (j = 0;j < WORLDX;j++)
-      {
-         if(j > 0)
-         {
-            westHeight = terrain[i][j-1];
-            maxRangVal = westHeight;
-            minRangVal = westHeight;
-         }
-         if(i > 0)
-         {
-            southHeight = terrain[i-1][j];
-            maxRangVal = findMaxValue(maxRangVal,southHeight);
-            minRangVal = findMinValue(minRangVal,southHeight);
-         }
-         if((i > 0) && (j > 0))
-         {
-            westSouthHeight = terrain[i-1][j-1];
-            maxRangVal = findMaxValue(maxRangVal,westSouthHeight);
-            minRangVal = findMinValue(minRangVal,westSouthHeight);
-         }
-         if((i > 0) && (j < (WORLDX-1)))
-         {
-            eastSouthHeight = terrain[i-1][j+1];
-            maxRangVal = findMaxValue(maxRangVal,eastSouthHeight);
-            minRangVal = findMinValue(minRangVal,eastSouthHeight);
-         }
-         if (maxRangVal == minRangVal)
-         {
-            /*
-            if (DeltaEndPoint == DeltaStartPoint)
-            {
-            delta = getRandomNumber(1,3)-2;
-            DeltaEndPoint = getRandomNumber(2,6);
-            DeltaStartPoint = 0;
-            printf("Round:%d delta: %d\n",DeltaEndPoint,delta);
-            }
-            DeltaStartPoint++;
-            currentHeight = minRangVal + delta;
-            */
-            currentHeight = minRangVal + getRandomNumber(1,3)-2;
-
-         }
-         else if ((i ==0) && (j==0))
-         {
-            currentHeight =  (notOver+notUnder)/2;
-         }
-         else if (maxRangVal == (minRangVal+1))
-         {
-            currentHeight =  getRandomNumber(minRangVal,maxRangVal);
-         }
-         else
-         {
-            currentHeight =  (maxRangVal + minRangVal)/2;
-         }
-         // printf("WS:%d, W,%d, S:%d, SE:%d MN(%d,%d) c:%d\n",westSouthHeight,westHeight,southHeight,eastSouthHeight,maxRangVal,minRangVal,currentHeight);
-         terrain[i][j] = currentHeight;
-
-         currentHeight = boundValue(notOver,notUnder,currentHeight);
-         if(maxHeight < currentHeight)maxHeight = currentHeight;
-         if(minHeight > currentHeight)minHeight = currentHeight;
-         if((i==0) && (j==0))
-         {
-            world[j][currentHeight][i] = 3;
-         }
-         else
-         {
-            world[j][currentHeight][i] = 1;
-            world[j][currentHeight][i] += 20*(currentHeight == notUnder) + 4*(currentHeight== notOver);
-         }  
-      }
-   }
-   for(i = 0; i < WORLDX;i++)
-      for(j = 0; j < WORLDZ;j++)
-      {
-         if (world[i][maxHeight][j] != 0) 
-         {
-            world[i][maxHeight][j] = 5;
-         }
-         if (world[i][minHeight][j] != 0) 
-         {
-            world[i][minHeight][j] = 21;
-         }
-      }
-}
-
-void generateTerrainStyle2(const struct Point *startBoundPoint,const struct Point *stopBoundPoint)
+void generateTerrain(const struct Point *startBoundPoint,const struct Point *stopBoundPoint)
 {
       int protectInfinityLoopVal =20000;
       int i =0;
