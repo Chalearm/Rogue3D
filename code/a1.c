@@ -217,7 +217,7 @@ void generateTerrainStyle2(const struct Point *startBoundPoint,const struct Poin
 void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point *northWestP, struct Point *northEastP, struct Point *southEastP);
 
 struct stair setStairAttribute(const struct Point StartPoint,const int frontOfStairDirection,const int stairWidth, const int numStair,const int type,const int color);
-void LocateAndBuildStairOnTerrain(const struct stair *obj);
+void locateAndBuildStairOnTerrain(int terrain[WORLDX][WORLDZ],const struct stair *obj);
 void BuildStair(const struct stair *obj);
 struct Point getReferentStairPoint(const struct stair *obj,int startOrStop); // 0 = start, 1 = stop
 
@@ -669,13 +669,9 @@ int main(int argc, char **argv)
 //struct stair downStair = setStairAttribute((struct Point){88,DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-numStairSteps-10),7},getRandomNumber(WEST,NORTH),3,numStairSteps,DOWN_STAIR,5);
       struct stair downStair = setStairAttribute((struct Point){10+getRandomNumber(0,80),DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-numStairSteps-10),10+getRandomNumber(0,80)},getRandomNumber(WEST,NORTH),3,numStairSteps,DOWN_STAIR,5);
       setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
-      setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
-      struct Point startStairPoint =  getReferentStairPoint(&downStair,START_POINT);
-      struct Point stopStairPoint =  getReferentStairPoint(&downStair,STOP_POINT);
+      setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0); 
     //  generateTerrain();
-   
-      BuildStair(&downStair);
-      generateTerrainStyle2(&startStairPoint,&stopStairPoint);
+      locateAndBuildStairOnTerrain(terrain,&downStair);
 
       //　setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
       setViewPosition(-1*10, -1*48, -1*10);
@@ -1314,8 +1310,24 @@ struct stair setStairAttribute(const struct Point StartPoint,const int frontOfSt
    }
    return obj;
 }
-void LocateAndBuildStairOnTerrain(const struct stair *obj)
+void locateAndBuildStairOnTerrain(int terrain[WORLDX][WORLDZ],const struct stair *obj)
 {
+
+      int i,j;
+      struct Point startStairPoint =  getReferentStairPoint(obj,START_POINT);
+      struct Point stopStairPoint =  getReferentStairPoint(obj,STOP_POINT);
+      int xMin = findMinValue(startStairPoint.x,stopStairPoint.x);
+      int xMax = findMaxValue(startStairPoint.x,stopStairPoint.x);
+      int zMin = findMinValue(startStairPoint.z,stopStairPoint.z);
+      int zMax = findMaxValue(startStairPoint.z,stopStairPoint.z);
+
+      for (i=xMin;i<=xMax;i++)
+         for(j=zMin;j<=zMax;j++)
+            terrain[i][j] = startStairPoint.y;
+
+
+    //  BuildStair(obj);
+      generateTerrainStyle2(&startStairPoint,&stopStairPoint);
 
 }
 void BuildStair(const struct stair *obj)
@@ -1594,25 +1606,6 @@ void generateTerrainStyle2(const struct Point *startBoundPoint,const struct Poin
          struct Point p2 = southWestP;
       while ((fullfillArea == 0) && (protectInfinityLoopVal-- > 0))
       {
-         unsigned char direction[8];
-
-         memset(direction,1,sizeof(direction));
-         // check range      
-      for(i = 0;i<8;i++)
-         if(readTerrain(terrain,p1.x+directionOffset[i][0],p1.z+directionOffset[i][1]) == 0)
-         {            
-               p2.x =p1.x+directionOffset[i][0];
-               p2.y = startBoundPoint->y;
-               p2.z = p1.z+directionOffset[i][1];
-               if(isIn2DBound(startBoundPoint,stopBoundPoint,&p2) == 1)
-               {
-                  terrain[p2.x][p2.z] = startBoundPoint->y;
-               }
-               else
-               {
-                  direction[i] = 0;
-               }
-         }
 
          p2.x =  boundValue(WORLDX-1,0,p1.x);
          p2.z =  boundValue(WORLDZ-1,0,p1.z);
@@ -1749,10 +1742,7 @@ void generateTerrainStyle2(const struct Point *startBoundPoint,const struct Poin
       }
 
       printf("read Ter(%d,%d) :%d ,%d(%d,%d),%d(%d,%d),%d(%d,%d),%d(%d,%d) kkkk:%d\n",p1.x,p1.z,readTerrain(terrain,p1.x,p1.z),((southWestP.x <= 0) && (southWestP.z <= 0)),southWestP.x,southWestP.z,((northWestP.x <= 0) && (northWestP.z>= WORLDZ-1)),northWestP.x,northWestP.z,((northEastP.x >= WORLDX-1) && (northEastP.z >= WORLDZ-1)),northEastP.x,northEastP.z,((southEastP.x >= WORLDX-1) && (southEastP.z <= 0)),southEastP.x,southEastP.z,protectInfinityLoopVal);
-      world[0][terrain[0][0]][0] = 5;
-      world[WORLDX-1][terrain[WORLDX-1][0]][0] = 3;
-      world[WORLDX-1][terrain[WORLDX-1][WORLDZ-1]][WORLDZ-1] = 7;
-      world[0][terrain[0][WORLDZ-1]][WORLDZ-1] = 6;
+
       for(i = 0;i<WORLDX;i++)
       {
          world[i][terrain[i][0]][0] = 5*(i%2==0) + 6*(i%2==1);
@@ -1763,6 +1753,10 @@ void generateTerrainStyle2(const struct Point *startBoundPoint,const struct Poin
          world[0][terrain[0][i]][i] = 5*(i%2==0) + 6*(i%2==1);
          world[WORLDX-1][terrain[WORLDX-1][i]][i] = 5*(i%2==0) + 6*(i%2==1);
       }
+            world[0][terrain[0][0]][0] = 5;
+      world[WORLDX-1][terrain[WORLDX-1][0]][0] = 3;
+      world[WORLDX-1][terrain[WORLDX-1][WORLDZ-1]][WORLDZ-1] = 7;
+      world[0][terrain[0][WORLDZ-1]][WORLDZ-1] = 6;
 }
 
 int isIn3DBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref) // yes = 1, otherwise = 
