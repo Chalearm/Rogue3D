@@ -160,7 +160,7 @@ struct stair
 #define DEFAULT_LOWEST_TERRAIN 7
 
 #define DEFAULT_STAIR_STEP_NUM 4
-#define DEFAULT_STAIR_WIDTH 4
+#define DEFAULT_STAIR_WIDTH 3
 
 #define DEFAULT_HIGHEST_TERRAIN_NUM 321
 #define DEFAULT_LOWEST_TERRAIN_NUM 256
@@ -184,8 +184,12 @@ struct Underground
    int m_sparForRoomSizeMin;
    int m_defaultRoomColor;
    int m_defaultUnitCubeColor;
-   struct Room Rooms[DEFAULT_NUM_ROOM];
+   unsigned char m_stairOption; // 0 = no stair, 1 = only upstair, 2 = only down stair, 3 both up and down stairs
+   struct stair m_upStair;
+   struct stair m_downStair;
+   struct Room m_rooms[DEFAULT_NUM_ROOM];
    struct Point m_currentViewPoint;
+   int m_state;
 
 };
 
@@ -201,9 +205,16 @@ struct OnGround
    int highestLvOfCubesNum;
    int lowestLvOfCubesNum;
 };
+
+#define NO_STAIR 0
+#define ONLY_DOWN_STAIR 1
+#define ONLY_UP_STAIR 2
+#define BOTH_UP_DOWN_STAIR 3
+
 #define READY 1
 #define NOT_READY 0
 #define TERRAIN_AND_STAIR_IS_BUILT 2
+#define GENERATED_UNDERGROUND_DONE 2
 #define WEST 0
 #define EAST 1
 #define SOUTH 2
@@ -240,6 +251,9 @@ int isOnDownStair(struct OnGround *obj);
 
 void setParameterOfUnderground_defaultValue1(struct Underground *obj);
 void createUnderground(struct Underground *obj);
+int findProperPositionToPlaceStairInRoomOfUnderground(struct Underground *obj,struct Point *stairPoint,int *stairDirection,const int stairWidth,const int stairNum, const int roomID);
+
+int isOnUpStair(struct Underground *obj);
 
 void generateTerrain(struct OnGround *obj,unsigned char terrain[WORLDX][WORLDZ], const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
 void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point *northWestP, struct Point *northEastP, struct Point *southEastP);
@@ -260,11 +274,19 @@ int isIn2DBound(const struct Point *startP,const struct Point *stopP,const struc
 int boundValue(int max,int min,int originValue);
 int findMaxValue(int a,int b);
 int findMinValue(int a,int b);
- 
+void plotWolrd(GLubyte world[WORLDX][WORLDY][WORLDZ],const struct Point aPoint,const unsigned char value);
+void printPoint(const struct Point P1,const char *str);
+
+int findDistanceBetweenPoint(const struct Point P1,const struct Point P2,const unsigned char type);
+
 #define AREA_XP 0
 #define AREA_ZP 1
 #define AREA_X_LENGHT 2
 #define AREA_Z_LENGHT 3
+
+#define X_DISTANCE 0
+#define Y_DISTANCE 1
+#define Z_DISTANCE 2
 
 struct OnGround OutsideLand;
 struct Underground AnUnderground;
@@ -581,15 +603,15 @@ createTube(2, -xx, -yy, -zz, -xx-((x-xx)*25.0), -yy-((y-yy)*25.0), -zz-((z-zz)*2
          setViewPosition(vpx, newY * (-1.0), vpz);
       }
       static int stage_Lv = 0;
-         if(isOnDownStair(&OutsideLand) == 1)
-         {
-            stage_Lv = -1;
-         }
-         if (stage_Lv == -1)
+         if((isOnDownStair(&OutsideLand) == 1) && (stage_Lv == 0))
          {
             createUnderground(&AnUnderground);
-            stage_Lv = -2;
-
+            stage_Lv = -1;
+         }
+         if((isOnUpStair(&AnUnderground) == 1) &&(stage_Lv == -1))
+         {
+            createOnGround(&OutsideLand);
+            stage_Lv = 0;
          }
    }
 }
@@ -705,7 +727,7 @@ int main(int argc, char **argv)
       setPrameterOfOnGround_defauleValue1(&OutsideLand);
       createOnGround(&OutsideLand);
       //　setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
-      setViewPosition(-1*10, -1*48, -1*10);
+     // setViewPosition(-1*10, -1*48, -1*10);
    }
 
    /* starts the graphics processing loop */
@@ -1251,7 +1273,11 @@ void setParameterOfUnderground_defaultValue1(struct Underground *obj)
    obj->m_sparForRoomSizeMax = DEFAULT_ROOM_SIZE_MAX;
    obj->m_defaultRoomColor = DEFAULT_ROOM_COLOR;
    obj->m_defaultUnitCubeColor = DEFAULT_CUBE_COLOR;
+   obj->m_stairOption = ONLY_UP_STAIR;
    obj->m_currentViewPoint = (struct Point){-1,-1,-1};
+   obj->m_state = READY;
+
+   
 }
 void createUnderground(struct Underground *obj)
 {
@@ -1259,12 +1285,22 @@ void createUnderground(struct Underground *obj)
    int numRoom = DEFAULT_NUM_ROOM;
    const struct Point DoorInitialPoint = {-1, -1, -1};
    int ViewPointID = getRandomNumber(0, DEFAULT_NUM_ROOM-1); //which room the view point will be
+   int downStairID = getRandomNumber(0,DEFAULT_NUM_ROOM-1);
+
+            int stairDirection = EAST;
+   int foundGoodPlaceForUpStair = 0;
+   int foundPlaceForUpStairResult = 0;
+   struct Point stairPoint;
+   struct Point goodStairPoint;
+   struct Point currentViewPoint2;
+   int goodStairDirection;
    // Room's attributes
    int xLenght = 0;
    int zLenght = 0;
    int roomX = 0;
    int roomZ = 0;
    int i =0;
+   int protectInfinityLoopVal = 30;
 
    flycontrol = 0;
    makeWorld();
@@ -1276,46 +1312,101 @@ void createUnderground(struct Underground *obj)
    struct Point FloorStartPoint = {0,obj->m_groundLv,0};
    struct Point FloorEndPoint = {WORLDX-1,obj->m_groundLv,WORLDZ-1};
    // Build Roofs of Corridors
-   BuildABox(&FloorStartPoint,&FloorEndPoint,0,&darkAndLightBrownFloorStyle);
-   for (indexOfRoom = 0; indexOfRoom < DEFAULT_NUM_ROOM; indexOfRoom++)
+   while((protectInfinityLoopVal-- > 0) && (foundGoodPlaceForUpStair == 0 ))
    {
-        for (i = WEST; i <=NORTH;i++)
-            obj->Rooms[indexOfRoom].DoorPosition[i] = DoorInitialPoint;
-         // Find spar area between 2 rooms to build corridors and hallways
-         obj->m_sparForCorridorsX = (dimensionOfGrid3x3[indexOfRoom][AREA_X_LENGHT] - obj->m_sparForRoomSizeMax)/2;
-         obj->m_sparForCorridorsZ = (dimensionOfGrid3x3[indexOfRoom][AREA_Z_LENGHT] - obj->m_sparForRoomSizeMax)/2;
-         // define door direction to Room attribute
+      foundGoodPlaceForUpStair =0;
+      makeWorld();
+      BuildABox(&FloorStartPoint,&FloorEndPoint,0,&darkAndLightBrownFloorStyle);
+      for (indexOfRoom = 0; indexOfRoom < DEFAULT_NUM_ROOM; indexOfRoom++)
+      {
+         if(obj->m_state == READY)
+         {           
+            for (i = WEST; i <=NORTH;i++)
+               obj->m_rooms[indexOfRoom].DoorPosition[i] = DoorInitialPoint;
+            // Find spar area between 2 rooms to build corridors and hallways
+            obj->m_sparForCorridorsX = (dimensionOfGrid3x3[indexOfRoom][AREA_X_LENGHT] - obj->m_sparForRoomSizeMax)/2;
+            obj->m_sparForCorridorsZ = (dimensionOfGrid3x3[indexOfRoom][AREA_Z_LENGHT] - obj->m_sparForRoomSizeMax)/2;
+            // define door direction to Room attribute
 
-         // random size of a room
-         xLenght = getRandomNumber(obj->m_sparForRoomSizeMin,obj->m_sparForRoomSizeMax);
-         zLenght = getRandomNumber(obj->m_sparForRoomSizeMin,obj->m_sparForRoomSizeMax);
-         // Random location of a room
-         roomX = obj->m_sparForCorridorsX + dimensionOfGrid3x3[indexOfRoom][AREA_XP] + getRandomNumber(0,dimensionOfGrid3x3[indexOfRoom][AREA_X_LENGHT]-xLenght-obj->m_sparForCorridorsX-obj->m_sparForCorridorsX);
-         roomZ=  obj->m_sparForCorridorsZ + dimensionOfGrid3x3[indexOfRoom][AREA_ZP] + getRandomNumber(0,dimensionOfGrid3x3[indexOfRoom][AREA_Z_LENGHT]-zLenght-obj->m_sparForCorridorsZ-obj->m_sparForCorridorsZ);
+            // random size of a room
+            xLenght = getRandomNumber(obj->m_sparForRoomSizeMin,obj->m_sparForRoomSizeMax);
+            zLenght = getRandomNumber(obj->m_sparForRoomSizeMin,obj->m_sparForRoomSizeMax);
+            // Random location of a room
+            roomX = obj->m_sparForCorridorsX + dimensionOfGrid3x3[indexOfRoom][AREA_XP] + getRandomNumber(0,dimensionOfGrid3x3[indexOfRoom][AREA_X_LENGHT]-xLenght-obj->m_sparForCorridorsX-obj->m_sparForCorridorsX);
+            roomZ=  obj->m_sparForCorridorsZ + dimensionOfGrid3x3[indexOfRoom][AREA_ZP] + getRandomNumber(0,dimensionOfGrid3x3[indexOfRoom][AREA_Z_LENGHT]-zLenght-obj->m_sparForCorridorsZ-obj->m_sparForCorridorsZ);
 
-         // Reference point to build a room
-         const struct Point RoomStartPoint = {roomX,obj->m_groundLv ,roomZ};
-         // find view point
-         
-         if ((indexOfRoom == ViewPointID) && (obj->m_currentViewPoint.y == -1) && (obj->m_currentViewPoint.z == -1) && (obj->m_currentViewPoint.x == -1))
-         {
-            obj->m_currentViewPoint = (struct Point){2 + RoomStartPoint.x + getRandomNumber(0,xLenght-4),
-                                                     1+obj->m_groundLv,
-                                                     2 + RoomStartPoint.z + getRandomNumber(0,zLenght-4)};
+            // Reference point to build a room
+            const struct Point RoomStartPoint = {roomX,obj->m_groundLv ,roomZ};
+            // find view point
+            
+            if ((indexOfRoom == ViewPointID) && (obj->m_currentViewPoint.y == -1) && (obj->m_currentViewPoint.z == -1) && (obj->m_currentViewPoint.x == -1))
+            {
+               obj->m_currentViewPoint = (struct Point){2 + RoomStartPoint.x + getRandomNumber(0,xLenght-4),
+                                                        1+obj->m_groundLv,
+                                                        2 + RoomStartPoint.z + getRandomNumber(0,zLenght-4)};
+            }
+            // create a few Cubes 1 high
+            // build A room
+            obj->m_rooms[indexOfRoom]= BuildEasyRoom(&RoomStartPoint,xLenght,zLenght,obj->m_roomWallHeight,HAVE_ROOF,NOT_HAVE_GROUND,obj->m_defaultRoomColor,obj->m_defaultUnitCubeColor,BUILT_NOW);
+            obj->m_rooms[indexOfRoom].doorWidth = obj->m_doorWidth;
+            obj->m_rooms[indexOfRoom].doorHeight = obj->m_doorHeight;
+
+            BuildDoorsWestVsEast(indexOfRoom,obj->m_rooms,obj->m_defaultRoomColor);
+            BuildDoorsSouthVsNorth(indexOfRoom,obj->m_rooms,obj->m_defaultRoomColor);
+
+            foundPlaceForUpStairResult = findProperPositionToPlaceStairInRoomOfUnderground(obj,&stairPoint,&stairDirection,DEFAULT_STAIR_WIDTH,DEFAULT_STAIR_STEP_NUM,indexOfRoom);
+            if((foundPlaceForUpStairResult == 1) && (foundPlaceForUpStairResult !=3))
+            {
+               goodStairPoint = stairPoint;
+               goodStairDirection = stairDirection;
+               foundGoodPlaceForUpStair = 1;
+               downStairID = indexOfRoom;
+               currentViewPoint2 =  (struct Point){2 + RoomStartPoint.x + getRandomNumber(0,xLenght-4),
+                                                        1+obj->m_groundLv,
+                                                        2 + RoomStartPoint.z + getRandomNumber(0,zLenght-4)};
+            }
+            if (ViewPointID == indexOfRoom)
+            {  
+              // printf("indexOfRoom : %d \n",indexOfRoom);
+               if (foundPlaceForUpStairResult == 1)
+               {            
+                  obj->m_upStair = setStairAttribute(goodStairPoint,stairDirection,DEFAULT_STAIR_WIDTH,DEFAULT_STAIR_STEP_NUM,UP_STAIR,5); // white
+                  BuildStair(&(obj->m_upStair));
+                  foundPlaceForUpStairResult = 3;
+                  downStairID = indexOfRoom;
+               }
+
+            }
          }
-         
-         // create a few Cubes 1 high
+         else if (obj->m_state == GENERATED_UNDERGROUND_DONE)
+         {
+            BuildARoom(&(obj->m_rooms[indexOfRoom]));
+            for(i = 0; i < obj->m_rooms[indexOfRoom].numUnitCubes;i++)
+            {
+               plotWolrd(world,obj->m_rooms[indexOfRoom].unitCubePoint[i],obj->m_rooms[indexOfRoom].unitCubeColor);
+            }
 
-         //printf("width ,height : %d %d \n",obj->Rooms[indexOfRoom].doorWidth ,obj->Rooms[indexOfRoom].doorHeight);
-         // build A room
-         obj->Rooms[indexOfRoom]= BuildEasyRoom(&RoomStartPoint,xLenght,zLenght,obj->m_roomWallHeight,HAVE_ROOF,NOT_HAVE_GROUND,obj->m_defaultRoomColor,obj->m_defaultUnitCubeColor,BUILT_NOW);
-         obj->Rooms[indexOfRoom].doorWidth = obj->m_doorWidth;
-         obj->Rooms[indexOfRoom].doorHeight = obj->m_doorHeight;
-         BuildDoorsWestVsEast(indexOfRoom,obj->Rooms,obj->m_defaultRoomColor);
-         BuildDoorsSouthVsNorth(indexOfRoom,obj->Rooms,obj->m_defaultRoomColor);
+            BuildDoorsWestVsEast(indexOfRoom,obj->m_rooms,obj->m_defaultRoomColor);
+            BuildDoorsSouthVsNorth(indexOfRoom,obj->m_rooms,obj->m_defaultRoomColor);
+            BuildStair(&(obj->m_upStair));
+         }
+      }
+      if (foundGoodPlaceForUpStair == 1)
+      {
+
+         obj->m_upStair = setStairAttribute(goodStairPoint,stairDirection,DEFAULT_STAIR_WIDTH,DEFAULT_STAIR_STEP_NUM,UP_STAIR,5); // white
+         BuildStair(&(obj->m_upStair));
+         obj->m_currentViewPoint = currentViewPoint2;
+      }
    }
+   if (obj->m_state == READY)
+   {
+      obj->m_state = GENERATED_UNDERGROUND_DONE;
+   }
+//printf("Never found : %d , proloop:%d\n ",foundGoodPlaceForUpStair,protectInfinityLoopVal);
    g_floorLv = obj->m_groundLv;
    setViewPosition(-1 * (obj->m_currentViewPoint.x), -1 * (obj->m_currentViewPoint.y), -1 * (obj->m_currentViewPoint.z));
+  // setViewPosition(-1 * (obj->m_currentViewPoint.x), -1 * (40), -1 * (obj->m_currentViewPoint.z));
 }
 
 
@@ -1344,7 +1435,7 @@ void locateAndBuildStairOnTerrain(struct OnGround *obj)
       setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0); 
 
       int i,j;
-      int k = 300000;
+      long int k = 5;
       struct Point startStairPoint =  getReferentStairPoint(&(obj->downStair),START_POINT);
       struct Point stopStairPoint =  getReferentStairPoint(&(obj->downStair),STOP_POINT);
       int xMin = findMinValue(startStairPoint.x,stopStairPoint.x);
@@ -1353,8 +1444,10 @@ void locateAndBuildStairOnTerrain(struct OnGround *obj)
       int zMax = findMaxValue(startStairPoint.z,stopStairPoint.z);
       int highestLvOfCubesNum = 0;
       int lowestLvOfCubesNum = 0;
+      clock_t timeRef = clock();
       if(obj->state == READY)
       {
+         timeRef = clock();
          while(((obj->highestLvOfCubesNum >= highestLvOfCubesNum)||(obj->lowestLvOfCubesNum >= lowestLvOfCubesNum))&&(k-- > 0))
          {  
             highestLvOfCubesNum = 0;  
@@ -1379,8 +1472,8 @@ void locateAndBuildStairOnTerrain(struct OnGround *obj)
                      lowestLvOfCubesNum++;
                   }
          }
-
-         printf("HCN:%d, LCN:%d ,highestLvOfCubesNum:%d, lowestLvOfCubesNum:%d k:%d\n",highestLvOfCubesNum,lowestLvOfCubesNum,obj->highestLvOfCubesNum,obj->lowestLvOfCubesNum,k);
+         timeRef = clock()-timeRef;
+         //printf("HCN:%d, LCN:%d , k:%ld , time:%f second\n",highestLvOfCubesNum,lowestLvOfCubesNum,k,((float)timeRef)/CLOCKS_PER_SEC);
          obj->highestLvOfCubesNum = highestLvOfCubesNum;
          obj->lowestLvOfCubesNum = lowestLvOfCubesNum;
 
@@ -1403,7 +1496,9 @@ void locateAndBuildStairOnTerrain(struct OnGround *obj)
                   world[i][obj->terrain[i][j]][j] = 1;
                }
       }
-      g_floorLv = obj->lowestLv;
+      g_floorLv = obj->lowestLv; 
+      setViewPosition(obj->downStair.StartPoint.x*(-1),(-1)*(startStairPoint.y+1),obj->downStair.StartPoint.z*(-1));
+
       BuildStair(&(obj->downStair));
 
 }
@@ -1723,26 +1818,6 @@ void generateTerrain(struct OnGround *obj,unsigned char terrain[WORLDX][WORLDZ],
       }
       obj->highestLv = maxHeight;
       obj->lowestLv = minHeight;
-
-/*
-      printf("read Ter(%d,%d) :%d ,%d(%d,%d),%d(%d,%d),%d(%d,%d),%d(%d,%d) kkkk:%d\n",p1.x,p1.z,readTerrain(terrain,p1.x,p1.z),((southWestP.x <= 0) && (southWestP.z <= 0)),southWestP.x,southWestP.z,((northWestP.x <= 0) && (northWestP.z>= WORLDZ-1)),northWestP.x,northWestP.z,((northEastP.x >= WORLDX-1) && (northEastP.z >= WORLDZ-1)),northEastP.x,northEastP.z,((southEastP.x >= WORLDX-1) && (southEastP.z <= 0)),southEastP.x,southEastP.z,protectInfinityLoopVal);
-
-      for(i = 0;i<WORLDX;i++)
-      {
-         world[i][terrain[i][0]][0] = 5*(i%2==0) + 6*(i%2==1);
-         world[i][terrain[i][WORLDZ-1]][WORLDZ-1] = 5*(i%2==0) + 6*(i%2==1);
-      }
-      for(i = 0;i<WORLDZ;i++)
-      {
-         world[0][terrain[0][i]][i] = 5*(i%2==0) + 6*(i%2==1);
-         world[WORLDX-1][terrain[WORLDX-1][i]][i] = 5*(i%2==0) + 6*(i%2==1);
-      }
-            world[0][terrain[0][0]][0] = 5;
-      world[WORLDX-1][terrain[WORLDX-1][0]][0] = 3;
-      world[WORLDX-1][terrain[WORLDX-1][WORLDZ-1]][WORLDZ-1] = 7;
-      world[0][terrain[0][WORLDZ-1]][WORLDZ-1] = 6;
-
-      */
 }
 
 int isIn3DBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref) // yes = 1, otherwise = 
@@ -1795,22 +1870,27 @@ void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point
 }
 
 void setPrameterOfOnGround_defauleValue1(struct OnGround *obj)
-{
-      int numStairSteps = DEFAULT_STAIR_STEP_NUM;
-      int StairStepWidth = DEFAULT_STAIR_WIDTH;
-      int stairColor = 22;
-      int stairType = DOWN_STAIR;
-      setUserColour(22, 0.604, 0.604, 0.604, 1.0, 0.2, 0.2, 0.2, 1.0); //Grey
-      memset(obj->terrain,0,sizeof(obj->terrain));
-      obj->downStair = setStairAttribute((struct Point){10+getRandomNumber(0,80),DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-numStairSteps-10),10+getRandomNumber(0,80)},getRandomNumber(WEST,NORTH),StairStepWidth,numStairSteps,stairType,stairColor);
-      obj->highestLv = -1;
-      obj->lowestLv = WORLDY;
-      obj->highestLvOfCubesNum = DEFAULT_HIGHEST_TERRAIN_NUM;
-      obj->lowestLvOfCubesNum = DEFAULT_LOWEST_TERRAIN_NUM;
-      obj->state = READY;
+{   
+   int numStairSteps = DEFAULT_STAIR_STEP_NUM;
+   int StairStepWidth = DEFAULT_STAIR_WIDTH;
+   struct Point stairRefPoint = {10+getRandomNumber(0,80),
+                                 DEFAULT_LOWEST_TERRAIN+4+getRandomNumber(0,DEFAULT_HIGHEST_TERRAIN-DEFAULT_LOWEST_TERRAIN-numStairSteps-10),
+                                 10+getRandomNumber(0,80)};
+
+   int stairColor = 22;
+   int stairType = DOWN_STAIR;
+   setUserColour(22, 0.604, 0.604, 0.604, 1.0, 0.2, 0.2, 0.2, 1.0); //Grey
+   memset(obj->terrain,0,sizeof(obj->terrain));
+   obj->downStair = setStairAttribute(stairRefPoint,getRandomNumber(WEST,NORTH),StairStepWidth,numStairSteps,stairType,stairColor);
+   obj->highestLv = -1;
+   obj->lowestLv = WORLDY;
+   obj->highestLvOfCubesNum = DEFAULT_HIGHEST_TERRAIN_NUM;
+   obj->lowestLvOfCubesNum = DEFAULT_LOWEST_TERRAIN_NUM;
+   obj->state = READY;
 }
 void createOnGround(struct OnGround *obj)
 {
+   makeWorld();
    locateAndBuildStairOnTerrain(obj);
    obj->state = TERRAIN_AND_STAIR_IS_BUILT;
 }
@@ -1824,12 +1904,208 @@ int isOnDownStair(struct OnGround *obj)
       struct Point startStairPoint =  getReferentStairPoint(&(obj->downStair),START_POINT);
       struct Point stopStairPoint =  getReferentStairPoint(&(obj->downStair),STOP_POINT);
       getViewPosition(&vxp,&vyp,&vzp);
+      startStairPoint.y = obj->downStair.StartPoint.y+1;
+      stopStairPoint.y = obj->downStair.StartPoint.y+1;
       viewPosition.x = viewPosition.x*((int)vxp);
       viewPosition.y = viewPosition.y*((int)vyp);
       viewPosition.z = viewPosition.z*((int)vzp);
+      //obj->lowestLv
       //printf("VP(%d,%d,%d)\n",viewPosition.x,viewPosition.y,viewPosition.z);
-      ret = isIn2DBound(&startStairPoint,&stopStairPoint,&viewPosition);
+      ret = isIn3DBound(&startStairPoint,&stopStairPoint,&viewPosition);
+
+      startStairPoint.y = obj->lowestLv;
+      stopStairPoint.y = obj->lowestLv;
+      ret = ret || isIn3DBound(&startStairPoint,&stopStairPoint,&viewPosition);
    } 
    return ret;
 
+}
+
+void printPoint(const struct Point P1,const char *str)
+{
+   printf("(%d,%d,%d)%s",P1.x,P1.y,P1.z,str);
+}
+
+void plotWolrd(GLubyte world[WORLDX][WORLDY][WORLDZ],const struct Point aPoint,const unsigned char value)
+{
+   world[aPoint.x][aPoint.y][aPoint.z] = value;
+}
+
+
+int findDistanceBetweenPoint(const struct Point P1,const struct Point P2,const unsigned char type)
+{
+   int ret = 0;
+   switch(type)
+   {
+      case X_DISTANCE:
+         ret = 1 + findMaxValue(P1.x,P2.x) - findMinValue(P1.x,P2.x); 
+      break;
+      case Z_DISTANCE:
+         ret = 1 + findMaxValue(P1.z,P2.z) - findMinValue(P1.z,P2.z); 
+      break;
+      case Y_DISTANCE:
+         ret = 1 + findMaxValue(P1.y,P2.y) - findMinValue(P1.y,P2.y); 
+      break;
+   }
+   return ret;
+}
+
+int findProperPositionToPlaceStairInRoomOfUnderground(struct Underground *obj,struct Point *stairPoint,int *stairDirection,const int stairWidth,const int stairNum, const int roomID)
+{
+   int i =0;
+   int ret = 0;
+   int directionId = 0;
+   int canBuidInRoom = 0;
+   int canBuildOutSide = 0;
+   int widthX = 0;
+   int widthZ = 0;
+   int wallWithoutDoorNum = 0;
+   int wallWithoutDoorId[3];
+   int stairMaxWidth = findMaxValue(stairWidth+2,stairNum+2);
+   int stairMinWidth = findMinValue(stairWidth+2,stairNum+2);
+   struct Room *aRoom = &(obj->m_rooms[roomID]);
+   struct Wall *walls = aRoom->Walls;
+   struct Point startPointInTheRoom = walls[WEST].StartPoint;
+   struct Point stopPointInTheRoom = walls[EAST].StartPoint;
+   startPointInTheRoom.x += 1;
+   startPointInTheRoom.z += 1;
+   stopPointInTheRoom.x -= 1;
+   stopPointInTheRoom.z += aRoom->Walls[EAST].width - 2;
+   widthX = findDistanceBetweenPoint(startPointInTheRoom,stopPointInTheRoom,X_DISTANCE);
+   widthZ = findDistanceBetweenPoint(startPointInTheRoom,stopPointInTheRoom,Z_DISTANCE);
+   for (i = WEST ; i <= NORTH;i++)
+      if(DoorDirections[roomID][i] == -1)
+         wallWithoutDoorId[wallWithoutDoorNum++] = i;
+
+   // Check size of area is suitable
+   // 8 is spar space in the room
+   canBuidInRoom = (stairMaxWidth <= (findMaxValue(widthX,widthZ) -8-4)) && (stairMinWidth <= (findMinValue(widthX,widthZ) -8-4));
+  // widthX = findMaxValue()
+  // printf("RoomID:%d, width(%d,%d) goodWall:%d\n",roomID,widthX,widthZ,wallWithoutDoorNum);
+   //printf("Start P: ");printPoint(startPointInTheRoom,"\n");
+   //printf("Stop  P: ");printPoint(stopPointInTheRoom,"\n");
+   //printf("stair Wd(%d,%d) , ret:%d\n",stairMaxWidth,stairMinWidth,ret);
+   //plotWolrd(world,startPointInTheRoom,3);
+   //plotWolrd(world,stopPointInTheRoom,2);
+   for (i = 0 ; i <wallWithoutDoorNum;i++)
+   {  
+      directionId = wallWithoutDoorId[i];
+      if ((directionId == EAST) || (directionId == WEST))
+      {
+         canBuildOutSide = ((walls[directionId].width-(stairWidth+2+4)) > 2);
+         canBuildOutSide = canBuildOutSide && ((dimensionOfGrid3x3[roomID][AREA_X_LENGHT]+ dimensionOfGrid3x3[roomID][AREA_XP] - walls[directionId].StartPoint.x-1) > (stairNum+2)); 
+         if(directionId == WEST)
+         {
+            canBuildOutSide = canBuildOutSide && ((walls[directionId].StartPoint.x - dimensionOfGrid3x3[roomID][AREA_XP]) > (stairNum+2));
+         }
+         i = wallWithoutDoorNum;
+      }
+      else
+      {
+         canBuildOutSide = ((walls[directionId].width-(stairWidth+2+6)) > 2);
+         canBuildOutSide = canBuildOutSide && ((dimensionOfGrid3x3[roomID][AREA_Z_LENGHT]+ dimensionOfGrid3x3[roomID][AREA_ZP] - walls[directionId].StartPoint.z-1) > (stairNum+2)); 
+         if(directionId == SOUTH)
+         {
+            canBuildOutSide = canBuildOutSide && ((walls[directionId].StartPoint.z - dimensionOfGrid3x3[roomID][AREA_ZP]) > (stairNum+2));
+         }
+         i = wallWithoutDoorNum;
+      }
+   }
+   ret = canBuidInRoom || canBuildOutSide;
+
+   if (canBuildOutSide == 1)
+   {
+
+      stairPoint->y = startPointInTheRoom.y;
+      if (directionId <= EAST)
+      {
+        // printf("o oooo : %d \n",walls[directionId].width-(stairWidth+2+4));
+         stairPoint->x = walls[directionId].StartPoint.x + (-1)*(directionId== WEST)*(stairNum+1);
+         stairPoint->z = walls[directionId].StartPoint.z +  getRandomNumber(2,walls[directionId].width-(stairWidth+2+4));
+         *stairDirection = (1+directionId)%2;
+         /*
+         printf("WEST %d P: ",directionId);printPoint(walls[WEST].StartPoint,"\n");
+         printf("Find OutEW  P: ");printPoint(*stairPoint,"\n");
+         */
+      }
+      else
+      {
+
+       //  printf("2o oooo : %d \n",walls[directionId].width-(stairWidth+2+6));
+         stairPoint->z = walls[directionId].StartPoint.z + (-1)*(directionId== SOUTH)*(stairNum+1);
+         stairPoint->x = walls[directionId].StartPoint.x +  getRandomNumber(2,walls[directionId].width-(stairWidth+2+6));
+         *stairDirection = 2+(1+directionId)%2;
+         /*
+         printf("Direct :%d\n",directionId);
+         printf("South  P: ");printPoint(walls[SOUTH].StartPoint,"\n");
+         printf("XXXXXXXXXFind OutSN  P:  ");printPoint(*stairPoint,"\n");
+         */
+      }
+   }   // can make in side
+   else if (canBuidInRoom == 1)
+   {
+      if (widthX > widthZ)
+      {
+         stairPoint->x = walls[WEST].StartPoint.x +  getRandomNumber(4,widthX -8 - stairMaxWidth);
+         stairPoint->z = walls[SOUTH].StartPoint.z +  getRandomNumber(4,widthZ -8 - stairMinWidth);
+         *stairDirection = getRandomNumber(WEST,EAST);
+        // printf("Find insideEW  P: ");printPoint(*stairPoint,"\n");
+      }
+      else
+      {
+         stairPoint->x = walls[WEST].StartPoint.x +  getRandomNumber(4,widthX -8 - stairMinWidth);
+         stairPoint->z = walls[SOUTH].StartPoint.z+  getRandomNumber(4,widthZ -8 - stairMaxWidth);
+         *stairDirection = getRandomNumber(SOUTH,NORTH);
+
+
+       //  printf("Find insideNS  P: ");printPoint(*stairPoint,"\n");
+      }
+   }
+    stairPoint->y = startPointInTheRoom.y -1;
+   // check the outside can make;
+
+   /*
+      struct Wall Walls[4]; 
+   struct stair *anUpStair = &(obj->m_upStair);
+   struct Point startStairPoint =  getReferentStairPoint(anUpStair,START_POINT);
+   struct Point stopStairPoint =  getReferentStairPoint(anUpStair,STOP_POINT);
+   startStairPoint.y = anUpStair->StartPoint.y;
+   stopStairPoint.y  = anUpStair->StartPoint.y;
+
+   world[startStairPoint.x][startStairPoint.y][startStairPoint.z] = 3;
+   world[stopStairPoint.x][stopStairPoint.y][stopStairPoint.z] = 7;
+   */
+   // check room size 
+
+   // check surround area of room
+   return ret;
+
+}
+
+int isOnUpStair(struct Underground *obj)
+{
+   float vxp,vyp,vzp;
+   struct Point viewPosition = {-1,-1,-1};
+   int ret = 0;
+   if ((obj->m_state) == READY || obj->m_state == GENERATED_UNDERGROUND_DONE)
+   {      
+      struct Point startStairPoint =  getReferentStairPoint(&(obj->m_upStair),START_POINT);
+      struct Point stopStairPoint =  getReferentStairPoint(&(obj->m_upStair),STOP_POINT);
+      getViewPosition(&vxp,&vyp,&vzp);
+      viewPosition.x = viewPosition.x*((int)vxp);
+      viewPosition.y = viewPosition.y*((int)vyp);
+      viewPosition.z = viewPosition.z*((int)vzp);
+      //obj->lowestLv
+      //printf("VP(%d,%d,%d)\n",viewPosition.x,viewPosition.y,viewPosition.z);
+      ret = isIn3DBound(&startStairPoint,&stopStairPoint,&viewPosition);
+
+
+      startStairPoint.y = obj->m_upStair.StartPoint.y-1;
+      stopStairPoint.y = obj->m_upStair.StartPoint.y-1;
+      ret = ret || isIn3DBound(&startStairPoint,&stopStairPoint,&viewPosition);
+      startStairPoint.y = obj->m_upStair.StartPoint.y-2;
+      stopStairPoint.y = obj->m_upStair.StartPoint.y-2;
+      ret = ret || isIn3DBound(&startStairPoint,&stopStairPoint,&viewPosition);
+   } 
+   return ret;
 }
