@@ -94,7 +94,6 @@ extern void getUserColour(int, GLfloat *, GLfloat *, GLfloat *, GLfloat *,
 
 /********* end of extern variable declarations **************/
 
-
 struct Point
 {
    int x;
@@ -162,8 +161,17 @@ struct stair
 #define DEFAULT_STAIR_STEP_NUM 4
 #define DEFAULT_STAIR_WIDTH 3
 
+#define DEFAULT_HIGHEST_CLOUD 48
+#define DEFAULT_LOWEST_CLOUD 44
+#define DEFAULT_CLOUD_LV_NUM DEFAULT_HIGHEST_CLOUD-DEFAULT_LOWEST_CLOUD
+
+#define DEFAULT_MAX_WIDHTX_CLOUD_SIZE 10
+#define DEFAULT_MAX_WIDHTZ_CLOUD_SIZE 10
+#define DEFAULT_MAX_HIEGHT_CLOUD_SIZE DEFAULT_CLOUD_LV_NUM-1
+
 #define DEFAULT_HIGHEST_TERRAIN_NUM 321
 #define DEFAULT_LOWEST_TERRAIN_NUM 256
+
 
 struct Underground
 {
@@ -197,10 +205,13 @@ struct OnGround
 {
    unsigned char state; // 1 = already set (READY STATE), 2 = Terrain and Stair already create, otherwise = not ready
    unsigned char terrain[WORLDX][WORLDZ];
-   unsigned char cloudSpace[WORLDX][3][WORLDZ];
+   unsigned char cloudSpace[WORLDX][DEFAULT_CLOUD_LV_NUM][WORLDZ];
    struct stair downStair;
    int highestLv;
    int lowestLv;
+
+   int hightestLvOfCloud;
+   int lowestLvOfCloud;
 
    int highestLvOfCubesNum;
    int lowestLvOfCubesNum;
@@ -279,6 +290,11 @@ void printPoint(const struct Point P1,const char *str);
 
 int findDistanceBetweenPoint(const struct Point P1,const struct Point P2,const unsigned char type);
 
+void createRandomShapeOfObjectInDefinedArea(unsigned char definedArea[WORLDX][WORLDZ],const struct Point *PStart,const struct Point *PStop);
+void createCloudsInDefinedArea(struct OnGround *OutsideLand);
+void moveCloudInOutsideLand(struct OnGround *obj);
+
+
 #define AREA_XP 0
 #define AREA_ZP 1
 #define AREA_X_LENGHT 2
@@ -287,6 +303,7 @@ int findDistanceBetweenPoint(const struct Point P1,const struct Point P2,const u
 #define X_DISTANCE 0
 #define Y_DISTANCE 1
 #define Z_DISTANCE 2
+
 
 struct OnGround OutsideLand;
 struct Underground AnUnderground;
@@ -613,6 +630,8 @@ createTube(2, -xx, -yy, -zz, -xx-((x-xx)*25.0), -yy-((y-yy)*25.0), -zz-((z-zz)*2
             createOnGround(&OutsideLand);
             stage_Lv = 0;
          }
+         if(stage_Lv == 0)
+            moveCloudInOutsideLand(&OutsideLand);
    }
 }
 
@@ -750,6 +769,7 @@ void SetMAXandMINPoint(const int** MaxPoint,const int** MinPoint,const int* P1,c
       *MinPoint = P1;
    }
 }
+
 
 void BuildABox(const struct Point *StartPoint,const struct Point *Endpoint,int color,int (*generateColorStyle)(int,int,int,int))
 {
@@ -1447,6 +1467,7 @@ void locateAndBuildStairOnTerrain(struct OnGround *obj)
       clock_t timeRef = clock();
       if(obj->state == READY)
       {
+         createCloudsInDefinedArea(obj);
          timeRef = clock();
          while(((obj->highestLvOfCubesNum >= highestLvOfCubesNum)||(obj->lowestLvOfCubesNum >= lowestLvOfCubesNum))&&(k-- > 0))
          {  
@@ -2108,4 +2129,141 @@ int isOnUpStair(struct Underground *obj)
       ret = ret || isIn3DBound(&startStairPoint,&stopStairPoint,&viewPosition);
    } 
    return ret;
+}
+
+void createRandomShapeOfObjectInDefinedArea(unsigned char definedArea[WORLDX][WORLDZ],const struct Point *PStart,const struct Point *PStop)
+{
+   int i,j,k;
+   const int *MaxX;
+   const int *MaxY;
+   const int *MaxZ;
+   const int *MinX;
+   const int *MinY;
+   const int *MinZ;
+   int baseX  = 0;
+   int baseZ  = 0;
+   int baseY = 0;
+   int maxLv = -1;
+   int minLv = 100;
+   SetMAXandMINPoint(&MaxX,&MinX,&(PStart->x),&(PStop->x));
+   SetMAXandMINPoint(&MaxY,&MinY,&(PStart->y),&(PStop->y));
+   SetMAXandMINPoint(&MaxZ,&MinZ,&(PStart->z),&(PStop->z));
+   baseX = *MinX;
+   baseZ = *MinZ;
+   baseY = getRandomNumber(*MinY,*MaxY);
+   if ((*MinX < WORLDX) && (*MinZ < WORLDZ))
+   definedArea[*MinX][*MinZ] = baseY;
+   maxLv =baseY;
+   minLv = baseY;
+
+   for(k=*MinZ;k<=*MaxZ;k++)
+      for(i=*MinX;i<=*MaxX;i++)
+      {
+         // find max and min LV
+         // WEST
+         if ( (i-1 >= *MinX) && ((i-1) < WORLDX) && (k < WORLDZ))
+         {
+            maxLv = findMaxValue(maxLv,definedArea[i-1][k]);
+            minLv = findMinValue(minLv,definedArea[i-1][k]);
+         }
+         // SOUTH
+         if ((k -1 >= *MinZ) && ((k-1) < WORLDZ) && (i < WORLDX))
+         {
+            maxLv = findMaxValue(maxLv,definedArea[i][k-1]);
+            minLv = findMinValue(minLv,definedArea[i][k-1]);
+         }
+         // SOUTH EAST
+         if ((k -1 >= *MinZ) && ((k-1) < WORLDZ) && ((i+1)< WORLDX))
+         {
+            maxLv = findMaxValue(maxLv,definedArea[i+1][k-1]);
+            minLv = findMinValue(minLv,definedArea[i+1][k-1]);
+         }
+         // SOUTH WEST
+         if ((k -1 >= *MinZ) && (i-1 >= *MinX) && ((i-1) < WORLDX) && ((k -1) >= *MinZ) )
+         {
+            maxLv = findMaxValue(maxLv,definedArea[i-1][k-1]);
+            minLv = findMinValue(minLv,definedArea[i-1][k-1]);
+         }
+         if ((maxLv <= 0) || (minLv <=0))
+         {
+            maxLv = baseY;
+            minLv = baseY;
+         }
+         if ((i < WORLDX) && (k < WORLDZ))
+         {           
+            if (maxLv == minLv)
+            {
+               definedArea[i][k] = minLv + (1 - getRandomNumber(0,2));
+            }
+            else if (maxLv == minLv+1)
+            {
+               definedArea[i][k] = getRandomNumber(minLv,maxLv);
+            }
+            else if (maxLv == minLv+2)
+            {
+               definedArea[i][k] = minLv+1;
+            }
+            else
+            {
+
+            }
+            
+            //definedArea[i][k] = boundValue(*MaxY,*MinY,definedArea[i][k]);
+         }
+
+      }
+}
+
+void createCloudsInDefinedArea(struct OnGround *OutsideLand)
+{
+   int i,j;
+   struct Point Apoint;
+   struct Point Bpoint;
+   unsigned char cloudTerrain[WORLDZ][WORLDX];
+   memset(cloudTerrain,0,sizeof(cloudTerrain));
+   //cloudSpace
+   for (j = 0;j < WORLDZ;j+= DEFAULT_MAX_WIDHTZ_CLOUD_SIZE)
+      for (i = 0;i < WORLDX;i+=DEFAULT_MAX_WIDHTX_CLOUD_SIZE)
+      {
+
+         // create or not by randomly
+         if(getRandomNumber(0,7) > 1)
+         {
+               Apoint.x = boundValue(WORLDX-1,0,i + getRandomNumber(0,4));
+               Bpoint.x = boundValue(WORLDX-1,0,i +DEFAULT_MAX_WIDHTX_CLOUD_SIZE - getRandomNumber(1,4));
+               Apoint.z = boundValue(WORLDZ-1,0,j+ getRandomNumber(0,4));
+               Bpoint.z = boundValue(WORLDZ-1,0,j +DEFAULT_MAX_WIDHTX_CLOUD_SIZE - getRandomNumber(1,4));
+               Apoint.y = getRandomNumber(DEFAULT_LOWEST_CLOUD,DEFAULT_HIGHEST_CLOUD);
+               Bpoint.y = getRandomNumber(DEFAULT_LOWEST_CLOUD,DEFAULT_HIGHEST_CLOUD);
+               createRandomShapeOfObjectInDefinedArea(cloudTerrain,&Apoint,&Bpoint);
+         }
+      }
+   for(i = 0; i < WORLDZ;i++)
+      for(j=0; j <WORLDX;j++)
+         if ((cloudTerrain[j][i] != 0) && (cloudTerrain[j][i] < DEFAULT_HIGHEST_CLOUD))
+         {
+         OutsideLand->cloudSpace[j][cloudTerrain[j][i]-DEFAULT_LOWEST_CLOUD][i] = 5;
+         }
+
+}
+void moveCloudInOutsideLand(struct OnGround *obj)
+{
+         int i,k,j;
+      static int moveId = 0;
+      static clock_t cloudMovingRefTime = 0;
+      static float timeUpdate = 0.02;
+      static float currentCloudTime = 0;
+      currentCloudTime = ((float)(clock()-cloudMovingRefTime))/CLOCKS_PER_SEC;
+      if (currentCloudTime > timeUpdate)
+      {
+
+         cloudMovingRefTime = clock();
+         for(i = 0;i<100;i++)
+            for(j = 0;j<DEFAULT_CLOUD_LV_NUM;j++)
+               for(k=0;k<100;k++)
+                  world[i][DEFAULT_LOWEST_CLOUD+j][k] = obj->cloudSpace[(i+moveId)%100][j][(k+moveId)%100];
+               moveId = (1+moveId)%100;
+               
+
+      }
 }
