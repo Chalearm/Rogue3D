@@ -1,0 +1,159 @@
+Assignment 3 - Timing, Textures, Maps, Visibility, Animation
+----------------------------------------------------------------
+Due. Friday, March 5, 2021
+
+1. Timing
+-----------------------------------
+The update() function is called by OpenGL. This can be used to create
+the animations. If the updates to the screen are allowed to run
+freely then the speed of the animation will depend on how often
+the function is called. Faster computers will have faster animations.
+
+To avoid this you need to use real time to schedule updates to the
+animated objects. Use real time to update the animations on a
+fixed time schedule. You should check the current time on each
+call to update() and only change the animation if enough time has
+passed since the previous change. Do not use sleep() for this operation.
+
+Use the timing to control the animation for the clouds added to assignment 2.
+More timing events will be added to later assignments so write the timing
+code so that it is easy to use with multiple events.
+
+2. Displaying a Two Dimensional World Map
+-----------------------------------------
+Use the draw2D() function draw two dimensional maps on the
+screen. The map should show the rooms and corridors, the player's current
+location, the stairs up and down, and the locations of MOBS (mesh objects).
+The maps should display the x and z coordinates of the world. They do
+not need to show elevation in the y axis.
+
+The int displayMap variable will be used to indicate what type of map will
+be displayed. When:
+displayMap == 0, no map is displayed
+displayMap == 1, a map with all elements of the game level displayed
+displayMap == 2, a map showing only the areas that the player has
+previously seen (fog-of-war)
+The value of displayMap is cycled through using the m key.
+
+The map for option 1 should show all parts of the game. This includes the
+rooms, hallways, stairs, MOBS, random blocks on the floor that were
+created in the first assignment. Later assignments will include
+other game elements such as loot and moving MOBS (meshes).
+
+The fog-of-war map shows only the places that the player has visited.
+When they enter a room then the entire room can be drawn on the map.
+If the room contains any game elements such as stairs, meshes, or individual
+blocks on the ground then they should be displayed on the map.
+
+When the player moves down a corridor that they have not previously visited
+then the space they are currently in and the next space in front
+of them can be added. If the next space is a corner or an intersection
+then you should show the bend in the hallway. If you want to see an example
+of this then look at the behaviour of the map in the original Rogue
+game (a link to a web version is listed on assignment 1).
+
+You can use the draw2D*() functions to drawn lines, boxes, and triangles.
+The set2Dcolour() function lets you set the colour of the shapes.
+These are described in the readme.txt file.
+
+Draw lines to indicate the rooms and hallways. Use different shapes
+and colours to indicate the players location, and other objects on the map.
+
+You should use the screenWidth and screenHeight variables to
+scale the size of the maps when the window size is changed.
+
+3. Textured Cubes
+-----------------
+Texturing has been added to the game engine. It is described in the readme
+for the game. Add texturing to the cubes in the maze and to the
+outdoor level.
+
+More textures can be added to the game if you wish. Instructions for adding
+textures are listed in the readme file. Avoid adding too many textures
+that will make the assignment too large to submit on Courselink. You can
+remove the textures that are included with the game engine and replace them
+with your own if you wish.
+
+4. Animated Mesh Movement
+-------------------------
+Animate the mesh objects that you placed in the rooms for the visibility
+testing in item 4 above. Have the mesh move around the room in a repeated
+pattern. This is to give the idea that the MOB is moving around and
+not simply standing still in the room.
+
+You can move the mesh using the setTranslateMesh() function and the
+timing system (item 1 above) in the update() function.
+
+5. Visibility of Objects
+------------------------
+Mesh object should not be drawn when they are out of range of the player.
+When the object is not in front of the player or is too far away then the
+the object should not be drawn.
+
+Use the 3D mesh that are placed in the room and moved for item 4 above.
+Use distance in front of the user to determine if the object should be drawn.
+
+When the object is visible print a message to the text window that the object
+can be seen. For example:
+Cow mesh #5 is visible.
+where #5 is the id for that mesh. When the player moves and they can no
+longer see the mesh then print the message:
+Cow mesh #5 is not visible.
+
+You should only print the "not visible" message once after the player has seen
+the object. If you don't do this then the system will constantly print
+messages about all of the meshes which the player can't currently see.
+
+Output to the text window should look something like this:
+Fish mesh #1 is visible.
+Fish mesh #1 is not visible.
+Bat mesh #7 is visible.
+Bat mesh #7 is not visible.
+Bat mesh #7 is visible.
+Bat mesh #7 is not visible.
+
+Use the drawMesh() and hideMesh() functions to control drawing of the
+meshes. The player should not see the mesh appear as they are turning
+towards it. The mesh should never pop into existence before the player.
+
+Starting Location
+-----------------
+Start the viewpoint on the outdoor level, near the stairs down.
+
+Choosing Parameters
+-------------------
+It is important to pick values for parameters such as colours, speed of
+objects, the effect of gravity so they are easy for the marker to see.
+If the effect of a parameter it isn't obvious or is difficult to
+see then it will be marked as missing or incomplete.
+
+Make sure colours are distinct. Choose velocities for moving objects
+that are fast enough to be seen.
+
+Coding Practices
+----------------
+Write the code using standard stylistic practices. Use functions,
+reasonable variable names, and consistent indentation.
+If the code is difficult for the TA to understand then you
+will lose marks.
+
+As usual, keep backups of your work using source control software.
+
+Starting Code
+-------------
+The updated starting code is available. It supports textured
+cubes and 3D models. You will need to download this and add your code
+from assignment 1 and 2 to the a1.c file. None of the function used in the
+past assignments have changed so you should not need to change any of
+the code you wrote in assignment 1. If you modified graphics.c then you
+will need to add those changes to the new graphics.c file.
+
+The only updates to the a1.c file are the inclusion of extern declarations
+for new functions to draw textures and mesh object and examples of using
+these functions in the testworld section of code.
+
+All of the changes to the code for the assignment can be made in the a1.c file.
+
+Note that the graphics code may be modified for later assignments. If you
+make changes to the graphics code (in graphics.c or visible.c) then you
+may have to recode the changes for a later assignment.
