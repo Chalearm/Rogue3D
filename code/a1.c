@@ -124,7 +124,7 @@ extern void hideMesh(int);
 #define DEFAULT_UNDERGROUND_LV 10
 #define DEFAULT_DOOR_HEIGHT 2
 #define DEFAULT_DOOR_WIDTH 2
-#define DEFAULT_ROOM_HEIGHT 3
+#define DEFAULT_ROOM_HEIGHT 5
 #define DEFAULT_GRAVITY 21
 #define DEFAULT_COLLISION_MARGIN 0.4
 #define DEFAULT_SPARFORCORRIDORS_X 4
@@ -234,7 +234,21 @@ struct stair
    int type; //0 = up, 1 = down
 };
 
-
+struct aMesh
+{
+  int id;
+  int type;
+  int state; // 0 = hide, 1 = show
+  int currentDirection;
+  struct Point startArea;
+  struct Point stopArea;
+  // current position
+  float xPos;
+  float yPos;
+  float zPos;
+  float xVelocity;
+  float zVelocity;
+};
 struct Underground
 {
    // method interface
@@ -261,12 +275,14 @@ struct Underground
    int m_upStairRoomId;
    int m_downStairRoomId;
    struct Room m_rooms[DEFAULT_NUM_ROOM];
+   struct aMesh m_meshes[DEFAULT_NUM_ROOM];  // a mesh in a room
    struct Point m_upViewPoint;
    struct Point m_downViewPoint;
    int m_state;
    int m_visitedState;
 
 };
+
 
 struct OnGround
 {
@@ -283,7 +299,13 @@ struct OnGround
    int highestLvOfCubesNum;
    int lowestLvOfCubesNum;
 };
+// default mesh attribute defined area
+#define MESH_X_MIN_VELOCITY 0.05
+#define MESH_X_MAX_VELOCITY 0.3
+#define MESH_Z_MIN_VELOCITY 0.05
+#define MESH_Z_MAX_VELOCITY 0.3
 
+// ********** End of default mesh attribute defined area
 // Texture id defined area
 #define TXT_FLOOR_ID1 11
 #define TXT_FLOOR_ID2 12
@@ -331,6 +353,12 @@ struct OnGround
 // convert 3D point to 2D point
 struct Point2D convert3DPointTo2DPoint(const struct Point *obj);
 
+// Mesh function
+void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom);
+void changeStatusAndPrintInfo(struct aMesh *obj,int state,int option); // 0 not print info , 1 print info
+const char* printMeshName(const int id);
+
+// testure function
 void setAllTexture();
 void getAndConvertViewPos(struct Point *obj);
 void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Point *stopP);
@@ -362,6 +390,7 @@ void setCubePositionInMap2D(struct Underground *obj);
 int isOnUpStairUnderground(struct Underground *obj);
 int isOnDownStairUnderground(struct Underground *obj);
 void changeVisiteStateInUnderground(struct Underground *obj,const int state);
+void moveMesh(struct Underground *obj,const float second);
 
 void generateTerrain(struct OnGround *obj,unsigned char terrain[WORLDX][WORLDZ], const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
 void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point *northWestP, struct Point *northEastP, struct Point *southEastP);
@@ -389,7 +418,7 @@ int findDistanceBetweenPoint(const struct Point P1,const struct Point P2,const u
 
 void createRandomShapeOfObjectInDefinedArea(unsigned char definedArea[WORLDX][WORLDZ],const struct Point *PStart,const struct Point *PStop);
 void createCloudsInDefinedArea(struct OnGround *OutsideLand);
-void moveCloudInOutsideLand(struct OnGround *obj);
+void moveCloudInOutsideLand(struct OnGround *obj,const float second);
 // Map build
 void initialMap2D(struct Map *obj);
 void set3DLineOrBoxToMap2D(struct Map *obj,GLfloat color[4],int width,struct Point *startP,struct Point *stopP);
@@ -398,6 +427,7 @@ void convertWallPositionToPoint2Ds(const struct Wall *obj,struct Point2D *P1,str
 void findStartAndStopPointOfARoom(struct Room *obj,struct Point *maxPoint,struct Point *minPoint);
 void findStartAndStopPointOfARoom2D(struct Room *obj,struct Point2D *maxPoint,struct Point2D *minPoint);
 int findViewPointIsWhichRoom2D(struct Map *obj);
+void drawAMeshInARoomInMap2D(struct aMesh *mesh);
 void drawARoomInMap2D(struct Map *obj,const int roomID);
 
 // Fog map functions
@@ -845,7 +875,13 @@ float x, y, z;
          }
 
          if(stage_Lv == -1)
-            moveCloudInOutsideLand(&OutsideLand);
+         {
+            moveCloudInOutsideLand(&OutsideLand,0.1);
+         }
+         else
+         {
+            moveMesh(&(Undergrounds[stage_Lv]),0.08);
+         }
 
    }
 }
@@ -1796,6 +1832,7 @@ void createUnderground(struct Underground *obj)
                }
 
             }
+            createAMeshInARoom(&(obj->m_meshes[indexOfRoom]),&(obj->m_rooms[indexOfRoom]));
          }
          else if (obj->m_state == GENERATED_UNDERGROUND_DONE)
          {
@@ -2783,12 +2820,12 @@ void createCloudsInDefinedArea(struct OnGround *OutsideLand)
          }
 
 }
-void moveCloudInOutsideLand(struct OnGround *obj)
+void moveCloudInOutsideLand(struct OnGround *obj,const float second)
 {
          int i,k,j;
       static int moveId = 0;
       static clock_t cloudMovingRefTime = 0;
-      static float timeUpdate = 0.02;
+      const float timeUpdate = second;
       static float currentCloudTime = 0;
       currentCloudTime = ((float)(clock()-cloudMovingRefTime))/CLOCKS_PER_SEC;
       if (currentCloudTime > timeUpdate)
@@ -2962,6 +2999,19 @@ void drawARoomInMap2D(struct Map *obj,const int roomID)
     } 
   }
 }
+
+void drawAMeshInARoomInMap2D(struct aMesh *mesh)
+{
+    struct Point2D point2Ds[2];
+    struct LineOrBox2D aMeshPos;
+    point2Ds[0].x = (int)mesh->xPos;
+    point2Ds[0].z = (int)mesh->zPos;
+    point2Ds[1] = (struct Point2D){point2Ds[0].x+1,point2Ds[0].z+1};
+    GLfloat blue[] = {0.4,0.7,1.0,alphaVal};
+    setPointsAndColorOfLineOrBox(&aMeshPos,point2Ds,0,blue);
+    drawBoxMap2DWithTransFn(&aMeshPos,&mapTransformFuntion);
+
+}
 void updateUndergroundMap2D(struct Underground *obj,const int displayMode)  // 1 = no map, 2 = fog, 0 = normal map
 {
    int indexRoom = 0;
@@ -2980,6 +3030,7 @@ void updateUndergroundMap2D(struct Underground *obj,const int displayMode)  // 1
       indexRoom =  findViewPointIsWhichRoom2D(a2DMapP);
       if (displayMode == FOG_MAP)
       { 
+        drawAMeshInARoomInMap2D(&(obj->m_meshes[indexRoom]));
         drawARoomInMap2D(a2DMapP,indexRoom);
         drawFogInMap(&(a2DMapP->aFogMap));
       }
@@ -2996,6 +3047,7 @@ void updateUndergroundMap2D(struct Underground *obj,const int displayMode)  // 1
       //down room
       for(indexRoom = 0;indexRoom < DEFAULT_NUM_ROOM;indexRoom++)
       {
+        drawAMeshInARoomInMap2D(&(obj->m_meshes[indexRoom]));
         drawARoomInMap2D(a2DMapP,indexRoom);
       }
       // drae down stair position in a map
@@ -3393,3 +3445,107 @@ void printLineOrBoxObj(struct LineOrBox2D *obj)
     printf("LineOrBox (%d,%d), (%d,%d) w:%d\n",obj->startP.x,obj->startP.z,obj->stopP.x,obj->stopP.z,obj->width);
 }
 
+void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom)
+{
+    static int idMesh = 1;
+    struct Point startP;
+    struct Point stopP;
+    obj->id = idMesh++;
+    obj->type = getRandomNumber(0,3); // 0=cow, 1=fish, 2=bat, 3=cactus
+    findStartAndStopPointOfARoom(aRoom,&stopP,&startP);
+    obj->currentDirection = getRandomNumber(WEST,NORTH);
+    obj->startArea = (struct Point){startP.x+1,startP.y,startP.z+1};
+    obj->stopArea = (struct Point){startP.x+1+getRandomNumber(2,4),startP.y,startP.z+1+getRandomNumber(2,4)};
+    obj->xVelocity = MESH_X_MIN_VELOCITY + (MESH_X_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
+    obj->zVelocity = MESH_Z_MIN_VELOCITY + (MESH_Z_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
+    obj->state = 0; // hide
+    obj->xPos = getRandomNumber(obj->startArea.x,obj->stopArea.x);
+    obj->zPos = getRandomNumber(obj->startArea.z,obj->stopArea.z);
+    obj->yPos = obj->startArea.y + getRandomNumber(1,2);
+    setMeshID(obj->id, obj->type, obj->xPos, obj->yPos, obj->zPos);
+    hideMesh(obj->id);
+}
+
+void moveMesh(struct Underground *obj,const float second)
+{         
+//xxxxx
+      int i;
+      int roomIndex = 0;
+      static clock_t cloudMovingRefTime = 0;
+      const float timeUpdate = second;
+      static float currentCloudTime = 0;
+      struct aMesh *meshes = obj->m_meshes;
+      currentCloudTime = ((float)(clock()-cloudMovingRefTime))/CLOCKS_PER_SEC;
+      if (currentCloudTime > timeUpdate)
+      {      
+
+         cloudMovingRefTime = clock();
+          for(i = 0;i < DEFAULT_NUM_ROOM;i++)
+          {
+            if(meshes[i].currentDirection == EAST)
+            {
+              meshes[i].xPos += meshes[i].xVelocity/(float)getRandomNumber(1,2);
+              meshes[i].zPos += meshes[i].zVelocity/(float)getRandomNumber(7,10); 
+            }
+            if(meshes[i].currentDirection == WEST)
+            {
+              meshes[i].xPos -= meshes[i].xVelocity/(float)getRandomNumber(1,2);
+              meshes[i].zPos -= meshes[i].zVelocity/(float)getRandomNumber(7,10);
+            }
+            if(meshes[i].currentDirection == SOUTH)
+            {
+              meshes[i].xPos -= meshes[i].xVelocity/(float)getRandomNumber(7,10);
+              meshes[i].zPos -= meshes[i].zVelocity/(float)getRandomNumber(1,2); 
+            }
+            if(meshes[i].currentDirection == NORTH)
+            {
+              meshes[i].xPos += meshes[i].xVelocity/(float)getRandomNumber(7,10);
+              meshes[i].zPos += meshes[i].zVelocity/(float)getRandomNumber(1,2); 
+            }
+            if(meshes[i].xPos > meshes[i].stopArea.x) meshes[i].currentDirection = WEST;
+            if(meshes[i].xPos < meshes[i].startArea.x) meshes[i].currentDirection = EAST;
+            if(meshes[i].zPos > meshes[i].stopArea.z) meshes[i].currentDirection = SOUTH;
+            if(meshes[i].zPos < meshes[i].startArea.z) meshes[i].currentDirection = NORTH;
+
+            roomIndex = findViewPointIsWhichRoom2D(&(obj->m_a2DMap));
+            setTranslateMesh(meshes[i].id,meshes[i].xPos, meshes[i].yPos, meshes[i].zPos);
+            changeStatusAndPrintInfo(&(meshes[i]),(roomIndex == i),1); // 0 not print info , 1 print inf
+     //   printf("sssssL%d  %f %f  velocity(%f,%f)\n",i,meshes[i].xPos ,meshes[i].zPos,meshes[i].xVelocity,meshes[i].zVelocity);
+
+          }
+      }
+}
+
+const char* printMeshName(const int id)
+{
+  switch(id)
+  {
+    case 0:
+      return "Cow";
+    case 1:
+      return "Fish";
+    case 2:
+      return "Bat";
+    case 3:
+      return "Cactus";
+    break;
+  }
+  return "Cow";
+}
+void changeStatusAndPrintInfo(struct aMesh *obj,int state,int option) // 0 not print info , 1 print inf
+{
+  if (obj->state != state)
+  {
+    obj->state = state;
+    if (obj->state == 1)
+    {
+       drawMesh(obj->id);
+    }
+    else
+    {
+       hideMesh(obj->id);
+    }
+    if(option ==1)
+      printf("%s mesh #%d is %svisible\n",printMeshName(obj->type),obj->id,((state==0)?"not ":""));
+  }
+}
