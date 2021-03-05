@@ -349,7 +349,9 @@ void updateUndergroundMap2D(struct Underground *obj,const int displayMode); // 1
 void setStairPositionInMap2D(struct Underground *obj);
 void setRoomsPositionInMap2D(struct Underground *obj);
 void setCubePositionInMap2D(struct Underground *obj);
-int isOnUpStair(struct Underground *obj);
+int isOnUpStairUnderground(struct Underground *obj);
+int isOnDownStairUnderground(struct Underground *obj);
+void changeVisiteStateInUnderground(struct Underground *obj,const int state);
 
 void generateTerrain(struct OnGround *obj,unsigned char terrain[WORLDX][WORLDZ], const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
 void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point *northWestP, struct Point *northEastP, struct Point *southEastP);
@@ -443,11 +445,11 @@ void initialFogMap(struct FogMap *obj);
 #define Y_DISTANCE 1
 #define Z_DISTANCE 2
 
-
+#define DEFAULT_NUM_UNDERGROUND_LV 4
 float alphaVal = 0.9;
-int stage_Lv = 0;
+int stage_Lv = -1;
 struct OnGround OutsideLand;
-struct Underground AnUnderground;
+struct Underground Undergrounds[DEFAULT_NUM_UNDERGROUND_LV];
 // define the dimension of Grid 3X3
 int dimensionOfGrid3x3[9][4] = {{0, 0, 33, 33},
                                 {33, 0, 34, 33},
@@ -603,14 +605,14 @@ void draw2D() {
          // Draw doors on outside world
            // Draw viewer position
            drawViewPoint(green,&mapTransformFuntion);
-           if(stage_Lv == 0)
+           if(stage_Lv == -1)
            {
               getStairOfOutSideWorld(&OutsideLand,&stairP1,&stairP2);
               drawAStairInMap(&stairP1,&stairP2,grey,&mapTransformFuntion);
            }
-           else if (stage_Lv == -1)
+           else if (stage_Lv > -1)
            {
-              updateUndergroundMap2D(&AnUnderground,displayMap);
+              updateUndergroundMap2D(&Undergrounds[stage_Lv],displayMap);
            }
            // draw background
            set2Dcolour(black);
@@ -787,17 +789,52 @@ float x, y, z;
             newY = floorLv + 1.0;
          setViewPosition(vpx, newY * (-1.0), vpz);
       }
-         if((isOnDownStair(&OutsideLand) == 1) && (stage_Lv == 0))
+         if((isOnDownStair(&OutsideLand) == 1) && (stage_Lv == -1))
          {
-            createUnderground(&AnUnderground);
-            stage_Lv = -1;
-         }
-         if((isOnUpStair(&AnUnderground) == 1) &&(stage_Lv == -1))
-         {
-            createOnGround(&OutsideLand);
             stage_Lv = 0;
+            changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_DOWN);
+            createUnderground(&Undergrounds[stage_Lv]);
          }
-         if(stage_Lv == 0)
+         else if (stage_Lv == 0)
+         {
+           if(isOnUpStairUnderground(&Undergrounds[stage_Lv]) == 1)
+           {
+              createOnGround(&OutsideLand);
+              stage_Lv = -1;
+           }
+           if (isOnDownStairUnderground(&Undergrounds[stage_Lv]) == 1)
+           {
+              stage_Lv++;
+              changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_DOWN);
+              createUnderground(&Undergrounds[stage_Lv]);
+           }
+         }
+         else if (stage_Lv == (DEFAULT_NUM_UNDERGROUND_LV -1))
+         {           
+           if(isOnUpStairUnderground(&Undergrounds[stage_Lv]) == 1)
+           { 
+              stage_Lv--;
+              changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_UP);
+           createUnderground(&Undergrounds[stage_Lv]);
+           }
+         }
+         else if(stage_Lv > 0)
+         {           
+           if(isOnUpStairUnderground(&Undergrounds[stage_Lv]) == 1)
+           { 
+              stage_Lv--;
+              changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_UP);
+           createUnderground(&Undergrounds[stage_Lv]);
+           }
+           if (isOnDownStairUnderground(&Undergrounds[stage_Lv]) == 1)
+           {
+              stage_Lv++;
+              changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_DOWN);
+           createUnderground(&Undergrounds[stage_Lv]);
+           }
+         }
+
+         if(stage_Lv == -1)
             moveCloudInOutsideLand(&OutsideLand);
 
    }
@@ -1025,8 +1062,18 @@ int i, j, k;
 	/* your code to build the world goes here */
       flycontrol = 0;
       makeWorld();
-
-      setParameterOfUnderground_defaultValue1(&AnUnderground,BOTH_UP_DOWN_STAIR);
+      int index = 0;
+      for (index = 0;index < DEFAULT_NUM_UNDERGROUND_LV ; index++)
+      {
+        if (index == (DEFAULT_NUM_UNDERGROUND_LV -1 ))
+        {
+          setParameterOfUnderground_defaultValue1(&Undergrounds[index],ONLY_UP_STAIR);
+        }
+        else
+        {
+          setParameterOfUnderground_defaultValue1(&Undergrounds[index],BOTH_UP_DOWN_STAIR);
+        }
+      }
       setPrameterOfOnGround_defauleValue1(&OutsideLand);
       createOnGround(&OutsideLand);
       //　setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
@@ -2574,9 +2621,12 @@ int findProperPositionToPlaceUpStairInRoomOfUnderground(struct Underground *obj,
 
 }
 
-int isOnUpStair(struct Underground *obj)
+void changeVisiteStateInUnderground(struct Underground *obj,const int state)
 {
-   float vxp,vyp,vzp;
+  obj->m_visitedState = state;
+}
+int isOnUpStairUnderground(struct Underground *obj)
+{
    struct Point viewPosition = {-1,-1,-1};
    int ret = 0;
    if (obj->m_state == GENERATED_UNDERGROUND_DONE)
@@ -2592,6 +2642,23 @@ int isOnUpStair(struct Underground *obj)
    return ret;
 }
 
+int isOnDownStairUnderground(struct Underground *obj)
+{
+   struct Point viewPosition = {-1,-1,-1};
+   int ret = 0;
+   if (obj->m_state == GENERATED_UNDERGROUND_DONE)
+   {      
+      struct Point startStairPoint =  getReferentStairPoint(&(obj->m_downStair),START_POINT);
+      struct Point stopStairPoint =  getReferentStairPoint(&(obj->m_downStair),STOP_POINT);
+      startStairPoint.y =  1+obj->m_downStairGroundLv;
+      stopStairPoint.y = 1+obj->m_downStairGroundLv;
+      getAndConvertViewPos(&viewPosition);
+      //obj->lowestLv
+      //printf("VP(%d,%d,%d)\n",viewPosition.x,viewPosition.y,viewPosition.z);
+      ret = isIn3DBound(&startStairPoint,&stopStairPoint,&viewPosition); 
+   } 
+   return ret;
+}
 void createRandomShapeOfObjectInDefinedArea(unsigned char definedArea[WORLDX][WORLDZ],const struct Point *PStart,const struct Point *PStop)
 {
    int i,j,k;
