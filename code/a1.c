@@ -112,47 +112,12 @@ extern void hideMesh(int);
 
 /********* end of extern variable declarations **************/
 
-struct Point
-{
-   int x;
-   int y;
-   int z;
-};
-struct Wall
-{
-   struct Point StartPoint;
-   int height;
-   int width;
-   int XorZSide; //0 = X side, 1 = Y side
-   int color;
-   int (*generateColorStyle)(int,int,int,int);
-};
-struct Room
-{
-   struct Point StartPoint;      //count from ground point
-   struct Wall Walls[4];         // ID=0(WEST).1(EAST),2(SOUTH),3(NORTH)
-   struct Point DoorPosition[4]; // if point = {-1,-1,-1} = not defined, ID=0(WEST).1(EAST),2(SOUTH),3(NORTH)
-   int doorHeight;
-   int doorWidth;
-   int haveRoof;   // 0 = no, 1 = yes
-   int haveGround; //0 = no, 1 = yes
-   int Roofcolor;
-   int Groundcolor;
-   int unitCubeColor;
-   int numUnitCubes; // 1 or 2
-   struct Point unitCubePoint[2];
+#define NUM_TILE_X 20
+#define NUM_TILE_Z 20
+#define MAX_NUM_LINE_IN_MAP 100
+#define MAX_NUM_STAIR_IN_MAP 2
 
-};
 
-struct stair
-{
-   struct Point StartPoint; 
-   struct Room aRoom;
-   int color;
-   int numberStair;
-   int direction;
-   int type; //0 = up, 1 = down
-};
 #define UP_STAIR 0
 #define DOWN_STAIR 1
 #define DEFAULT_NUM_ROOM 9
@@ -191,6 +156,82 @@ struct stair
 #define DEFAULT_LOWEST_TERRAIN_NUM 256
 
 
+struct Point2D
+{
+  int x;
+  int z;
+};
+
+struct LineOrBox2D
+{
+  struct Point2D startP;
+  struct Point2D stopP;
+  int width; // 0 is solid Box, 1 ... n for line width
+  GLfloat colorAttrib[4];
+};
+
+struct FogMap
+{
+  struct LineOrBox2D fogTiles[NUM_TILE_X][NUM_TILE_Z];
+};
+
+struct Map
+{
+  struct FogMap aFogMap;
+  struct LineOrBox2D lines[MAX_NUM_LINE_IN_MAP];
+  struct LineOrBox2D roomsPos[DEFAULT_NUM_ROOM];
+  struct LineOrBox2D stairsPos[MAX_NUM_STAIR_IN_MAP];
+  struct LineOrBox2D cubesPos[DEFAULT_NUM_ROOM][2];
+  int numLines;
+  int numStairs;
+  int numCubes[DEFAULT_NUM_ROOM];
+};
+
+struct Point
+{
+   int x;
+   int y;
+   int z;
+};
+
+struct Wall
+{
+   struct Point StartPoint;
+   int height;
+   int width;
+   int XorZSide; //0 = X side, 1 = Y side
+   int color;
+   int (*generateColorStyle)(int,int,int,int);
+};
+
+struct Room
+{
+   struct Point StartPoint;      //count from ground point
+   struct Wall Walls[4];         // ID=0(WEST).1(EAST),2(SOUTH),3(NORTH)
+   struct Point DoorPosition[4]; // if point = {-1,-1,-1} = not defined, ID=0(WEST).1(EAST),2(SOUTH),3(NORTH)
+   int doorHeight;
+   int doorWidth;
+   int haveRoof;   // 0 = no, 1 = yes
+   int haveGround; //0 = no, 1 = yes
+   int Roofcolor;
+   int Groundcolor;
+   int unitCubeColor;
+   int numUnitCubes; // 1 or 2
+   struct Point unitCubePoint[2];
+
+};
+
+struct stair
+{
+   struct Point StartPoint; 
+   struct Room aRoom;
+   int color;
+   int numberStair;
+   int direction;
+   int type; //0 = up, 1 = down
+};
+
+
 struct Underground
 {
    // method interface
@@ -215,6 +256,7 @@ struct Underground
    struct stair m_downStair;
    struct Room m_rooms[DEFAULT_NUM_ROOM];
    struct Point m_currentViewPoint;
+   struct Map a2DMap;
    int m_state;
 
 };
@@ -265,7 +307,11 @@ struct OnGround
 #define BUILT_NOW 0
 #define BUILT_LATER 1
 
-void getAndConvertViewPos(int *x,int *y,int *z);
+// convert 3D point to 2D point
+struct Point2D convert3DPointTo2DPoint(struct Point *obj);
+
+
+void getAndConvertViewPos(struct Point *obj);
 void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Point *stopP);
 void getStairOfUndergroundWolrd(struct Underground *obj,int upOrDownStair,struct Point *startP,struct Point *stopP); // 0 = up, 1 = down
 void SetMAXandMINPoint(const int **MaxPoint, const int **MinPoint, const int *P1, const int *P2);
@@ -281,11 +327,15 @@ int checkRoomAndOppositeRoomCanBuildCorridorAndHallway(int XorZSide,int roomID, 
 void setPrameterOfOnGround_defauleValue1(struct OnGround *obj);
 void createOnGround(struct OnGround *obj);
 int isOnDownStair(struct OnGround *obj);
-
+// Underground functions
 void setParameterOfUnderground_defaultValue1(struct Underground *obj,int hasDownStair);
 void createUnderground(struct Underground *obj);
 int findProperPositionToPlaceStairInRoomOfUnderground(struct Underground *obj,struct Point *stairPoint,int *stairDirection,const int stairWidth,const int stairNum, const int roomID);
-
+// Underground map setting functions
+void makeUndergroundMap(struct Underground *obj);
+void setStairPositionInMap2D(struct Underground *obj);
+void setRoomsPositionInMap2D(struct Underground *obj);
+void setCubePositionInMap2D(struct Underground *obj);
 int isOnUpStair(struct Underground *obj);
 
 void generateTerrain(struct OnGround *obj,unsigned char terrain[WORLDX][WORLDZ], const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
@@ -316,8 +366,51 @@ void createRandomShapeOfObjectInDefinedArea(unsigned char definedArea[WORLDX][WO
 void createCloudsInDefinedArea(struct OnGround *OutsideLand);
 void moveCloudInOutsideLand(struct OnGround *obj);
 // Map build
-void makeUndergroundMap(struct Underground *obj);
+void initialMap2D(struct Map *obj);
+
 void findStartAndStopPointOfARoom(struct Room *obj,struct Point *maxPoint,struct Point *minPoint);
+void findStartAndStopPointOfARoom2D(struct Room *obj,struct Point2D *maxPoint,struct Point2D *minPoint);
+
+// Fog map functions
+//jjjjj1
+// fog map initial function
+void setFogAreaInFogMap(struct FogMap *obj,GLfloat fogColor[4],struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*));
+
+// map opertion functions
+void clearFogPosition(struct FogMap *obj,const int xView,const int zView);
+void drawFogInMap(struct FogMap *obj);
+void getViewPointInMap(struct Point2D *obj);
+void drawViewPoint(GLfloat color[4],struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*));
+
+/*
+
+struct FogMap
+{
+  struct LineOrBox2D fogTiles[NUM_TILE_X][NUM_TILE_Z];
+};
+*/
+// Line or Box functions
+
+
+// map resolution 500x500 and scale: 5.0 , Invert Z-axis
+struct LineOrBox2D mapTransformFuntion(struct LineOrBox2D *obj);
+struct Point2D point2DTransformFuntionForMap(struct Point2D *obj);
+void setPointsAndColorOfLineOrBox(struct LineOrBox2D *obj,struct Point2D startAndStopPoint[2],const int width,const GLfloat colorAttrib[4]);
+void drawLineMap2DWithTransFn(struct LineOrBox2D *obj,struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*));
+void drawBoxMap2DWithTransFn(struct LineOrBox2D *obj,struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*));
+void drawAStairInMap(struct Point *startP,struct Point *stopt,GLfloat color[4],struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*));
+void drawBoxMap2D(struct LineOrBox2D *obj);
+void drawLineMap2D(struct LineOrBox2D *obj);
+int visibilityOfLineOrBox(struct LineOrBox2D *obj);
+
+// Fog map functions
+void initialFogMap(struct FogMap *obj);
+
+
+#define NOT_INVERT 0
+#define X_INVERT 1
+#define Z_INVERT 2
+#define BOTH_INVERT 3
 
 #define AREA_XP 0
 #define AREA_ZP 1
@@ -477,38 +570,31 @@ void draw2D() {
    } else {
 
 	/* your code goes here */
-   int xV,yV,zV;
-   struct Point stairP1;
-   struct Point stairP2;
+      struct Point stairP1;
+      struct Point stairP2;          
+      GLfloat black[] = {0.0, 0.0, 0.0, alphaVal};
+      GLfloat green[] = {0.0, 0.5, 0.0, alphaVal};
+      GLfloat grey[] = {0.6, 0.6, 0.6, alphaVal};
+
       switch(displayMap)
       {
          case 0:
          {
-
-             GLfloat black[] = {0.0, 0.0, 0.0, alphaVal};
-         GLfloat green[] = {0.0, 0.5, 0.0, alphaVal};
-         GLfloat grey[] = {0.6, 0.6, 0.6, alphaVal};
-
-         // Draw doors on outside world
-
-         // Draw viewer position
-         getAndConvertViewPos(&xV,&yV,&zV);
-         set2Dcolour(green);
-         draw2Dbox( xV*5,500-zV*5-5, xV*5+4,500-zV*5+4-5); 
-         if(stage_Lv == 0)
-         {
-            getStairOfOutSideWorld(&OutsideLand,&stairP1,&stairP2);
-            set2Dcolour(grey);
-            draw2Dbox( stairP1.x*5,499- stairP1.z*5,  stairP2.x*5+4, 495-stairP2.z*5); 
-         }
-         else if (stage_Lv == -1)
-         {
-            makeUndergroundMap(&AnUnderground);
-         }
-         printf("VP: (%d,%d,%d) --> (%d,%d) and (%d,%d)\n",xV,yV,zV,xV*5,500-zV*5-5, xV*5+4,500-zV*5+4-5);
-         // draw background
-         set2Dcolour(black);
-         draw2Dbox(0,0, 499, 499); 
+           // Draw doors on outside world
+           // Draw viewer position
+           drawViewPoint(green,&mapTransformFuntion);
+           if(stage_Lv == 0)
+           {
+              getStairOfOutSideWorld(&OutsideLand,&stairP1,&stairP2);
+              drawAStairInMap(&stairP1,&stairP2,grey,&mapTransformFuntion);
+           }
+           else if (stage_Lv == -1)
+           {
+              makeUndergroundMap(&AnUnderground);
+           }
+           // draw background
+           set2Dcolour(black);
+           draw2Dbox(0,0, 495, 495); 
 
 
          }
@@ -1491,7 +1577,11 @@ void createUnderground(struct Underground *obj)
       for (indexOfRoom = 0; indexOfRoom < DEFAULT_NUM_ROOM; indexOfRoom++)
       {
          if(obj->m_state == READY)
-         {           
+         {      
+
+            // initi map parameter
+            initialMap2D(&(obj->a2DMap));
+            // initial Room parameter    
             for (i = WEST; i <=NORTH;i++)
                obj->m_rooms[indexOfRoom].DoorPosition[i] = DoorInitialPoint;
             // Find spar area between 2 rooms to build corridors and hallways
@@ -1573,6 +1663,8 @@ void createUnderground(struct Underground *obj)
    if (obj->m_state == READY)
    {
       obj->m_state = GENERATED_UNDERGROUND_DONE;
+      setStairPositionInMap2D(obj);
+      setRoomsPositionInMap2D(obj);
    }
 //printf("Never found : %d , proloop:%d\n ",foundGoodPlaceForUpStair,protectInfinityLoopVal);
    g_floorLv = obj->m_groundLv;
@@ -2106,7 +2198,10 @@ void printPoint(const struct Point P1,const char *str)
 
 void plotWolrd(GLubyte world[WORLDX][WORLDY][WORLDZ],const struct Point aPoint,const unsigned char value)
 {
-   world[aPoint.x][aPoint.y][aPoint.z] = value;
+  if ((aPoint.x <WORLDX) && (aPoint.y <WORLDY) && (aPoint.z <WORLDZ) && (aPoint.x > -1) && (aPoint.y > -1) && (aPoint.z > -1))
+  {
+    world[aPoint.x][aPoint.y][aPoint.z] = value;
+  }
 }
 
 
@@ -2425,13 +2520,13 @@ void moveCloudInOutsideLand(struct OnGround *obj)
       }
 }
 
-void getAndConvertViewPos(int *x,int *y,int *z)
+void getAndConvertViewPos(struct Point *obj)
 {
    float xvf,yvf,zvf;
    getViewPosition(&xvf,&yvf,&zvf);
-   *x = (-1)*(int)(xvf);
-   *y = (-1)*(int)(yvf);
-   *z = (-1)*(int)(zvf);
+   obj->x = (-1)*(int)(xvf);
+   obj->y = (-1)*(int)(yvf);
+   obj->z = (-1)*(int)(zvf);
 }
 
 void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Point *stopP)
@@ -2447,11 +2542,6 @@ void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Poi
       startP->x = findMinValue(P1.x,P2.x);
       startP->y = findMinValue(P1.y,P2.y);
       startP->z = findMinValue(P1.z,P2.z);
-      /*
-
-      maxPoint->x = findMaxValue(obj->Walls[index].StartPoint.x,maxPoint->x);
-      maxPoint->y = findMaxValue(obj->Walls[index].StartPoint.y,maxPoint->y);
-      */
    }
    else
    {
@@ -2486,75 +2576,6 @@ void getStairOfUndergroundWolrd(struct Underground *obj,int upOrDownStair,struct
       *stopP = *startP;
    }
 }
-/*
-         else if (obj->m_state == GENERATED_UNDERGROUND_DONE)
-         {
-            BuildARoom(&(obj->m_rooms[indexOfRoom]));
-            for(i = 0; i < obj->m_rooms[indexOfRoom].numUnitCubes;i++)
-            {
-               plotWolrd(world,obj->m_rooms[indexOfRoom].unitCubePoint[i],obj->m_rooms[indexOfRoom].unitCubeColor);
-            }
-
-            BuildDoorsWestVsEast(indexOfRoom,obj->m_rooms,obj->m_defaultRoomColor);
-            BuildDoorsSouthVsNorth(indexOfRoom,obj->m_rooms,obj->m_defaultRoomColor);
-            BuildStair(&(obj->m_upStair));
-         }
-
-
-
-         GLfloat green[] = {0.0, 0.5, 0.0, alphaVal};
-         GLfloat grey[] = {0.6, 0.6, 0.6, alphaVal};
-
-         // Draw doors on outside world
-
-         // Draw viewer position
-         getAndConvertViewPos(&xV,&yV,&zV);
-         set2Dcolour(green);
-         draw2Dbox(xV*5,zV*5,xV*5+5,zV*5+5); 
-
-
-            // m_ = member of struct
-   int m_groundLv;
-
-   int m_doorHeight;
-   int m_doorWidth;
-   int m_roomWallHeight;
-   float m_gravity;
-   float m_collisionMargin;
-   int m_sparForCorridorsX;
-   int m_sparForCorridorsZ;
-   int m_sparForRoomSizeMax;  // sparForRoomSize >= 3+doorWidth
-   int m_sparForRoomSizeMin;
-   int m_defaultRoomColor;
-   int m_defaultUnitCubeColor;
-   unsigned char m_stairOption; // 0 = no stair, 1 = only upstair, 2 = only down stair, 3 both up and down stairs
-   struct stair m_upStair;
-   struct stair m_downStair;
-   struct Room m_rooms[DEFAULT_NUM_ROOM];
-   struct Point m_currentViewPoint;
-   int m_state;
-
-
-         {
-            getStairOfOutSideWorld(&OutsideLand,&stairP1,&stairP2);
-            set2Dcolour(grey);
-            draw2Dbox(stairP1.x*5, stairP1.z*5, stairP2.x*5, stairP2.z*5); 
-         }
-
-
-   struct Room m_rooms[DEFAULT_NUM_ROOM];
-
-   struct Wall
-{
-   struct Point StartPoint;
-   int height;
-   int width;
-   int XorZSide; //0 = X side, 1 = Y side
-   int color;
-   int (*generateColorStyle)(int,int,int,int);
-};
-
-*/
 
 void findStartAndStopPointOfARoom(struct Room *obj,struct Point *maxPoint,struct Point *minPoint)
 {
@@ -2574,52 +2595,305 @@ void findStartAndStopPointOfARoom(struct Room *obj,struct Point *maxPoint,struct
       minPoint->y = findMinValue(obj->Walls[index].StartPoint.y,minPoint->y);
       minPoint->z = findMinValue(obj->Walls[index].StartPoint.z,minPoint->z);
    }
-
 }
+
+void findStartAndStopPointOfARoom2D(struct Room *obj,struct Point2D *maxPoint,struct Point2D *minPoint)
+{
+  struct Point  roomP[2];
+  findStartAndStopPointOfARoom(obj,&roomP[0],&roomP[1]);
+  *maxPoint = convert3DPointTo2DPoint(&roomP[0]);
+  *minPoint = convert3DPointTo2DPoint(&roomP[1]);
+}
+
 void makeUndergroundMap(struct Underground *obj)
 {
-   struct Point stairP1;
-   struct Point stairP2;
    int indexRoom = 0;
-   GLfloat white[] = {1.0, 1.0, 1.0, alphaVal};
-   GLfloat brown[] = {0.6, 0.25, 0.1, alphaVal};
+   int i = 0;
+   struct Map *a2DMapP = &(obj->a2DMap);
    if ((obj->m_state == READY) || (obj->m_state == GENERATED_UNDERGROUND_DONE))
    {
       // drae up stair position in a map
       if ((obj->m_stairOption == ONLY_UP_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR))
       {
-         getStairOfUndergroundWolrd(obj,0,&stairP1,&stairP2); // 0 = up, 1 = down
-         set2Dcolour(white);
-         draw2Dbox(stairP1.x*5, 495-stairP1.z*5, stairP2.x*5+4, 499-stairP2.z*5); 
+        drawBoxMap2D(&(a2DMapP->stairsPos[0]));
+      }
+      // drae down stair position in a map
+      if (((obj->m_stairOption == ONLY_DOWN_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR)) && (a2DMapP->numStairs == 2))
+      {
+        drawBoxMap2D(&(a2DMapP->stairsPos[1]));
+      }
+      //down room
+      for(indexRoom = 0;indexRoom < DEFAULT_NUM_ROOM;indexRoom++)
+      {
+        for(i=0;i<a2DMapP->numCubes[indexRoom];i++)
+        {
+          drawBoxMap2D(&(a2DMapP->cubesPos[indexRoom][i]));
+        }
+        drawBoxMap2D(&(a2DMapP->roomsPos[indexRoom]));
+      }
+   }
+}
 
+void clearFogPosition(struct FogMap *obj,const int xView,const int zView)
+{
+  int i = (NUM_TILE_X*xView)/WORLDX;
+  int j = (NUM_TILE_Z*zView)/WORLDZ;
+
+  if((i < NUM_TILE_X) && (j <NUM_TILE_Z))
+  {
+    if (visibilityOfLineOrBox(&(obj->fogTiles[i][j])) == 1)
+    {
+      obj->fogTiles[i][j].colorAttrib[3] = 0.0;
+    }
+  }
+
+}
+
+void setFogAreaInFogMap(struct FogMap *obj,GLfloat fogColor[4],struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*))
+{
+  int i,j;
+  int xVal = 0;
+  int zVal = 0;
+  int xWidth = 0;
+  int zWidth = 0;
+  struct Point2D point2Ds[2];
+  if((NUM_TILE_X > 0) && (NUM_TILE_Z > 0))
+  {
+    xWidth = WORLDX/NUM_TILE_X;
+    zWidth = WORLDZ/NUM_TILE_Z;  
+  }
+  for(i=0;i<NUM_TILE_X;i++)
+  {
+
+    for(j=0;j<NUM_TILE_Z;j++)
+    {
+      point2Ds[0] = (struct Point2D){xVal,zVal};
+      point2Ds[1] = (struct Point2D){xVal+xWidth-1,zVal+zWidth-1};
+      setPointsAndColorOfLineOrBox(&(obj->fogTiles[i][j]),point2Ds,0,fogColor);
+      obj->fogTiles[i][j] = transformationFn(&(obj->fogTiles[i][j]));
+      zVal += zWidth;
+    }
+    xVal += xWidth;
+  }
+}
+
+void setPointsAndColorOfLineOrBox(struct LineOrBox2D *obj,struct Point2D startAndStopPoint[2],const int width,const GLfloat colorAttrib[4])
+{
+  obj->startP = startAndStopPoint[0];
+  obj->stopP  = startAndStopPoint[1];
+  obj->width = width;
+  memcpy(obj->colorAttrib,colorAttrib,sizeof(GLfloat)*4);
+}
+
+int visibilityOfLineOrBox(struct LineOrBox2D *obj)
+{
+  return (obj->colorAttrib[3] == 0.0);
+}
+
+void drawLineMap2D(struct LineOrBox2D *obj)
+{  
+  int i = 0;
+  int isSetColor = 0;
+  static GLfloat oldColor[] = {0.0,0.0,0.0,0.0};
+  for (i = 0;i < 4;i++)
+    isSetColor = (isSetColor ==1) && (oldColor[i] == obj->colorAttrib[i]);
+  if (isSetColor == 0)
+  {
+    set2Dcolour(obj->colorAttrib);
+    for (i = 0;i < 4;i++)
+      oldColor[i] = obj->colorAttrib[i];
+  }
+  draw2Dline(obj->startP.x,obj->startP.z,obj->stopP.x,obj->stopP.x, obj->width);
+}
+
+void drawLineMap2DWithTransFn(struct LineOrBox2D *obj,struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*))
+{
+  struct LineOrBox2D aLine = transformationFn(obj);
+  drawLineMap2D(&aLine);
+}
+
+void drawBoxMap2D(struct LineOrBox2D *obj)
+{
+  int i = 0;
+  int isSetColor = 0;
+  static GLfloat oldColor[] = {0.0,0.0,0.0,0.0};
+  for (i = 0;i < 4;i++)
+    isSetColor = (isSetColor ==1) && (oldColor[i] == obj->colorAttrib[i]);
+  if (isSetColor == 0)
+  {
+    set2Dcolour(obj->colorAttrib);
+    for (i = 0;i < 4;i++)
+      oldColor[i] = obj->colorAttrib[i];
+  }
+  if (obj->width == 0)
+  {
+    draw2Dbox(obj->startP.x,obj->startP.z,obj->stopP.x,obj->stopP.z); 
+  }
+  else
+  {
+    draw2Dline(obj->startP.x,obj->startP.z,obj->startP.x,obj->stopP.z, obj->width);
+    draw2Dline(obj->startP.x,obj->stopP.z,obj->stopP.x,obj->stopP.z, obj->width);
+    draw2Dline(obj->stopP.x,obj->stopP.z,obj->stopP.x,obj->startP.z, obj->width);
+    draw2Dline(obj->stopP.x,obj->startP.z,obj->startP.x,obj->startP.z, obj->width);
+  }
+}
+
+void drawBoxMap2DWithTransFn(struct LineOrBox2D *obj,struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*))
+{
+  struct LineOrBox2D aLine = transformationFn(obj);
+  drawBoxMap2D(&aLine);
+}
+
+// map resolution 500x500 and scale: 5.0 , Invert Z-axis
+struct LineOrBox2D mapTransformFuntion(struct LineOrBox2D *obj)
+{
+  const float scaleVal = 5.0;
+  struct LineOrBox2D aLine;
+  memcpy(aLine.colorAttrib,obj->colorAttrib,sizeof(GLfloat)*4);
+  aLine.startP = point2DTransformFuntionForMap(&(obj->startP));
+  aLine.stopP = point2DTransformFuntionForMap(&(obj->stopP));
+  aLine.width = (int)((float)obj->width*5.0);
+  //printf("transform (%d,%d)(%d,%d) --> (%d,%d)(%d,%d)\n",obj->startP.x,obj->startP.z,obj->stopP.x,obj->stopP.x,aLine.startP.x,aLine.startP.z,aLine.stopP.x,aLine.stopP.z);
+  return aLine;
+}
+
+
+struct Point2D convert3DPointTo2DPoint(struct Point *obj)
+{
+  struct  Point2D aPoint;
+  aPoint.x = obj->x;
+  aPoint.z = obj->z;
+  return aPoint;
+}
+
+struct Point2D point2DTransformFuntionForMap(struct Point2D *obj)
+{
+    const float scaleVal = 5.0;
+    struct Point2D aPoint;
+    aPoint.x = (int)(scaleVal*(float)obj->x);
+    aPoint.z = (int)(scaleVal*((float)(WORLDZ-1) - (float)(obj->z)) + 0.5);
+    return aPoint;
+}
+
+void getViewPointInMap(struct Point2D *obj)
+{
+  struct Point aPoint;
+  getAndConvertViewPos(&aPoint);
+  *obj = convert3DPointTo2DPoint(&aPoint); 
+}
+//
+//void drawBoxMap2D(struct LineOrBox2D *obj,struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*))
+void drawViewPoint(GLfloat color[4],struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*))
+{
+  struct Point2D aPoint2D[2];
+  struct LineOrBox2D aBox;
+  getViewPointInMap(&(aPoint2D[0]));
+  aPoint2D[1]= aPoint2D[0];
+  aPoint2D[0].x = boundValue(WORLDX-1,0,aPoint2D[0].x - 1);
+  aPoint2D[0].z = boundValue(WORLDZ-1,0,aPoint2D[0].z - 1);
+  aPoint2D[1].x = boundValue(WORLDX-1,0,aPoint2D[1].x + 1);
+  aPoint2D[1].z = boundValue(WORLDZ-1,0,aPoint2D[1].z + 1);
+  setPointsAndColorOfLineOrBox(&aBox,aPoint2D,0,color);
+  drawBoxMap2DWithTransFn(&aBox,transformationFn); 
+}
+
+
+void drawAStairInMap(struct Point *startP,struct Point *stopt,GLfloat color[4],struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*))
+{
+  struct Point2D aPoint2D[2];
+  struct LineOrBox2D aBox;
+  aPoint2D[0] = convert3DPointTo2DPoint(startP);
+  aPoint2D[1] = convert3DPointTo2DPoint(stopt);
+  setPointsAndColorOfLineOrBox(&aBox,aPoint2D,0,color);
+  drawBoxMap2DWithTransFn(&aBox,transformationFn); 
+}
+
+void setCubePositionInMap2D(struct Underground *obj)
+{
+   struct Map *a2DMapP = &(obj->a2DMap);
+   struct Point2D point2Ds[2];
+   struct LineOrBox2D aLine;
+   int indexRoom = 0;
+   int i = 0;
+   GLfloat yellow[] = {1.0, 1.0, 0.0, alphaVal};
+   if ((obj->m_state == READY) || (obj->m_state == GENERATED_UNDERGROUND_DONE))
+   {
+      for(indexRoom = 0;indexRoom < DEFAULT_NUM_ROOM;indexRoom++)
+      {
+        for(i = 0; i < obj->m_rooms[indexRoom].numUnitCubes;i++)
+        {
+            point2Ds[0] = convert3DPointTo2DPoint(&(obj->m_rooms[indexRoom].unitCubePoint[i]));
+            point2Ds[1].x = point2Ds[0].x+1;
+            point2Ds[1].z = point2Ds[0].z+1;
+            setPointsAndColorOfLineOrBox(&aLine,point2Ds,0,yellow);
+            a2DMapP->cubesPos[indexRoom][i] = mapTransformFuntion(&aLine);
+            a2DMapP->numCubes[indexRoom]++;
+        }
+      }
+   }
+}
+void setRoomsPositionInMap2D(struct Underground *obj)
+{
+   struct Map *a2DMapP = &(obj->a2DMap);
+   struct Point2D point2Ds[2];
+   struct LineOrBox2D aLine;
+   int indexRoom = 0;
+   GLfloat brown[] = {0.6, 0.25, 0.1, alphaVal};
+   if ((obj->m_state == READY) || (obj->m_state == GENERATED_UNDERGROUND_DONE))
+   {
+      //find position of room
+      for(indexRoom = 0;indexRoom < DEFAULT_NUM_ROOM;indexRoom++)
+      {
+         findStartAndStopPointOfARoom2D(&(obj->m_rooms[indexRoom]),&point2Ds[0],&point2Ds[1]);
+         setPointsAndColorOfLineOrBox(&aLine,point2Ds,1,brown);
+         setCubePositionInMap2D(obj);
+         a2DMapP->roomsPos[indexRoom] = mapTransformFuntion(&aLine);
+      }
+   }
+}
+void setStairPositionInMap2D(struct Underground *obj)
+{
+    struct Point stairP1;
+    struct Point stairP2;
+    struct Point2D aPoint2D[2];
+    struct Map *a2DMapP = &(obj->a2DMap);
+    int indexRoom = 0;
+    GLfloat white[] = {1.0, 1.0, 1.0, alphaVal};
+    GLfloat grey[] = {0.4, 0.4, 0.4, alphaVal};
+   if ((obj->m_state == READY) || (obj->m_state == GENERATED_UNDERGROUND_DONE))
+   {
+      // drae up stair position in a map
+      if ((obj->m_stairOption == ONLY_UP_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR))
+      {
+        getStairOfUndergroundWolrd(obj,0,&stairP1,&stairP2); // 0 = up, 1 = down
+        aPoint2D[0] = convert3DPointTo2DPoint(&stairP1);
+        aPoint2D[1] = convert3DPointTo2DPoint(&stairP2);
+        setPointsAndColorOfLineOrBox(&(a2DMapP->stairsPos[a2DMapP->numStairs]),aPoint2D,0,white);
+        a2DMapP->stairsPos[a2DMapP->numStairs] = mapTransformFuntion(&(a2DMapP->stairsPos[a2DMapP->numStairs]));
+        a2DMapP->numStairs++;
       }
       // drae down stair position in a map
        if ((obj->m_stairOption == ONLY_DOWN_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR))
       {
-         getStairOfUndergroundWolrd(obj,1,&stairP1,&stairP2); // 0 = up, 1 = down
-         set2Dcolour(white);
-         draw2Dbox(stairP1.x*5, 495-stairP1.z*5, stairP2.x*5+4, 499-stairP2.z*5); 
+        getStairOfUndergroundWolrd(obj,1,&stairP1,&stairP2); // 0 = up, 1 = down
+        aPoint2D[0] = convert3DPointTo2DPoint(&stairP1);
+        aPoint2D[1] = convert3DPointTo2DPoint(&stairP2);
+        setPointsAndColorOfLineOrBox(&(a2DMapP->stairsPos[a2DMapP->numStairs]),aPoint2D,0,grey);
+        a2DMapP->stairsPos[a2DMapP->numStairs] = mapTransformFuntion(&(a2DMapP->stairsPos[a2DMapP->numStairs]));
+        a2DMapP->numStairs++;
       }
-      //down room
-      //            BuildARoom(&(obj->m_rooms[indexOfRoom]));
-      for(indexRoom = 0;indexRoom < DEFAULT_NUM_ROOM;indexRoom++)
-      {
-         struct Point  roomStartP;
-         struct Point  roomStopP;
-         findStartAndStopPointOfARoom(&(obj->m_rooms[indexRoom]),&roomStartP,&roomStopP);
-         set2Dcolour(brown);
-         roomStartP.x *= 5;
-         roomStartP.y *= 5;
-         roomStartP.z *= 5;
-         roomStopP.x *= 5;
-         roomStopP.y *= 5;
-         roomStopP.z *= 5;
-         draw2Dline(roomStartP.x, 495-roomStartP.z, roomStartP.x, 495-roomStopP.z, 5);
-         draw2Dline(roomStartP.x, 495-roomStopP.z, roomStopP.x, 495-roomStopP.z, 5);
-         draw2Dline(roomStopP.x, 495-roomStopP.z, roomStopP.x, 495-roomStartP.z, 5);
-         draw2Dline(roomStopP.x, 495-roomStartP.z, roomStartP.x, 495-roomStartP.z, 5);
-
-      }
-
-   }
+    }
 }
+
+
+void initialMap2D(struct Map *obj)
+{
+  obj->numLines = 0;
+  obj->numStairs = 0;
+  memset(obj->numCubes,0,sizeof(obj->numCubes));
+  GLfloat black[] = {0.0, 0.0, 0.0, alphaVal};
+  setFogAreaInFogMap(&(obj->aFogMap),black,&mapTransformFuntion);
+}
+
+
+
