@@ -131,8 +131,8 @@ extern void hideMesh(int);
 #define DEFAULT_SPARFORCORRIDORS_Z 4
 #define DEFAULT_ROOM_SIZE_MAX 20
 #define DEFAULT_ROOM_SIZE_MIN 5
-#define DEFAULT_ROOM_COLOR 1 // Green 
-#define DEFAULT_CUBE_COLOR 8
+#define DEFAULT_ROOM_COLOR TXT_WALL_ID1 // Green 
+#define DEFAULT_CUBE_COLOR TXT_CUBE_ID1
 
 #define DEFAULT_VIEW_POINT_X 1
 #define DEFAULT_VIEW_POINT_Y 48
@@ -284,6 +284,16 @@ struct OnGround
    int lowestLvOfCubesNum;
 };
 
+// Texture id defined area
+#define TXT_FLOOR_ID1 11
+#define TXT_FLOOR_ID2 12
+#define TXT_WALL_ID1 13
+#define TXT_WALL_ID2 14
+#define TXT_WALL_ID3 15
+#define TXT_CUBE_ID1 16
+
+// ********** End of Texture id defined ared
+
 #define NO_STAIR 0
 #define ONLY_DOWN_STAIR 1
 #define ONLY_UP_STAIR 2
@@ -321,7 +331,7 @@ struct OnGround
 // convert 3D point to 2D point
 struct Point2D convert3DPointTo2DPoint(const struct Point *obj);
 
-
+void setAllTexture();
 void getAndConvertViewPos(struct Point *obj);
 void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Point *stopP);
 void getStairOfUndergroundWolrd(struct Underground *obj,int upOrDownStair,struct Point *startP,struct Point *stopP); // 0 = up, 1 = down
@@ -362,8 +372,8 @@ void BuildStair(const struct stair *obj);
 struct Point getReferentStairPoint(const struct stair *obj,int startOrStop); // 0 = start, 1 = stop
 
 int normalColorStyle(int originalColor,int x,int y,int z);
-int pinkWhiteStyle(int originalColor,int x,int y,int z);
-int darkAndLightBrownFloorStyle(int originalColor,int x,int y,int z);
+int corridorsAndHallWayTextureStyle(int originalColor,int x,int y,int z);
+int floorStyle1(int originalColor,int x,int y,int z);
 
 int getMaxMinAtTerrainPoint(const unsigned char terrain[WORLDX][WORLDZ],const struct Point *refP,int direction,int *maxVal,int *minVal);
 int readTerrain(const unsigned char terrain[WORLDX][WORLDZ],const int x,const int z);
@@ -1062,6 +1072,7 @@ int i, j, k;
 	/* your code to build the world goes here */
       flycontrol = 0;
       makeWorld();
+      setAllTexture();
       int index = 0;
       for (index = 0;index < DEFAULT_NUM_UNDERGROUND_LV ; index++)
       {
@@ -1356,7 +1367,7 @@ void BuildDoorsWestVsEast(int roomID,struct Underground *obj)
                                              DoorOfAroomPoint.x - turningPointX,
                                              X_SIDE_WALL,
                                              color,
-                                             &pinkWhiteStyle};
+                                             &corridorsAndHallWayTextureStyle};
             struct Wall AShortOppositeCorridorWall ={{DoorOfOppositeRoomPoint.x+ 1,
                                                       DoorOfOppositeRoomPoint.y,
                                                       DoorOfOppositeRoomPoint.z + doorWidth},
@@ -1364,7 +1375,7 @@ void BuildDoorsWestVsEast(int roomID,struct Underground *obj)
                                                       turningPointX - 1 - DoorOfOppositeRoomPoint.x,
                                                       X_SIDE_WALL,
                                                       color,
-                                                      &pinkWhiteStyle};
+                                                      &corridorsAndHallWayTextureStyle};
             struct Wall ALongOppositeCorridorWall = {{DoorOfOppositeRoomPoint.x+ 1,
                                                       DoorOfOppositeRoomPoint.y,
                                                       DoorOfOppositeRoomPoint.z-1},
@@ -1372,7 +1383,7 @@ void BuildDoorsWestVsEast(int roomID,struct Underground *obj)
                                                       doorWidth + AShortOppositeCorridorWall.width,
                                                       X_SIDE_WALL,
                                                       color,
-                                                      &pinkWhiteStyle};
+                                                      &corridorsAndHallWayTextureStyle};
 
             struct Wall AShortCorridorWall = {{turningPointX + doorWidth,
                                                DoorOfAroomPoint.y,
@@ -1381,7 +1392,7 @@ void BuildDoorsWestVsEast(int roomID,struct Underground *obj)
                                                DoorOfAroomPoint.x - turningPointX - doorWidth,
                                                X_SIDE_WALL,
                                                color,
-                                               &pinkWhiteStyle};
+                                               &corridorsAndHallWayTextureStyle};
 
 
             struct Wall AnOppositeZSIDECorridorWall= {{turningPointX - 1,
@@ -1391,7 +1402,7 @@ void BuildDoorsWestVsEast(int roomID,struct Underground *obj)
                                                        DoorOfAroomPoint.z - DoorOfOppositeRoomPoint.z,
                                                        Z_SIDE_WALL,
                                                        color,
-                                                       &pinkWhiteStyle};
+                                                       &corridorsAndHallWayTextureStyle};
 
 
             struct Wall AZSIDECorridorWall = {{turningPointX + doorWidth,
@@ -1401,7 +1412,7 @@ void BuildDoorsWestVsEast(int roomID,struct Underground *obj)
                                                DoorOfAroomPoint.z - DoorOfOppositeRoomPoint.z,
                                                Z_SIDE_WALL,
                                                color,
-                                               &pinkWhiteStyle};
+                                               &corridorsAndHallWayTextureStyle};
 
             if (DoorOfAroomPoint.z < DoorOfOppositeRoomPoint.z)
             {
@@ -1432,9 +1443,9 @@ void BuildDoorsWestVsEast(int roomID,struct Underground *obj)
             BuildAWall(&ALongOppositeCorridorWall);
             
             // Build Roofs of Corridors
-            BuildABox(&AMiddleCorridorRoofStartPoint,&AMiddleCorridorRoofEndPoint,color,&pinkWhiteStyle);
-            BuildABox(&ACorridorRoofStartPoint,&ACorridorRoofEndPoint,color,&pinkWhiteStyle);
-            BuildABox(&AnOppositeCorridorRoofStartPoint,&AnOppositeCorridorRoofEndPoint,color,&pinkWhiteStyle);
+            BuildABox(&AMiddleCorridorRoofStartPoint,&AMiddleCorridorRoofEndPoint,color,&corridorsAndHallWayTextureStyle);
+            BuildABox(&ACorridorRoofStartPoint,&ACorridorRoofEndPoint,color,&corridorsAndHallWayTextureStyle);
+            BuildABox(&AnOppositeCorridorRoofStartPoint,&AnOppositeCorridorRoofEndPoint,color,&corridorsAndHallWayTextureStyle);
 
             // Create map 
             if(obj->m_state == READY)
@@ -1519,7 +1530,7 @@ void BuildDoorsSouthVsNorth(int roomID,struct Underground *obj)
                                              DoorOfAroomPoint.z - turningPointZ,
                                              Z_SIDE_WALL,
                                              color,
-                                             &pinkWhiteStyle};
+                                             &corridorsAndHallWayTextureStyle};
             struct Wall AShortOppositeCorridorWall ={{DoorOfOppositeRoomPoint.x + doorWidth,
                                                       DoorOfOppositeRoomPoint.y,
                                                       DoorOfOppositeRoomPoint.z+ 1},
@@ -1527,7 +1538,7 @@ void BuildDoorsSouthVsNorth(int roomID,struct Underground *obj)
                                                       turningPointZ - 1 - DoorOfOppositeRoomPoint.z,
                                                       Z_SIDE_WALL,
                                                       color,
-                                                      &pinkWhiteStyle};
+                                                      &corridorsAndHallWayTextureStyle};
             struct Wall ALongOppositeCorridorWall = {{DoorOfOppositeRoomPoint.x-1,
                                                       DoorOfOppositeRoomPoint.y,
                                                       DoorOfOppositeRoomPoint.z+ 1},
@@ -1535,7 +1546,7 @@ void BuildDoorsSouthVsNorth(int roomID,struct Underground *obj)
                                                       doorWidth + AShortOppositeCorridorWall.width,
                                                       Z_SIDE_WALL,
                                                       color,
-                                                      &pinkWhiteStyle};
+                                                      &corridorsAndHallWayTextureStyle};
 
             struct Wall AShortCorridorWall = {{DoorOfAroomPoint.x-1,
                                                DoorOfAroomPoint.y,
@@ -1544,7 +1555,7 @@ void BuildDoorsSouthVsNorth(int roomID,struct Underground *obj)
                                                DoorOfAroomPoint.z - turningPointZ - doorWidth,
                                                Z_SIDE_WALL,
                                                color,
-                                               &pinkWhiteStyle};
+                                               &corridorsAndHallWayTextureStyle};
 
 
             struct Wall AnOppositeZSIDECorridorWall= {{DoorOfOppositeRoomPoint.x + doorWidth+1,
@@ -1554,7 +1565,7 @@ void BuildDoorsSouthVsNorth(int roomID,struct Underground *obj)
                                                        DoorOfAroomPoint.x - DoorOfOppositeRoomPoint.x,
                                                        X_SIDE_WALL,
                                                        color,
-                                                       &pinkWhiteStyle};
+                                                       &corridorsAndHallWayTextureStyle};
 
 
             struct Wall AZSIDECorridorWall = {{DoorOfOppositeRoomPoint.x-1,
@@ -1564,7 +1575,7 @@ void BuildDoorsSouthVsNorth(int roomID,struct Underground *obj)
                                                DoorOfAroomPoint.x - DoorOfOppositeRoomPoint.x,
                                                X_SIDE_WALL,
                                                color,
-                                               &pinkWhiteStyle};
+                                               &corridorsAndHallWayTextureStyle};
 
             if (DoorOfAroomPoint.x < DoorOfOppositeRoomPoint.x)
             {
@@ -1595,9 +1606,9 @@ void BuildDoorsSouthVsNorth(int roomID,struct Underground *obj)
             BuildAWall(&ALongOppositeCorridorWall);
             
             // Build Roofs of Corridors
-            BuildABox(&AMiddleCorridorRoofStartPoint,&AMiddleCorridorRoofEndPoint,color,&pinkWhiteStyle);
-            BuildABox(&ACorridorRoofStartPoint,&ACorridorRoofEndPoint,color,&pinkWhiteStyle);
-            BuildABox(&AnOppositeCorridorRoofStartPoint,&AnOppositeCorridorRoofEndPoint,color,&pinkWhiteStyle);
+            BuildABox(&AMiddleCorridorRoofStartPoint,&AMiddleCorridorRoofEndPoint,color,&corridorsAndHallWayTextureStyle);
+            BuildABox(&ACorridorRoofStartPoint,&ACorridorRoofEndPoint,color,&corridorsAndHallWayTextureStyle);
+            BuildABox(&AnOppositeCorridorRoofStartPoint,&AnOppositeCorridorRoofEndPoint,color,&corridorsAndHallWayTextureStyle);
             if(obj->m_state == READY)
             {
               addWallToMap2D(&(obj->m_a2DMap),&AnOppositeZSIDECorridorWall,brown,-1);
@@ -1616,17 +1627,15 @@ int normalColorStyle(int originalColor,int x,int y,int z)
 {
    return originalColor;
 }
-
-int pinkWhiteStyle(int originalColor,int x,int y,int z)
+int floorStyle1(int originalColor,int x,int y,int z)
 {
-   return (((y%2==1)&&(x%2==0)&&(z%2==1))||((y%2==0)&&(x%2==1)&&(z%2==0)))?5:6;  
+   return (((x%2==0)&&(z%2==1))||((x%2==1)&&(z%2==0)))?TXT_FLOOR_ID1:TXT_FLOOR_ID2;  // chessboard pattern
 }
-
-
-int darkAndLightBrownFloorStyle(int originalColor,int x,int y,int z)
+int corridorsAndHallWayTextureStyle(int originalColor,int x,int y,int z)
 {
-   return (((x%2==0)&&(z%2==1))||((x%2==1)&&(z%2==0)))?20:21;  // chessboard pattern
-}
+   return (((y%2==1)&&(x%2==0)&&(z%2==1))||((y%2==0)&&(x%2==1)&&(z%2==0)))?TXT_WALL_ID2:TXT_WALL_ID3;  
+} 
+
 
 
 int findMaxValue(int a,int b)
@@ -1717,7 +1726,7 @@ void createUnderground(struct Underground *obj)
       foundGoodPlaceForUpStair =0;
       foundGoodPlaceForDownStair = 0;
       makeWorld();
-      BuildABox(&FloorStartPoint,&FloorEndPoint,0,&darkAndLightBrownFloorStyle);
+      BuildABox(&FloorStartPoint,&FloorEndPoint,0,&floorStyle1);
 
       // initi map parameter
       if(obj->m_state == READY)
@@ -3361,6 +3370,22 @@ void set3DLineOrBoxToMap2D(struct Map *obj,GLfloat color[4],int width,struct Poi
   setPointsAndColorOfLineOrBox(&aLine,P2D,width,color);
   obj->lines[obj->numLines] = mapTransformFuntion(&aLine);
   obj->numLines++;
+}
+
+void setAllTexture()
+{
+      setUserColour(TXT_FLOOR_ID1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+      setAssignedTexture(TXT_FLOOR_ID1, 8);
+      setUserColour(TXT_FLOOR_ID2, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+      setAssignedTexture(TXT_FLOOR_ID2, 18);
+      setUserColour(TXT_WALL_ID1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+      setAssignedTexture(TXT_WALL_ID1, 42);
+      setUserColour(TXT_WALL_ID2, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+      setAssignedTexture(TXT_WALL_ID2, 27);
+      setUserColour(TXT_WALL_ID3, 0.7, 0.5, 0.5, 1.0, 0.75, 0.5, 0.5, 0.5);
+      setAssignedTexture(TXT_WALL_ID3, 27);
+      setUserColour(TXT_CUBE_ID1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+      setAssignedTexture(TXT_CUBE_ID1, 26);
 }
 
 void printLineOrBoxObj(struct LineOrBox2D *obj)
