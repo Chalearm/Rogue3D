@@ -357,7 +357,7 @@ struct OnGround
 struct Point2D convert3DPointTo2DPoint(const struct Point *obj);
 
 // Mesh function
-void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom);
+void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom,int reduceIdVal);
 void changeStatusAndPrintInfo(struct aMesh *obj,int state,int option); // 0 not print info , 1 print info
  
 void userDefinedkeyboard(unsigned char key, int x, int y);
@@ -471,9 +471,9 @@ int visibilityOfLineOrBox(struct LineOrBox2D *obj);
 void initialFogMap(struct FogMap *obj);
 
 // Display map mode
-#define NO_MAP 0
-#define FOG_MAP 1
-#define FULL_MAP 2
+#define NO_MAP 2
+#define FOG_MAP 0
+#define FULL_MAP 1
 
 
 #define NOT_INVERT 0
@@ -1781,6 +1781,11 @@ void createUnderground(struct Underground *obj)
       { 
         initialMap2D(&(obj->m_a2DMap));
       }
+      // remove old allocate out (reallocate mesh)
+      if((protectInfinityLoopVal < 29) && (obj->m_state == READY))
+      {
+        createAMeshInARoom(0,0,DEFAULT_NUM_ROOM);
+      }
          //printf("create underground  state:-1 \n");
       for (indexOfRoom = 0; indexOfRoom < DEFAULT_NUM_ROOM; indexOfRoom++)
       {
@@ -1844,7 +1849,7 @@ void createUnderground(struct Underground *obj)
                }
 
             }
-            createAMeshInARoom(&(obj->m_meshes[indexOfRoom]),&(obj->m_rooms[indexOfRoom]));
+            createAMeshInARoom(&(obj->m_meshes[indexOfRoom]),&(obj->m_rooms[indexOfRoom]),0);
          }
          else if (obj->m_state == GENERATED_UNDERGROUND_DONE)
          {
@@ -3448,25 +3453,30 @@ void printLineOrBoxObj(struct LineOrBox2D *obj)
     printf("LineOrBox (%d,%d), (%d,%d) w:%d\n",obj->startP.x,obj->startP.z,obj->stopP.x,obj->stopP.z,obj->width);
 }
 
-void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom)
+void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom,int reduceIdVal)
 {
     static int idMesh = 1;
-    struct Point startP;
-    struct Point stopP;
-    obj->id = idMesh++;
-    obj->type = getRandomNumber(0,3); // 0=cow, 1=fish, 2=bat, 3=cactus
-    findStartAndStopPointOfARoom(aRoom,&stopP,&startP);
-    obj->currentDirection = getRandomNumber(WEST,NORTH);
-    obj->startArea = (struct Point){startP.x+1,startP.y,startP.z+1};
-    obj->stopArea = (struct Point){startP.x+1+getRandomNumber(2,4),startP.y,startP.z+1+getRandomNumber(2,4)};
-    obj->xVelocity = MESH_X_MIN_VELOCITY + (MESH_X_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
-    obj->zVelocity = MESH_Z_MIN_VELOCITY + (MESH_Z_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
-    obj->state = 0; // hide
-    obj->xPos = getRandomNumber(obj->startArea.x,obj->stopArea.x);
-    obj->zPos = getRandomNumber(obj->startArea.z,obj->stopArea.z);
-    obj->yPos = obj->startArea.y + getRandomNumber(1,2);
-    setMeshID(obj->id, obj->type, obj->xPos, obj->yPos, obj->zPos);
-    hideMesh(obj->id);
+    idMesh -= reduceIdVal;
+    if((obj != NULL) && (aRoom != NULL))
+    {
+      struct Point startP;
+      struct Point stopP;
+      obj->id = idMesh++;
+      obj->type = getRandomNumber(0,3); // 0=cow, 1=fish, 2=bat, 3=cactus
+      findStartAndStopPointOfARoom(aRoom,&stopP,&startP);
+      obj->currentDirection = getRandomNumber(WEST,NORTH);
+      obj->startArea = (struct Point){startP.x+1,startP.y,startP.z+1};
+      obj->stopArea = (struct Point){startP.x+1+getRandomNumber(2,4),startP.y,startP.z+1+getRandomNumber(2,4)};
+      obj->xVelocity = MESH_X_MIN_VELOCITY + (MESH_X_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
+      obj->zVelocity = MESH_Z_MIN_VELOCITY + (MESH_Z_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
+      obj->state = 0; // hide
+      obj->xPos = getRandomNumber(obj->startArea.x,obj->stopArea.x);
+      obj->zPos = getRandomNumber(obj->startArea.z,obj->stopArea.z);
+      obj->yPos = obj->startArea.y + getRandomNumber(1,2);
+      setMeshID(obj->id, obj->type, obj->xPos, obj->yPos, obj->zPos);
+      hideMesh(obj->id);
+    }
+
 }
 
 void moveMesh(struct Underground *obj,const float second)
