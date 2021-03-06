@@ -108,6 +108,9 @@ extern void setScaleMesh(int, float);
 extern void drawMesh(int);
 extern void hideMesh(int);
 
+/*  keyboard*/
+extern void keyboard(unsigned char, int, int);
+
 /********* end of extern variable declarations **************/
 
 /********* end of extern variable declarations **************/
@@ -356,6 +359,8 @@ struct Point2D convert3DPointTo2DPoint(const struct Point *obj);
 // Mesh function
 void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom);
 void changeStatusAndPrintInfo(struct aMesh *obj,int state,int option); // 0 not print info , 1 print info
+ 
+void userDefinedkeyboard(unsigned char key, int x, int y);
 const char* printMeshName(const int id);
 
 // testure function
@@ -421,7 +426,6 @@ void createCloudsInDefinedArea(struct OnGround *OutsideLand);
 void moveCloudInOutsideLand(struct OnGround *obj,const float second);
 // Map build
 void initialMap2D(struct Map *obj);
-void set3DLineOrBoxToMap2D(struct Map *obj,GLfloat color[4],int width,struct Point *startP,struct Point *stopP);
 void addWallToMap2D(struct Map *obj,const struct Wall *aWall,GLfloat color[4],const int roomID);
 void convertWallPositionToPoint2Ds(const struct Wall *obj,struct Point2D *P1,struct Point2D *P2);
 void findStartAndStopPointOfARoom(struct Room *obj,struct Point *maxPoint,struct Point *minPoint);
@@ -455,6 +459,7 @@ struct Point2D point2DRetransformFuntionForMap(struct Point2D *obj);
 
 void printLineOrBoxObj(struct LineOrBox2D *obj);
 void setPointsAndColorOfLineOrBox(struct LineOrBox2D *obj,struct Point2D startAndStopPoint[2],const int width,const GLfloat colorAttrib[4]);
+// the drawn object will be transformed before drawing in the map 2D
 void drawLineMap2DWithTransFn(struct LineOrBox2D *obj,struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*));
 void drawBoxMap2DWithTransFn(struct LineOrBox2D *obj,struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*));
 void drawAStairInMap(struct Point *startP,struct Point *stopt,GLfloat color[4],struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*));
@@ -488,6 +493,7 @@ void initialFogMap(struct FogMap *obj);
 #define DEFAULT_NUM_UNDERGROUND_LV 4
 float alphaVal = 0.9;
 int stage_Lv = -1;
+unsigned char currentKeyPressed = 0;
 struct OnGround OutsideLand;
 struct Underground Undergrounds[DEFAULT_NUM_UNDERGROUND_LV];
 // define the dimension of Grid 3X3
@@ -545,7 +551,7 @@ void collisionResponse()
    float tempX=0.0;
    float tempY=0.0;
    float tempZ=0.0;
-   float margin = 0.2;
+   float margin = 0.4;
    float vxp = 0;
    float vyp = 0;
    float vzp = 0;
@@ -829,6 +835,8 @@ float x, y, z;
             newY = floorLv + 1.0;
          setViewPosition(vpx, newY * (-1.0), vpz);
       }
+
+          // detect up/down stair event to change level
          if((isOnDownStair(&OutsideLand) == 1) && (stage_Lv == -1))
          {
             stage_Lv = 0;
@@ -876,10 +884,12 @@ float x, y, z;
 
          if(stage_Lv == -1)
          {
+            // move cloud every 0.1 second
             moveCloudInOutsideLand(&OutsideLand,0.1);
          }
          else
          {
+            // move meshed every 0.08 second
             moveMesh(&(Undergrounds[stage_Lv]),0.08);
          }
 
@@ -1123,6 +1133,8 @@ int i, j, k;
       }
       setPrameterOfOnGround_defauleValue1(&OutsideLand);
       createOnGround(&OutsideLand);
+
+      glutKeyboardFunc (userDefinedkeyboard);
       //　setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
      // setViewPosition(-1*10, -1*48, -1*10);
 
@@ -3183,6 +3195,7 @@ void drawLineMap2D(struct LineOrBox2D *obj)
   draw2Dline(obj->startP.x,obj->startP.z,obj->stopP.x,obj->stopP.z, obj->width);
 }
 
+// the drawn object will be transformed before drawing in the map 2D
 void drawLineMap2DWithTransFn(struct LineOrBox2D *obj,struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*))
 {
   struct LineOrBox2D aLine = transformationFn(obj);
@@ -3215,6 +3228,7 @@ void drawBoxMap2D(struct LineOrBox2D *obj)
   }
 }
 
+// the drawn object will be transformed before drawing in the map 2D
 void drawBoxMap2DWithTransFn(struct LineOrBox2D *obj,struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*))
 {
   struct LineOrBox2D aLine = transformationFn(obj);
@@ -3413,17 +3427,6 @@ void initialMap2D(struct Map *obj)
   setFogAreaInFogMap(&(obj->aFogMap),black,&mapTransformFuntion);
 }
 
-void set3DLineOrBoxToMap2D(struct Map *obj,GLfloat color[4],int width,struct Point *startP,struct Point *stopP)
-{
-  struct LineOrBox2D aLine;
-  struct Point2D P2D[2];
-  P2D[0] = convert3DPointTo2DPoint(startP);
-  P2D[1] = convert3DPointTo2DPoint(stopP);
-  setPointsAndColorOfLineOrBox(&aLine,P2D,width,color);
-  obj->lines[obj->numLines] = mapTransformFuntion(&aLine);
-  obj->numLines++;
-}
-
 void setAllTexture()
 {
       setUserColour(TXT_FLOOR_ID1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
@@ -3467,37 +3470,65 @@ void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom)
 }
 
 void moveMesh(struct Underground *obj,const float second)
-{         
-//xxxxx
+{       
       int i;
       int roomIndex = 0;
-      static clock_t cloudMovingRefTime = 0;
+      int isAbleToSeeMesh = 0;
+      static clock_t meshMovingRefTime = 0;
       const float timeUpdate = second;
-      static float currentCloudTime = 0;
+      static float currentMeshTime = 0;
+
+     float tempX=0.0;
+     float tempY=0.0;
+     float tempZ=0.0;
+     float margin = 0.4;
+     float vxp = 0;
+     float vyp = 0;
+     float vzp = 0;
+     static float Xdirection = 0; // - , + or 0
+     static float Zdirection = 0; // - , + or 0
+     struct Point maxPoint;
+     struct Point minPoint;
+     struct Point vPoint;
+     struct Point refPoint;
+     getViewPosition(&vxp, &vyp, &vzp);
+     getOldViewPosition(&tempX, &tempY, &tempZ);
+
+     // When user presses 'w', the vector has value and the visibility test can work
+     if (currentKeyPressed == 'w')
+     {
+       // check previous and current of the view point
+       Xdirection = -1 * (vxp > tempX) + (vxp < tempX);
+       Zdirection = -1 * (vzp > tempZ) + (vzp < tempZ);
+       // clear buffer
+       currentKeyPressed = 0;
+     }
+
       struct aMesh *meshes = obj->m_meshes;
-      currentCloudTime = ((float)(clock()-cloudMovingRefTime))/CLOCKS_PER_SEC;
-      if (currentCloudTime > timeUpdate)
+      currentMeshTime = ((float)(clock()-meshMovingRefTime))/CLOCKS_PER_SEC;
+      if (currentMeshTime > timeUpdate)
       {      
 
-         cloudMovingRefTime = clock();
+         meshMovingRefTime = clock();
           for(i = 0;i < DEFAULT_NUM_ROOM;i++)
           {
+            // move the mesh according to the direction
             if(meshes[i].currentDirection == EAST)
             {
               meshes[i].xPos += meshes[i].xVelocity/(float)getRandomNumber(1,2);
               meshes[i].zPos += meshes[i].zVelocity/(float)getRandomNumber(7,10); 
             }
-            if(meshes[i].currentDirection == WEST)
+            else if(meshes[i].currentDirection == WEST)
             {
               meshes[i].xPos -= meshes[i].xVelocity/(float)getRandomNumber(1,2);
               meshes[i].zPos -= meshes[i].zVelocity/(float)getRandomNumber(7,10);
             }
-            if(meshes[i].currentDirection == SOUTH)
+            else if(meshes[i].currentDirection == SOUTH)
             {
               meshes[i].xPos -= meshes[i].xVelocity/(float)getRandomNumber(7,10);
               meshes[i].zPos -= meshes[i].zVelocity/(float)getRandomNumber(1,2); 
             }
-            if(meshes[i].currentDirection == NORTH)
+            else if(meshes[i].currentDirection == NORTH)
             {
               meshes[i].xPos += meshes[i].xVelocity/(float)getRandomNumber(7,10);
               meshes[i].zPos += meshes[i].zVelocity/(float)getRandomNumber(1,2); 
@@ -3506,11 +3537,37 @@ void moveMesh(struct Underground *obj,const float second)
             if(meshes[i].xPos < meshes[i].startArea.x) meshes[i].currentDirection = EAST;
             if(meshes[i].zPos > meshes[i].stopArea.z) meshes[i].currentDirection = SOUTH;
             if(meshes[i].zPos < meshes[i].startArea.z) meshes[i].currentDirection = NORTH;
-
+            getAndConvertViewPos(&vPoint);
             roomIndex = findViewPointIsWhichRoom2D(&(obj->m_a2DMap));
+            findStartAndStopPointOfARoom(&(obj->m_rooms[roomIndex]),&maxPoint,&minPoint);
+            refPoint.x = (int)meshes[i].xPos;
+            refPoint.z = (int)meshes[i].zPos;
+            if (Xdirection == 1.0) // ++ go ahead
+            {
+              vPoint.z = minPoint.z;
+              isAbleToSeeMesh = isIn2DBound(&maxPoint,&vPoint,&refPoint); // yes = 1, otherwise = 0
+              //printf("Xdirection+(%d) :%d\n",i,isAbleToSeeMesh);
+            }
+            else if (Xdirection == -1.0) // -- go back
+            {
+              vPoint.z = maxPoint.z;
+              isAbleToSeeMesh = isIn2DBound(&minPoint,&vPoint,&refPoint); // yes = 1, otherwise = 0
+              //printf("Xdirection-(%d) :%d\n",i,isAbleToSeeMesh);
+            }
+            if (Zdirection == 1.0) // ++ go ahead
+            {
+              vPoint.x = minPoint.x;
+              isAbleToSeeMesh = isAbleToSeeMesh || isIn2DBound(&maxPoint,&vPoint,&refPoint); // yes = 1, otherwise = 0
+              //printf("Zdirection+(%d) :%d\n",i,isAbleToSeeMesh);
+            }
+            else if (Zdirection == -1.0) // -- go back
+            {
+              vPoint.x = maxPoint.x;
+              isAbleToSeeMesh = isAbleToSeeMesh || isIn2DBound(&minPoint,&vPoint,&refPoint); // yes = 1, otherwise = 0
+              //printf("Zdirection-(%d) :%d\n",i,isAbleToSeeMesh);
+            }
             setTranslateMesh(meshes[i].id,meshes[i].xPos, meshes[i].yPos, meshes[i].zPos);
-            changeStatusAndPrintInfo(&(meshes[i]),(roomIndex == i),1); // 0 not print info , 1 print inf
-     //   printf("sssssL%d  %f %f  velocity(%f,%f)\n",i,meshes[i].xPos ,meshes[i].zPos,meshes[i].xVelocity,meshes[i].zVelocity);
+            changeStatusAndPrintInfo(&(meshes[i]),isAbleToSeeMesh,1); // 0 not print info , 1 print inf
 
           }
       }
@@ -3548,4 +3605,10 @@ void changeStatusAndPrintInfo(struct aMesh *obj,int state,int option) // 0 not p
     if(option ==1)
       printf("%s mesh #%d is %svisible\n",printMeshName(obj->type),obj->id,((state==0)?"not ":""));
   }
+}
+
+void userDefinedkeyboard(unsigned char key, int x, int y)
+{
+  currentKeyPressed = key;
+  keyboard(key,x,y);
 }
