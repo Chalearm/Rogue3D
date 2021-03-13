@@ -1,0 +1,75 @@
+Module 4 - Artificial Intelligence, Taking Turns, Movement, Combat
+----------------------------------------------------------------------
+
+Add more features to your game created in Module 1 to 3. Add artificial intelligence to control the opponents in the game. The opponents are represented using the mesh objects.
+
+1. Player and MOB Interactions
+------------------------------
+There are two actions which the player can take that involve combat with the mobs. They can either move to a new location or fight. Moving to a new location occurs when the player moves to an adjacent location (square) from their current location. The movement action is complete when they cross the boundary between two squares. Fighting occurs when the player attempts to move into the square occupied by a mob (mesh object). The player cannot actually enter the square containing a mob. Use collision detection to move the player back to their previous location when they attack the mob.
+
+The AI opponents can also perform either the move or fight actions. The exception to this is the plant AI which cannot move and instead it waits. This means that if there is nothing for the plant to attack it passes its turn and does nothing while it waits for the player to take their turn.
+
+Combat and movement is turn based with the player and the mobs taking turns. Once the player has moved or attacked the mob will then take its turn and perform an action. Players and mobs will continue to alternate turns until the mob is removed from the game or until the player uses stairs and leaves the level. There should not be a pause between turns. A player turn occurs when they cross the boundary to a new square (a new location in the world array). When this occurs the mobs then all take their turns simultaneously. This means that the speed at which the turns alternate depends on the movement of the player. If the player stands in one square then no turns will be taken. If they move quickly around the world then turns will alternate very quickly.
+
+The player and the mob both have a 50% chance of hitting their opponent when they attack. If the mob is hit then it is removed from the game (it becomes inactive). Mobs can either be active or inactive. They should not be drawn when they are inactive. Print a text message that indicates if the mob or the player hits or misses the opponent.
+
+Players and mobs can only attack the other when they are in adjacent square. Diagonal squares are considered adjacent. It may be very difficult for the player to attack diagonally because it is difficult to move diagonally without accidentally moving to the square to the left or right instead of the diagonal. You don't need to modify the code so the player can more easily attack on the diagonal.
+
+2. State Machines for AI - Movement and Combat
+----------------------------------------------
+There will be three types of artificial intelligence used for the opponents (mobs) in the game. Each of these will have a different behaviour.
+
+Implement state machines which control the behaviour for each mob. The three types of AI are plant, random search, and responsive. The state machines are outlines in the module 4 presentation discussed in class.
+
+a. Plant AI
+This AI strategy is to wait until the player to move adjacent to the mob and then attack. This guarantees that the mob will always attack first as the player will use their turn to move towards the mob and then the mob can then use it's turn to attack. The player can end the combat by moving away from the mob. The plant cannot follow the player and will return to waiting for the player to approach. Use the cactus mesh for this mob.
+
+b. Random Search
+This strategy is to wander the maze until the player is found and then attack. The mob randomly moves around the maze until it finds the player. Once this happens it moves towards the player and attacks. Have the mob pick a location in another room and start moving towards it. Again, the player and the mob will take turns. Each time the player moves to a new square the mob can then move to a new square. This means you will need to identify when the player crosses the boundary between two squares. Once this happens the mob will then take its turn.
+
+The mob locates the player once it enters the player's viewing volume as constructed for Module three. This means it is possible for the mob to enter the viewing volume when it is on the other side of a wall and the player cannot actually see it. The mob could therefore start following the player with the player being aware that they are being followed. This also means that the mob could pass behind the player and not activate because the it did not enter the player's viewing volume.
+
+The algorithm that the mob uses to move to a new destination should actually result in the mob reaching its target destination. It is not sufficient for the mob to randomly move around the map and never reach its destination or for it to endlessly move around the maze and without moving closer to the destination.
+
+Use the bat mesh for the random search algorithm.
+
+c. Responsive
+This strategy involves the mob waiting until the player enters a room and then moving towards and attacking the player. The mob will wait in a room. When the player enters the room the mob will move to attack them. It is possible that the player will be able to see the mob while they are in the hallway. The mob will only respond to the player once the player steps onto a square in the room. This behaviour is similar to option b. Random Search but without moving around the maze.
+
+This mobs should move around the room as was required for Module 3 (point 4. Animated Mesh Movement).
+
+The mob will follow the player out of the room.
+
+Use the fish mesh for the responsive algorithm.
+
+Other Details
+-------------
+The location and state of the mobs must be stored in the state information for each level. If a player leaves and returns to a level then the mobs should be where they were when the player left the level.
+
+The algorithm for following the player is based on the original Rogue algorithm. The mob should always move in the direction of the player when it is possible. If the mob reaches a wall and cannot move directly towards the player then it must move along the wall towards the door. It should then move through the door and continue following the player.
+
+Mobs are solid and the player cannot occupy the same space as a mob. Only one mob should occupy a square at a time.
+
+Each room will have one AI opponent in them. Give each type of AI an equal probability (33% chance) to be selected for each room.
+
+It is possible to have more than one mob following the player.
+
+Diagonal movement for the mobs is allowed if you wish.
+
+3. Mapping
+----------
+Draw the different mobs on the map which displays all game elements (map 1). Use different colours or shapes to indicate the three types of mobs. Show the mobs as they move through the level. Explain what colour or shape is used for each mob in the readme file.
+
+Starting Location
+-----------------
+Start the viewpoint on the outdoor level, near the stairs down.
+
+Choosing Parameters
+-------------------
+It is important to pick values for parameters such as colours, speed of
+objects, the effect of gravity so they are easy for the marker to see.
+If the effect of a parameter it isn't obvious or is difficult to
+see then it will be marked as missing or incomplete.
+
+Make sure colours are distinct. Choose velocities for moving objects
+that are fast enough to be seen.
