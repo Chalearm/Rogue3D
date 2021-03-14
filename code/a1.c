@@ -15,17 +15,17 @@
 
 extern GLubyte  world[WORLDX][WORLDY][WORLDZ];
 
-	/* mouse function called by GLUT when a button is pressed or released */
+  /* mouse function called by GLUT when a button is pressed or released */
 void mouse(int, int, int, int);
 
-	/* initialize graphics library */
+  /* initialize graphics library */
 extern void graphicsInit(int *, char **);
 
-	/* lighting control */
+  /* lighting control */
 extern void setLightPosition(GLfloat, GLfloat, GLfloat);
 extern GLfloat* getLightPosition();
 
-	/* viewpoint control */
+  /* viewpoint control */
 extern void setViewPosition(float, float, float);
 extern void getViewPosition(float *, float *, float *);
 extern void getOldViewPosition(float *, float *, float *);
@@ -33,73 +33,73 @@ extern void setOldViewPosition(float, float, float);
 extern void setViewOrientation(float, float, float);
 extern void getViewOrientation(float *, float *, float *);
 
-	/* add cube to display list so it will be drawn */
+  /* add cube to display list so it will be drawn */
 extern void addDisplayList(int, int, int);
 
-	/* mob controls */
+  /* mob controls */
 extern void createMob(int, float, float, float, float);
 extern void setMobPosition(int, float, float, float, float);
 extern void hideMob(int);
 extern void showMob(int);
 
-	/* player controls */
+  /* player controls */
 extern void createPlayer(int, float, float, float, float);
 extern void setPlayerPosition(int, float, float, float, float);
 extern void hidePlayer(int);
 extern void showPlayer(int);
 
-	/* tube controls */
+  /* tube controls */
 extern void createTube(int, float, float, float, float, float, float, int);
 extern void hideTube(int);
 extern void showTube(int);
 
-	/* 2D drawing functions */
+  /* 2D drawing functions */
 extern void  draw2Dline(int, int, int, int, int);
 extern void  draw2Dbox(int, int, int, int);
 extern void  draw2Dtriangle(int, int, int, int, int, int);
 extern void  set2Dcolour(float []);
 
-	/* texture functions */
+  /* texture functions */
 extern int setAssignedTexture(int, int);
 extern void unsetAssignedTexture(int);
 extern int getAssignedTexture(int);
 extern void setTextureOffset(int, float, float);
 
 
-	/* flag which is set to 1 when flying behaviour is desired */
+  /* flag which is set to 1 when flying behaviour is desired */
 extern int flycontrol;
-	/* flag used to indicate that the test world should be used */
+  /* flag used to indicate that the test world should be used */
 extern int testWorld;
-	/* flag to print out frames per second */
+  /* flag to print out frames per second */
 extern int fps;
-	/* flag to indicate the space bar has been pressed */
+  /* flag to indicate the space bar has been pressed */
 extern int space;
-	/* flag indicates the program is a client when set = 1 */
+  /* flag indicates the program is a client when set = 1 */
 extern int netClient;
-	/* flag indicates the program is a server when set = 1 */
+  /* flag indicates the program is a server when set = 1 */
 extern int netServer; 
-	/* size of the window in pixels */
+  /* size of the window in pixels */
 extern int screenWidth, screenHeight;
-	/* flag indicates if map is to be printed */
+  /* flag indicates if map is to be printed */
 extern int displayMap;
-	/* flag indicates use of a fixed viewpoint */
+  /* flag indicates use of a fixed viewpoint */
 extern int fixedVP;
 
-	/* frustum corner coordinates, used for visibility determination  */
+  /* frustum corner coordinates, used for visibility determination  */
 extern float corners[4][3];
 
-	/* determine which cubes are visible e.g. in view frustum */
+  /* determine which cubes are visible e.g. in view frustum */
 extern void ExtractFrustum();
 extern void tree(float, float, float, float, float, float, int);
 
-	/* allows users to define colours */
+  /* allows users to define colours */
 extern int setUserColour(int, GLfloat, GLfloat, GLfloat, GLfloat, GLfloat,
     GLfloat, GLfloat, GLfloat);
 void unsetUserColour(int);
 extern void getUserColour(int, GLfloat *, GLfloat *, GLfloat *, GLfloat *,
     GLfloat *, GLfloat *, GLfloat *, GLfloat *); 
 
-	/* mesh creation, translatio, rotation functions */
+  /* mesh creation, translatio, rotation functions */
 extern void setMeshID(int, int, float, float, float);
 extern void unsetMeshID(int);
 extern void setTranslateMesh(int, float, float, float);
@@ -128,7 +128,7 @@ extern void keyboard(unsigned char, int, int);
 #define DEFAULT_DOOR_HEIGHT 2
 #define DEFAULT_DOOR_WIDTH 2
 #define DEFAULT_ROOM_HEIGHT 5
-#define DEFAULT_GRAVITY 21
+#define DEFAULT_GRAVITY 100
 #define DEFAULT_COLLISION_MARGIN 0.4
 #define DEFAULT_SPARFORCORRIDORS_X 4
 #define DEFAULT_SPARFORCORRIDORS_Z 4
@@ -198,6 +198,12 @@ struct Point
    int x;
    int y;
    int z;
+};
+struct Pointf
+{
+   float x;
+   float y;
+   float z;
 };
 
 struct Wall
@@ -365,7 +371,15 @@ const char* printMeshName(const int id);
 
 // testure function
 void setAllTexture();
-void getAndConvertViewPos(struct Point *obj);
+struct Pointf vectorBetween2Points(struct Pointf *p1,struct Pointf *p2);
+void getAndConvertViewPos(struct Pointf *obj);
+void getAndConvertOldViewPos(struct Pointf *obj);
+void convertPointfToPointi(struct Pointf *obj1,struct Point *obj2);
+void getMousePos(struct Point *obj);
+int comparePointfs(struct Pointf *obj1,struct Pointf *obj2);
+int comparePointis(struct Point *obj1,struct Point *obj2);
+float findRadian(const float x,const float z);
+void findVisibilityAreaOfViewPos(struct Point *maxPoint,struct Point *minPoint);
 void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Point *stopP);
 void getStairOfUndergroundWolrd(struct Underground *obj,int upOrDownStair,struct Point *startP,struct Point *stopP); // 0 = up, 1 = down
 void SetMAXandMINPoint(const int **MaxPoint, const int **MinPoint, const int *P1, const int *P2);
@@ -538,12 +552,12 @@ int directionOffset[8][2] = {{-1,0},
 
    float g_floorLv = (float)DEFAULT_UNDERGROUND_LV;
 
-	/*** collisionResponse() ***/
-	/* -performs collision detection and response */
-	/*  sets new xyz  to position of the viewpoint after collision */
-	/* -can also be used to implement gravity by updating y position of vp*/
-	/* note that the world coordinates returned from getViewPosition()
-	   will be the negative value of the array indices */
+  /*** collisionResponse() ***/
+  /* -performs collision detection and response */
+  /*  sets new xyz  to position of the viewpoint after collision */
+  /* -can also be used to implement gravity by updating y position of vp*/
+  /* note that the world coordinates returned from getViewPosition()
+     will be the negative value of the array indices */
 void collisionResponse()
 {
 
@@ -581,7 +595,7 @@ void collisionResponse()
                  world[-1 * (int)vxp][SpaceOverHeadPos][-1 * (int)(vzp - margin * Zdirection)] +
                  world[-1 * (int)(vxp - margin * Xdirection)][SpaceOverHeadPos][-1 * (int)(vzp - margin * Zdirection)];
    outOfSpace = (((-1 * (int)vxp) > 99) || ((-1 * (int)vyp) > 49) || ((-1 * (int)vzp) > 99));
-   outOfSpace = outOfSpace || (((-1 * (int)vxp) < 0) || ((-1 * (int)vyp) < (g_floorLv + 1)) || ((-1 * (int)vzp) < 0));
+   outOfSpace = outOfSpace || (((-1 * (int)vxp) < 0) || ((-1 * (int)vyp) <= (g_floorLv)) || ((-1 * (int)vzp) < 0));
    // protect to pass through
    if ((outOfSpace == 1) || ((isHit != 0) && (isAble2Jump != 0)))
    {
@@ -615,18 +629,18 @@ void collisionResponse()
 }
 
 
-	/******* draw2D() *******/
-	/* draws 2D shapes on screen */
-	/* use the following functions: 			*/
-	/*	draw2Dline(int, int, int, int, int);		*/
-	/*	draw2Dbox(int, int, int, int);			*/
-	/*	draw2Dtriangle(int, int, int, int, int, int);	*/
-	/*	set2Dcolour(float []); 				*/
-	/* colour must be set before other functions are called	*/
+  /******* draw2D() *******/
+  /* draws 2D shapes on screen */
+  /* use the following functions:       */
+  /*  draw2Dline(int, int, int, int, int);    */
+  /*  draw2Dbox(int, int, int, int);      */
+  /*  draw2Dtriangle(int, int, int, int, int, int); */
+  /*  set2Dcolour(float []);        */
+  /* colour must be set before other functions are called */
 void draw2D() {
 
    if (testWorld) {
-		/* draw some sample 2d shapes */
+    /* draw some sample 2d shapes */
       if (displayMap == 1) {
          GLfloat green[] = {0.0, 0.5, 0.0, 0.5};
          set2Dcolour(green);
@@ -639,7 +653,7 @@ void draw2D() {
       }
    } else {
 
-	/* your code goes here */
+  /* your code goes here */
       struct Point stairP1;
       struct Point stairP2;          
       GLfloat black[] = {0.0, 0.0, 0.0, alphaVal};
@@ -670,53 +684,53 @@ void draw2D() {
 }
 
 
-	/*** update() ***/
-	/* background process, it is called when there are no other events */
-	/* -used to control animations and perform calculations while the  */
-	/*  system is running */
-	/* -gravity must also implemented here, duplicate collisionResponse */
+  /*** update() ***/
+  /* background process, it is called when there are no other events */
+  /* -used to control animations and perform calculations while the  */
+  /*  system is running */
+  /* -gravity must also implemented here, duplicate collisionResponse */
 void update() {
 int i, j, k;
 float *la;
 float x, y, z;
 
-	/* sample animation for the testworld, don't remove this code */
-	/* demo of animating mobs */
+  /* sample animation for the testworld, don't remove this code */
+  /* demo of animating mobs */
    if (testWorld) {
 
-	/* update old position so it contains the correct value */
-	/* -otherwise view position is only correct after a key is */
-	/*  pressed and keyboard() executes. */
+  /* update old position so it contains the correct value */
+  /* -otherwise view position is only correct after a key is */
+  /*  pressed and keyboard() executes. */
 
       getViewPosition(&x, &y, &z);
       setOldViewPosition(x,y,z);
 
-	/* sample of rotation and positioning of mob */
-	/* coordinates for mob 0 */
+  /* sample of rotation and positioning of mob */
+  /* coordinates for mob 0 */
       static float mob0x = 50.0, mob0y = 25.0, mob0z = 52.0;
       static float mob0ry = 0.0;
       static int increasingmob0 = 1;
-	/* coordinates for mob 1 */
+  /* coordinates for mob 1 */
       static float mob1x = 50.0, mob1y = 25.0, mob1z = 52.0;
       static float mob1ry = 0.0;
       static int increasingmob1 = 1;
-	/* counter for user defined colour changes */
+  /* counter for user defined colour changes */
       static int colourCount = 0;
       static GLfloat offset = 0.0;
 
-	/* offset counter for animated texture */
+  /* offset counter for animated texture */
       static float textureOffset = 0.0;
 
-	/* scaling values for fish mesh */
+  /* scaling values for fish mesh */
       static float fishScale = 1.0;
       static int scaleCount = 0;
       static GLfloat scaleOffset = 0.0;
 
-	/* move mob 0 and rotate */
-	/* set mob 0 position */
+  /* move mob 0 and rotate */
+  /* set mob 0 position */
       setMobPosition(0, mob0x, mob0y, mob0z, mob0ry);
 
-	/* move mob 0 in the x axis */
+  /* move mob 0 in the x axis */
       if (increasingmob0 == 1)
          mob0x += 0.2;
       else 
@@ -724,16 +738,16 @@ float x, y, z;
       if (mob0x > 50) increasingmob0 = 0;
       if (mob0x < 30) increasingmob0 = 1;
 
-	/* rotate mob 0 around the y axis */
+  /* rotate mob 0 around the y axis */
       mob0ry += 1.0;
       if (mob0ry > 360.0) mob0ry -= 360.0;
 
-	/* move mob 1 and rotate */
+  /* move mob 1 and rotate */
       setMobPosition(1, mob1x, mob1y, mob1z, mob1ry);
 
-	/* move mob 1 in the z axis */
-	/* when mob is moving away it is visible, when moving back it */
-	/* is hidden */
+  /* move mob 1 in the z axis */
+  /* when mob is moving away it is visible, when moving back it */
+  /* is hidden */
       if (increasingmob1 == 1) {
          mob1z += 0.2;
          showMob(1);
@@ -744,35 +758,35 @@ float x, y, z;
       if (mob1z > 72) increasingmob1 = 0;
       if (mob1z < 52) increasingmob1 = 1;
 
-	/* rotate mob 1 around the y axis */
+  /* rotate mob 1 around the y axis */
       mob1ry += 1.0;
       if (mob1ry > 360.0) mob1ry -= 360.0;
 
-	/* change user defined colour over time */
+  /* change user defined colour over time */
       if (colourCount == 1) offset += 0.05;
       else offset -= 0.01;
       if (offset >= 0.5) colourCount = 0;
       if (offset <= 0.0) colourCount = 1;
       setUserColour(9, 0.7, 0.3 + offset, 0.7, 1.0, 0.3, 0.15 + offset, 0.3, 1.0);
 
-	/* sample tube creation  */
-	/* draws a purple tube above the other sample objects */
+  /* sample tube creation  */
+  /* draws a purple tube above the other sample objects */
        createTube(1, 45.0, 30.0, 45.0, 50.0, 30.0, 50.0, 6);
 
-	/* move texture for lava effect */
+  /* move texture for lava effect */
       textureOffset -= 0.01;
       setTextureOffset(18, 0.0, textureOffset);
 
-	/* make fish grow and shrink (scaling) */
+  /* make fish grow and shrink (scaling) */
       if (scaleCount == 1) scaleOffset += 0.01;
       else scaleOffset -= 0.01;
       if (scaleOffset >= 0.5) scaleCount = 0;
       if (scaleOffset <= 0.0) scaleCount = 1;
       setScaleMesh(1, 0.5 + scaleOffset);
 
-	/* make cow with id == 2 appear and disappear */
-	/* use scaleCount as switch to flip draw/hide */
-	/* rotate cow while it is visible */
+  /* make cow with id == 2 appear and disappear */
+  /* use scaleCount as switch to flip draw/hide */
+  /* rotate cow while it is visible */
       if (scaleCount == 0) {
          drawMesh(2);
          setRotateMesh(2, 0.0, 180.0 + scaleOffset * 100.0, 0.0);
@@ -785,7 +799,7 @@ float x, y, z;
 
    } else {
 
-	/* your code goes here */
+  /* your code goes here */
 
       int valOfWorldAtBelowVP = 0;
       float vpx = 0;
@@ -897,11 +911,11 @@ float x, y, z;
 }
 
 
-	/* called by GLUT when a mouse button is pressed or released */
-	/* -button indicates which button was pressed or released */
-	/* -state indicates a button down or button up event */
-	/* -x,y are the screen coordinates when the mouse is pressed or */
-	/*  released */ 
+  /* called by GLUT when a mouse button is pressed or released */
+  /* -button indicates which button was pressed or released */
+  /* -state indicates a button down or button up event */
+  /* -x,y are the screen coordinates when the mouse is pressed or */
+  /*  released */ 
 void mouse(int button, int state, int x, int y) {
 
    if (button == GLUT_LEFT_BUTTON)
@@ -972,43 +986,43 @@ int getRandomNumberExceptValue(int minimum,int maximum,int exceptVal)
 int main(int argc, char** argv)
 {
 int i, j, k;
-	/* initialize the graphics system */
+  /* initialize the graphics system */
    graphicsInit(&argc, argv);
 
 
-	/* the first part of this if statement builds a sample */
-	/* world which will be used for testing */
-	/* DO NOT remove this code. */
-	/* Put your code in the else statment below */
-	/* The testworld is only guaranteed to work with a world of
-		with dimensions of 100,50,100. */
+  /* the first part of this if statement builds a sample */
+  /* world which will be used for testing */
+  /* DO NOT remove this code. */
+  /* Put your code in the else statment below */
+  /* The testworld is only guaranteed to work with a world of
+    with dimensions of 100,50,100. */
    if (testWorld == 1) {
-	/* initialize world to empty */
+  /* initialize world to empty */
       for(i=0; i<WORLDX; i++)
          for(j=0; j<WORLDY; j++)
             for(k=0; k<WORLDZ; k++)
                world[i][j][k] = 0;
 
-	/* some sample objects */
-	/* build a red platform */
+  /* some sample objects */
+  /* build a red platform */
       for(i=0; i<WORLDX; i++) {
          for(j=0; j<WORLDZ; j++) {
             world[i][24][j] = 3;
          }
       }
-	/* create some green and blue cubes */
+  /* create some green and blue cubes */
       world[50][25][50] = 1;
       world[49][25][50] = 1;
       world[49][26][50] = 1;
       world[52][25][52] = 2;
       world[52][26][52] = 2;
 
-	/* create user defined colour and draw cube */
+  /* create user defined colour and draw cube */
       setUserColour(9, 0.7, 0.3, 0.7, 1.0, 0.3, 0.15, 0.3, 1.0);
       world[54][25][50] = 9;
 
 
-	/* blue box shows xy bounds of the world */
+  /* blue box shows xy bounds of the world */
       for(i=0; i<WORLDX-1; i++) {
          world[i][25][0] = 2;
          world[i][25][WORLDZ-1] = 2;
@@ -1018,67 +1032,67 @@ int i, j, k;
          world[WORLDX-1][25][i] = 2;
       }
 
-	/* create two sample mobs */
-	/* these are animated in the update() function */
+  /* create two sample mobs */
+  /* these are animated in the update() function */
       createMob(0, 50.0, 25.0, 52.0, 0.0);
       createMob(1, 50.0, 25.0, 52.0, 0.0);
 
-	/* create sample player */
+  /* create sample player */
       createPlayer(0, 52.0, 27.0, 52.0, 0.0);
 
-	/* texture examples */
+  /* texture examples */
 
-	/* create textured cube */
-	/* create user defined colour with an id number of 11 */
+  /* create textured cube */
+  /* create user defined colour with an id number of 11 */
       setUserColour(11, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	/* attach texture 22 to colour id 11 */
+  /* attach texture 22 to colour id 11 */
       setAssignedTexture(11, 22);
-	/* place a cube in the world using colour id 11 which is texture 22 */
+  /* place a cube in the world using colour id 11 which is texture 22 */
       world[59][25][50] = 11;
 
-	/* create textured cube */
+  /* create textured cube */
       setUserColour(12, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
       setAssignedTexture(12, 27);
       world[61][25][50] = 12;
 
-	/* create textured cube */
+  /* create textured cube */
       setUserColour(10, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
       setAssignedTexture(10, 26);
       world[63][25][50] = 10;
 
-	/* create textured floor */
+  /* create textured floor */
       setUserColour(13, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
       setAssignedTexture(13, 8);
       for (i=57; i<67; i++)
          for (j=45; j<55; j++)
             world[i][24][j] = 13;
 
-	/* create textured wall */
+  /* create textured wall */
       setUserColour(14, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
       setAssignedTexture(14, 18);
       for (i=57; i<67; i++)
          for (j=0; j<4; j++)
             world[i][24+j][45] = 14;
 
-	/* create textured wall */
+  /* create textured wall */
       setUserColour(15, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
       setAssignedTexture(15, 42);
       for (i=45; i<55; i++)
          for (j=0; j<4; j++)
             world[57][24+j][i] = 15;
 
-		// two cubes using the same texture but one is offset
-		// cube with offset texture 33
+    // two cubes using the same texture but one is offset
+    // cube with offset texture 33
       setUserColour(16, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
       setAssignedTexture(16, 33);
       world[65][25][50] = 16;
       setTextureOffset(16, 0.5, 0.5);
-		// cube with non-offset texture 33
+    // cube with non-offset texture 33
       setUserColour(17, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
       setAssignedTexture(17, 33);
       world[66][25][50] = 17;
 
-		// create some lava textures that will be animated
+    // create some lava textures that will be animated
       setUserColour(18, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
       setAssignedTexture(18, 24);
       world[62][24][55] = 18;
@@ -1088,26 +1102,26 @@ int i, j, k;
       world[63][24][56] = 18;
       world[64][24][56] = 18;
 
-		// draw cow mesh and rotate 45 degrees around the y axis
-		// game id = 0, cow mesh id == 0
+    // draw cow mesh and rotate 45 degrees around the y axis
+    // game id = 0, cow mesh id == 0
       setMeshID(0, 0, 48.0, 26.0, 50.0);
       setRotateMesh(0, 0.0, 45.0, 0.0);
 
-		// draw fish mesh and scale to half size (0.5)
-		// game id = 1, fish mesh id == 1
+    // draw fish mesh and scale to half size (0.5)
+    // game id = 1, fish mesh id == 1
       setMeshID(1, 1, 51.0, 28.0, 50.0);
       setScaleMesh(1, 0.5);
 
-		// draw cow mesh and rotate 45 degrees around the y axis
-		// game id = 2, cow mesh id == 0
+    // draw cow mesh and rotate 45 degrees around the y axis
+    // game id = 2, cow mesh id == 0
       setMeshID(2, 0, 59.0, 26.0, 47.0);
 
-		// draw bat
-		// game id = 3, bat mesh id == 2
+    // draw bat
+    // game id = 3, bat mesh id == 2
       setMeshID(3, 2, 61.0, 26.0, 47.0);
       setScaleMesh(3, 0.5);
-		// draw cactus
-		// game id = 4, cactus mesh id == 3
+    // draw cactus
+    // game id = 4, cactus mesh id == 3
       setMeshID(4, 3, 63.0, 26.0, 47.0);
       setScaleMesh(4, 0.5);
 
@@ -1115,7 +1129,7 @@ int i, j, k;
    } else {
 
       srand(time(NULL));
-	/* your code to build the world goes here */
+  /* your code to build the world goes here */
       flycontrol = 0;
       makeWorld();
       setAllTexture();
@@ -1141,8 +1155,8 @@ int i, j, k;
    }
 
 
-	/* starts the graphics processing loop */
-	/* code after this will not run until the program exits */
+  /* starts the graphics processing loop */
+  /* code after this will not run until the program exits */
    glutMainLoop();
    return 0; 
 }
@@ -2690,7 +2704,8 @@ void changeVisiteStateInUnderground(struct Underground *obj,const int state)
 }
 int isOnUpStairUnderground(struct Underground *obj)
 {
-   struct Point viewPosition = {-1,-1,-1};
+   struct Pointf viewPosition = {-1.0,-1.0,-1.0};
+   struct Point viewPositioni = {-1,-1,-1};
    int ret = 0;
    if (obj->m_state == GENERATED_UNDERGROUND_DONE)
    {      
@@ -2698,16 +2713,18 @@ int isOnUpStairUnderground(struct Underground *obj)
       struct Point stopStairPoint =  getReferentStairPoint(&(obj->m_upStair),STOP_POINT);
       stopStairPoint.y +=1;
       getAndConvertViewPos(&viewPosition);
+      convertPointfToPointi(&viewPosition,&viewPositioni);
       //obj->lowestLv
       //printf("VP(%d,%d,%d)\n",viewPosition.x,viewPosition.y,viewPosition.z);
-      ret = isIn3DBound(&startStairPoint,&stopStairPoint,&viewPosition); 
+      ret = isIn3DBound(&startStairPoint,&stopStairPoint,&viewPositioni); 
    } 
    return ret;
 }
 
 int isOnDownStairUnderground(struct Underground *obj)
 {
-   struct Point viewPosition = {-1,-1,-1};
+   struct Pointf viewPosition = {-1.0,-1.0,-1.0};
+   struct Point viewPositioni = {-1,-1,-1};
    int ret = 0;
    if (obj->m_state == GENERATED_UNDERGROUND_DONE)
    {      
@@ -2716,9 +2733,10 @@ int isOnDownStairUnderground(struct Underground *obj)
       startStairPoint.y =  1+obj->m_downStairGroundLv;
       stopStairPoint.y = 1+obj->m_downStairGroundLv;
       getAndConvertViewPos(&viewPosition);
+      convertPointfToPointi(&viewPosition,&viewPositioni);
       //obj->lowestLv
       //printf("VP(%d,%d,%d)\n",viewPosition.x,viewPosition.y,viewPosition.z);
-      ret = isIn3DBound(&startStairPoint,&stopStairPoint,&viewPosition); 
+      ret = isIn3DBound(&startStairPoint,&stopStairPoint,&viewPositioni); 
    } 
    return ret;
 }
@@ -2859,13 +2877,38 @@ void moveCloudInOutsideLand(struct OnGround *obj,const float second)
       }
 }
 
-void getAndConvertViewPos(struct Point *obj)
+void getAndConvertViewPos(struct Pointf *obj)
 {
    float xvf,yvf,zvf;
    getViewPosition(&xvf,&yvf,&zvf);
-   obj->x = (-1)*(int)(xvf);
-   obj->y = (-1)*(int)(yvf);
-   obj->z = (-1)*(int)(zvf);
+   obj->x = (-1.0)*(xvf);
+   obj->y = (-1.0)*(yvf);
+   obj->z = (-1.0)*(zvf);
+}
+
+void getAndConvertOldViewPos(struct Pointf *obj)
+{
+   float xvf,yvf,zvf;
+   getOldViewPosition(&xvf,&yvf,&zvf);
+   obj->x = (-1.0)*(xvf);
+   obj->y = (-1.0)*(yvf);
+   obj->z = (-1.0)*(zvf);
+}
+
+
+int comparePointfs(struct Pointf *obj1,struct Pointf *obj2)
+{
+  return ((obj1->x == obj2->x) && (obj1->y == obj2->y) && (obj1->z == obj2->z));
+}
+
+int comparePointis(struct Point *obj1,struct Point *obj2)
+{
+  return ((obj1->x == obj2->x) && (obj1->y == obj2->y) && (obj1->z == obj2->z));
+}
+
+void convertPointfToPointi(struct Pointf *obj1,struct Point *obj2)
+{
+    *obj2 = (struct Point){obj1->x,obj1->y,obj1->z};
 }
 
 void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Point *stopP)
@@ -2980,12 +3023,14 @@ void findStartAndStopPointOfARoom2D(struct Room *obj,struct Point2D *maxPoint,st
 int findViewPointIsWhichRoom2D(struct Map *obj)
 {
   struct Point2D vPoint2D;
-  struct Point vPoint;
+  struct Pointf vPoint;
+  struct Point vPointi;
   int indexRoom=0;
   int indexRet = -1;
   struct LineOrBox2D *roomPos = obj->roomsPos;
   getAndConvertViewPos(&vPoint);
-  vPoint2D = convert3DPointTo2DPoint(&vPoint);
+  convertPointfToPointi(&vPoint,&vPointi);
+  vPoint2D = convert3DPointTo2DPoint(&vPointi);
   vPoint2D = point2DTransformFuntionForMap(&vPoint2D);
   for(indexRoom = 0; indexRoom<DEFAULT_NUM_ROOM;indexRoom++)
   {
@@ -3034,7 +3079,8 @@ void updateUndergroundMap2D(struct Underground *obj,const int displayMode)  // 1
    int indexRoom = 0;
    int i = 0;
    struct Map *a2DMapP = &(obj->m_a2DMap);
-   struct Point vPoint;
+   struct Pointf vPoint;
+   struct Point vPointi;
    if (obj->m_state == GENERATED_UNDERGROUND_DONE)
    {
 
@@ -3052,7 +3098,8 @@ void updateUndergroundMap2D(struct Underground *obj,const int displayMode)  // 1
         drawFogInMap(&(a2DMapP->aFogMap));
       }
       getAndConvertViewPos(&vPoint);
-      clearFogPosition(&(a2DMapP->aFogMap),vPoint.x,vPoint.z);
+      convertPointfToPointi(&vPoint,&vPointi);
+      clearFogPosition(&(a2DMapP->aFogMap),vPointi.x,vPointi.z);
       clearFogInArea(&(a2DMapP->aFogMap),&(a2DMapP->roomsPos[indexRoom]));
 
 
@@ -3310,9 +3357,11 @@ struct Point2D point2DRetransformFuntionForMap(struct Point2D *obj)
 }
 void getViewPointInMap(struct Point2D *obj)
 {
-  struct Point aPoint;
+  struct Pointf aPoint;
+  struct Point aPointi;
   getAndConvertViewPos(&aPoint);
-  *obj = convert3DPointTo2DPoint(&aPoint); 
+  convertPointfToPointi(&aPoint,&aPointi);
+  *obj = convert3DPointTo2DPoint(&aPointi); 
 }
 //
 //void drawBoxMap2D(struct LineOrBox2D *obj,struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*))
@@ -3470,9 +3519,10 @@ void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom,int reduceIdVal)
       obj->xVelocity = MESH_X_MIN_VELOCITY + (MESH_X_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
       obj->zVelocity = MESH_Z_MIN_VELOCITY + (MESH_Z_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
       obj->state = 0; // hide
+      obj->yPos = obj->startArea.y;
+
       obj->xPos = getRandomNumber(obj->startArea.x,obj->stopArea.x);
       obj->zPos = getRandomNumber(obj->startArea.z,obj->stopArea.z);
-      obj->yPos = obj->startArea.y + getRandomNumber(1,2);
       setMeshID(obj->id, obj->type, obj->xPos, obj->yPos, obj->zPos);
       hideMesh(obj->id);
     }
@@ -3488,33 +3538,32 @@ void moveMesh(struct Underground *obj,const float second)
       const float timeUpdate = second;
       static float currentMeshTime = 0;
 
-     float tempX=0.0;
-     float tempY=0.0;
-     float tempZ=0.0;
      float margin = 0.4;
-     float vxp = 0;
-     float vyp = 0;
-     float vzp = 0;
      static float Xdirection = 0; // - , + or 0
      static float Zdirection = 0; // - , + or 0
      struct Point maxPoint;
      struct Point minPoint;
-     struct Point vPoint;
-     struct Point refPoint;
-     getViewPosition(&vxp, &vyp, &vzp);
-     getOldViewPosition(&tempX, &tempY, &tempZ);
+      struct Point vPointi;
+      struct Pointf vPoint;
+      static struct Pointf vPointTemp;
+      struct Pointf vOldPoint;
+      struct Point refPoint;
+     getAndConvertViewPos(&vPoint);
+     getAndConvertOldViewPos(&vOldPoint);
+     vPointi = (struct Point){(int)vPoint.x,(int)vPoint.y,(int)vPoint.z};
 
      // When user presses 'w', the vector has value and the visibility test can work
      if (currentKeyPressed == 'w')
      {
        // check previous and current of the view point
-       Xdirection = -1 * (vxp > tempX) + (vxp < tempX);
-       Zdirection = -1 * (vzp > tempZ) + (vzp < tempZ);
+       Xdirection =  (vPoint.x > vOldPoint.x) + (-1) *(vPoint.x < vOldPoint.x);
+       Zdirection =  (vPoint.z > vOldPoint.z) + (-1)* (vPoint.z < vOldPoint.z);
        // clear buffer
-       currentKeyPressed = 0;
+      // currentKeyPressed = 0;
      }
 
       struct aMesh *meshes = obj->m_meshes;
+      findVisibilityAreaOfViewPos(&maxPoint,&minPoint);
       currentMeshTime = ((float)(clock()-meshMovingRefTime))/CLOCKS_PER_SEC;
       if (currentMeshTime > timeUpdate)
       {      
@@ -3543,37 +3592,36 @@ void moveMesh(struct Underground *obj,const float second)
               meshes[i].xPos += meshes[i].xVelocity/(float)getRandomNumber(7,10);
               meshes[i].zPos += meshes[i].zVelocity/(float)getRandomNumber(1,2); 
             }
-            if(meshes[i].xPos > meshes[i].stopArea.x) meshes[i].currentDirection = WEST;
-            if(meshes[i].xPos < meshes[i].startArea.x) meshes[i].currentDirection = EAST;
-            if(meshes[i].zPos > meshes[i].stopArea.z) meshes[i].currentDirection = SOUTH;
-            if(meshes[i].zPos < meshes[i].startArea.z) meshes[i].currentDirection = NORTH;
-            getAndConvertViewPos(&vPoint);
+            if(meshes[i].xPos >= meshes[i].stopArea.x) meshes[i].currentDirection = WEST;
+            if(meshes[i].xPos <= meshes[i].startArea.x) meshes[i].currentDirection = EAST;
+            if(meshes[i].zPos >= meshes[i].stopArea.z) meshes[i].currentDirection = SOUTH;
+            if(meshes[i].zPos <= meshes[i].startArea.z) meshes[i].currentDirection = NORTH;
             roomIndex = findViewPointIsWhichRoom2D(&(obj->m_a2DMap));
             findStartAndStopPointOfARoom(&(obj->m_rooms[roomIndex]),&maxPoint,&minPoint);
             refPoint.x = (int)meshes[i].xPos;
             refPoint.z = (int)meshes[i].zPos;
             if (Xdirection == 1.0) // ++ go ahead
             {
-              vPoint.z = minPoint.z;
-              isAbleToSeeMesh = isIn2DBound(&maxPoint,&vPoint,&refPoint); // yes = 1, otherwise = 0
+              vPointi.z = minPoint.z;
+              isAbleToSeeMesh = isIn2DBound(&maxPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
               //printf("Xdirection+(%d) :%d\n",i,isAbleToSeeMesh);
             }
             else if (Xdirection == -1.0) // -- go back
             {
-              vPoint.z = maxPoint.z;
-              isAbleToSeeMesh = isIn2DBound(&minPoint,&vPoint,&refPoint); // yes = 1, otherwise = 0
+              vPointi.z = maxPoint.z;
+              isAbleToSeeMesh = isIn2DBound(&minPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
               //printf("Xdirection-(%d) :%d\n",i,isAbleToSeeMesh);
             }
             if (Zdirection == 1.0) // ++ go ahead
             {
-              vPoint.x = minPoint.x;
-              isAbleToSeeMesh = isAbleToSeeMesh || isIn2DBound(&maxPoint,&vPoint,&refPoint); // yes = 1, otherwise = 0
+              vPointi.x = minPoint.x;
+              isAbleToSeeMesh = isAbleToSeeMesh && isIn2DBound(&maxPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
               //printf("Zdirection+(%d) :%d\n",i,isAbleToSeeMesh);
             }
             else if (Zdirection == -1.0) // -- go back
             {
-              vPoint.x = maxPoint.x;
-              isAbleToSeeMesh = isAbleToSeeMesh || isIn2DBound(&minPoint,&vPoint,&refPoint); // yes = 1, otherwise = 0
+              vPointi.x = maxPoint.x;
+              isAbleToSeeMesh = isAbleToSeeMesh && isIn2DBound(&minPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
               //printf("Zdirection-(%d) :%d\n",i,isAbleToSeeMesh);
             }
             setTranslateMesh(meshes[i].id,meshes[i].xPos, meshes[i].yPos, meshes[i].zPos);
@@ -3617,8 +3665,125 @@ void changeStatusAndPrintInfo(struct aMesh *obj,int state,int option) // 0 not p
   }
 }
 
+void getMousePos(struct Point *obj)
+{
+  float mvxt,mvyt,mvzt;
+  getViewOrientation(&mvxt,&mvyt,&mvzt);
+  *obj = (struct Point){mvxt,mvyt,mvzt};
+}
+
 void userDefinedkeyboard(unsigned char key, int x, int y)
 {
   currentKeyPressed = key;
   keyboard(key,x,y);
+}
+
+struct Pointf vectorBetween2Points(struct Pointf *p1,struct Pointf *p2)
+{
+  return (struct Pointf){p2->x-p1->x,p2->y-p1->y,p2->z-p1->z};
+}
+
+void findVisibilityAreaOfViewPos(struct Point *maxPoint,struct Point *minPoint)
+{
+  // referent values
+  static struct Point radianRef;
+  static struct Pointf directionV;
+  static float deltaRadian = 0.0;
+
+  float newDelta = 0.0;
+  struct Pointf vPoint;
+  static struct Pointf vPointTemp;
+  struct Pointf vOldPoint;
+  struct Point refPoint;
+  getAndConvertViewPos(&vPoint);
+  getAndConvertOldViewPos(&vOldPoint);
+  struct Point mouseP; 
+  static struct Point mousePt; 
+  getMousePos(&mouseP);
+  const float piRadian = 180.0/3.141592;
+
+  float magnitudeVector = 0.0;
+      struct Pointf newVect3;
+  if (currentKeyPressed == 'w')
+  {
+
+      struct Pointf delVect1;
+      struct Pointf delVect2;
+
+      getMousePos(&radianRef);
+      directionV = vectorBetween2Points(&vOldPoint,&vPoint);
+      magnitudeVector = sqrt(directionV.x*directionV.x + directionV.z*directionV.z);
+      deltaRadian = findRadian(directionV.x,directionV.z);
+      printf("mag:%f  U(%f,%f) R(%f,%f) %f\n",magnitudeVector,directionV.x/magnitudeVector,directionV.z/magnitudeVector,180*asin(directionV.x/magnitudeVector)/3.141592,180*acos(directionV.z/magnitudeVector)/3.141592,180*deltaRadian/3.141592);
+      // check previous and current of the view point
+      // clear buffer
+      currentKeyPressed = 0;
+
+      // find end point
+      ///jjjjjjj
+/*
+#define NO_MAP 2
+#define FOG_MAP 0
+#define FULL_MAP 1
+*/
+      //displayMap
+     // if((displayMap == FOG_MAP) &&(magnitudeVector > 0)) world[(int)(vPoint.x+directionV.x/magnitudeVector)][(int)vPoint.y][(int)(vPoint.z+directionV.z/magnitudeVector)] =2;
+     delVect1.x = directionV.x/magnitudeVector;
+     delVect1.z = directionV.z/magnitudeVector;
+     delVect2.x = (1.0)*(directionV.x >0)+(-1.0)*(directionV.x < 0);
+     delVect2.z = (1.0)*(directionV.z >0)+(-1.0)*(directionV.z < 0);
+
+     printf("Front(%d,%d) == (%d,%d)  sin/cos(%f,%f) artan0:%f\n",(int)(vPoint.x+delVect1.x),(int)(vPoint.z+delVect1.z),(int)(vPoint.x)+(int)delVect2.x,(int)(vPoint.z)+(int)delVect2.z,delVect1.x,delVect1.z,atan(0));
+  }
+  if (!(comparePointis(&mouseP,&mousePt)&& comparePointfs(&vPoint,&vPointTemp)))
+  {
+
+     newDelta =   deltaRadian + (mouseP.y-radianRef.y)/piRadian;
+     newVect3.x = (vPoint.x + cos(newDelta));
+     newVect3.z = (vPoint.z + sin(newDelta));
+     printf("delta:%f, newDel:%f deltaRadian:%f mouseRadDiff:%f\n",deltaRadian*piRadian,newDelta*piRadian,deltaRadian,(mouseP.y-radianRef.y)/piRadian);
+ //   printf("RM(%d%s%d,%d%s%d) ",radianRef.x,((radianRef.x>mouseP.x)?"":"+"),mouseP.x-radianRef.x,radianRef.y,((radianRef.y>mouseP.y)?"":"+"),mouseP.y-radianRef.y);
+    printf("RP(%3.2f%s%3.2f,%3.2f%s%3.2f)",vPoint.x,((directionV.x<0)?"":"+"),directionV.x,vPoint.z,((directionV.z<0)?"":"+"),directionV.z);
+    printf("nP(%3.2f,%3.2f) sin/cos(%f,%f)\n",newVect3.x,newVect3.z, cos(newDelta),sin(newDelta));
+    if(displayMap == FOG_MAP) world[(int)newVect3.x][(int)vPoint.y][(int)newVect3.z] =2;
+
+
+   // printf("RM(%d%s%d,%d%s%d) pos(%f,%f,%f) VD(%3.2f,%3.2f)\n",mouseP.x-radianRef.x,mouseP.y-radianRef.y,radianRef.x,radianRef.y,vPoint.x,vPoint.y,vPoint.z,directionV.x,directionV.z);
+    vPointTemp = vPoint;
+    mousePt = mouseP;
+  }
+}
+
+
+float findRadian(const float x,const float z)
+{
+  float val = 0.0;
+  //deltaRadian = atan(directionV.z/directionV.x);
+  if ((x>0.0) && (z>=0.0)) //Q.1
+  {
+    val = atan(z/x);
+  }
+  else if ((x < 0.0) && (z>=0.0)) //Q.2, radian + Pi/2
+  {
+    val = 3.141592 - atan((-1.0)*z/x); 
+  }
+  else if ((x < 0.0) && (z <0.0)) //Q.3
+  {
+    val =  atan(z/x) - 3.141592; 
+  }
+  else if ((x > 0.0) && (z <0.0)) //Q.4
+  {
+    val = (-1.0)*atan((-1.0)*z/x);
+  }
+  else if ((x == 0.0) && (z>0.0))
+  {
+    val =3.141592*0.5;
+  }
+  else if ((x == 0.0) && (z <0.0))
+  {
+    val =3.141592*(-0.5);
+  }
+
+  return val;
+
 }
