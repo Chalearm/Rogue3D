@@ -446,6 +446,7 @@ void findStartAndStopPointOfARoom(struct Room *obj,struct Point *maxPoint,struct
 void findStartAndStopPointOfARoom2D(struct Room *obj,struct Point2D *maxPoint,struct Point2D *minPoint);
 int findViewPointIsWhichRoom2D(struct Map *obj);
 void drawAMeshInARoomInMap2D(struct aMesh *mesh);
+void getColorOfAmeshInMap2D(struct aMesh *mesh,GLfloat *color);
 void drawARoomInMap2D(struct Map *obj,const int roomID);
 
 // Fog map functions
@@ -3062,15 +3063,46 @@ void drawARoomInMap2D(struct Map *obj,const int roomID)
   }
 }
 
+void getColorOfAmeshInMap2D(struct aMesh *mesh,GLfloat *color)
+{
+  switch(mesh->type)
+  {
+    case 0: //"Cow";
+    {
+      GLfloat lightGrey[] = {0.9,0.9,0.9,alphaVal};
+      memcpy(color,lightGrey,sizeof(lightGrey));
+    }
+    break;
+    case 1: // "Fish";
+    {
+      GLfloat blue[] = {0.2,0.2,1.0,alphaVal};
+      memcpy(color,blue,sizeof(blue));
+    }
+    break;
+    case 2: //"Bat";
+    {
+      GLfloat darkGrey[] =  {0.3,0.3,0.3,alphaVal};
+      memcpy(color,darkGrey,sizeof(darkGrey));
+    }
+    break;
+    case 3: //"Cactus";
+    {
+      GLfloat green[] =  {0.0,0.7,0.0,alphaVal};
+      memcpy(color,green,sizeof(green));
+    }
+    break;
+  }
+}
 void drawAMeshInARoomInMap2D(struct aMesh *mesh)
 {
+    GLfloat color[4];
     struct Point2D point2Ds[2];
     struct LineOrBox2D aMeshPos;
     point2Ds[0].x = (int)mesh->xPos;
     point2Ds[0].z = (int)mesh->zPos;
-    point2Ds[1] = (struct Point2D){point2Ds[0].x+1,point2Ds[0].z+1};
-    GLfloat blue[] = {0.4,0.7,1.0,alphaVal};
-    setPointsAndColorOfLineOrBox(&aMeshPos,point2Ds,0,blue);
+    point2Ds[1] = (struct Point2D){point2Ds[0].x+2,point2Ds[0].z+2};
+    getColorOfAmeshInMap2D(mesh,color);
+    setPointsAndColorOfLineOrBox(&aMeshPos,point2Ds,1,color);
     drawBoxMap2DWithTransFn(&aMeshPos,&mapTransformFuntion);
 
 }
