@@ -193,6 +193,7 @@ struct Map
   int numDoors[DEFAULT_NUM_ROOM];
 };
 
+
 struct Point
 {
    int x;
@@ -204,6 +205,21 @@ struct Pointf
    float x;
    float y;
    float z;
+};
+
+struct visiblityControlVal
+{
+  struct Point refMouse;
+  struct Point oldMouse;
+
+  struct Pointf refViewPos;
+  struct Pointf oldViewPos;
+
+  struct Pointf directionVector;
+  float refRadian;
+  float deltaRadian;
+  int indexArea;
+  int isNeighborArea[DEFAULT_NUM_ROOM];
 };
 
 struct Wall
@@ -252,9 +268,7 @@ struct aMesh
   struct Point startArea;
   struct Point stopArea;
   // current position
-  float xPos;
-  float yPos;
-  float zPos;
+  struct Pointf posV;
   float xVelocity;
   float zVelocity;
 };
@@ -308,6 +322,8 @@ struct OnGround
    int highestLvOfCubesNum;
    int lowestLvOfCubesNum;
 };
+
+#define PI_RADIAN 57.295779513   // 180/PI
 // default mesh attribute defined area
 #define MESH_X_MIN_VELOCITY 0.05
 #define MESH_X_MAX_VELOCITY 0.3
@@ -380,6 +396,7 @@ int comparePointfs(struct Pointf *obj1,struct Pointf *obj2);
 int comparePointis(struct Point *obj1,struct Point *obj2);
 float findRadian(const float x,const float z);
 void findVisibilityAreaOfViewPos(struct Point *maxPoint,struct Point *minPoint);
+void updateVisibilityControlVal(struct visiblityControlVal *obj);
 void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Point *stopP);
 void getStairOfUndergroundWolrd(struct Underground *obj,int upOrDownStair,struct Point *startP,struct Point *stopP); // 0 = up, 1 = down
 void SetMAXandMINPoint(const int **MaxPoint, const int **MinPoint, const int *P1, const int *P2);
@@ -427,6 +444,8 @@ int getMaxMinAtTerrainPoint(const unsigned char terrain[WORLDX][WORLDZ],const st
 int readTerrain(const unsigned char terrain[WORLDX][WORLDZ],const int x,const int z);
 int isIn3DBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref); // yes = 1, otherwise = 0
 int isIn2DBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref); // yes = 1, otherwise = 0
+int isIn2DBoundPoint2D(const struct Point2D *startP,const struct Point2D *stopP,const struct Point2D *ref); // yes = 1, otherwise = 0
+int isIn1DBound(const float max,const float min,const float val); // yes = 1, otherwise = 0
 int boundValue(int max,int min,int originValue);
 int findMaxValue(int a,int b);
 int findMinValue(int a,int b);
@@ -511,6 +530,7 @@ int stage_Lv = -1;
 unsigned char currentKeyPressed = 0;
 struct OnGround OutsideLand;
 struct Underground Undergrounds[DEFAULT_NUM_UNDERGROUND_LV];
+struct visiblityControlVal visibilityMananger;
 // define the dimension of Grid 3X3
 int dimensionOfGrid3x3[9][4] = {{0, 0, 33, 33},
                                 {33, 0, 34, 33},
@@ -2416,13 +2436,22 @@ int getMaxMinAtTerrainPoint(const unsigned char terrain[WORLDX][WORLDZ],const st
    return ret;
 }
 
+int isIn2DBoundPoint2D(const struct Point2D *startP,const struct Point2D *stopP,const struct Point2D *ref) // yes = 1, otherwise = 0
+{
+   int isInX = (ref->x >= findMinValue(startP->x,stopP->x)) && (ref->x <= findMaxValue(startP->x,stopP->x));
+   int isInZ = (ref->z >= findMinValue(startP->z,stopP->z)) && (ref->z <= findMaxValue(startP->z,stopP->z));
+   return ((isInX+isInZ) == 2);
+}
 int isIn2DBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref)
 {
    int isInX = (ref->x >= findMinValue(startP->x,stopP->x)) && (ref->x <= findMaxValue(startP->x,stopP->x));
    int isInZ = (ref->z >= findMinValue(startP->z,stopP->z)) && (ref->z <= findMaxValue(startP->z,stopP->z));
    return ((isInX+isInZ) == 2);
 }
-
+int isIn1DBound(const float max,const float min,const float val)
+{
+  return ((max>=val)&&(min<=val));
+}
 void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point *northWestP, struct Point *northEastP, struct Point *southEastP)
 {
    int maxVal = WORLDX-1;
@@ -3035,7 +3064,7 @@ int findViewPointIsWhichRoom2D(struct Map *obj)
   vPoint2D = point2DTransformFuntionForMap(&vPoint2D);
   for(indexRoom = 0; indexRoom<DEFAULT_NUM_ROOM;indexRoom++)
   {
-      if((roomPos[indexRoom].startP.x <= vPoint2D.x) && (roomPos[indexRoom].startP.z <= vPoint2D.z) && (roomPos[indexRoom].stopP.x >= vPoint2D.x) && (roomPos[indexRoom].stopP.z >= vPoint2D.z))
+      if (isIn2DBoundPoint2D(&(roomPos[indexRoom].startP),&(roomPos[indexRoom].stopP),&(vPoint2D)) == 1)
       {
         indexRet = indexRoom;
         indexRoom = DEFAULT_NUM_ROOM;
@@ -3098,8 +3127,8 @@ void drawAMeshInARoomInMap2D(struct aMesh *mesh)
     GLfloat color[4];
     struct Point2D point2Ds[2];
     struct LineOrBox2D aMeshPos;
-    point2Ds[0].x = (int)mesh->xPos;
-    point2Ds[0].z = (int)mesh->zPos;
+    point2Ds[0].x = (int)mesh->posV.x;
+    point2Ds[0].z = (int)mesh->posV.z;
     point2Ds[1] = (struct Point2D){point2Ds[0].x+2,point2Ds[0].z+2};
     getColorOfAmeshInMap2D(mesh,color);
     setPointsAndColorOfLineOrBox(&aMeshPos,point2Ds,1,color);
@@ -3125,8 +3154,12 @@ void updateUndergroundMap2D(struct Underground *obj,const int displayMode)  // 1
       indexRoom =  findViewPointIsWhichRoom2D(a2DMapP);
       if (displayMode == FOG_MAP)
       { 
-        drawAMeshInARoomInMap2D(&(obj->m_meshes[indexRoom]));
-        drawARoomInMap2D(a2DMapP,indexRoom);
+        // to protect in case of indexRoom == -1
+        if(isIn1DBound((float)(DEFAULT_NUM_ROOM-1),0,indexRoom))
+        {        
+          drawAMeshInARoomInMap2D(&(obj->m_meshes[indexRoom]));
+          drawARoomInMap2D(a2DMapP,indexRoom);
+        }
         drawFogInMap(&(a2DMapP->aFogMap));
       }
       getAndConvertViewPos(&vPoint);
@@ -3551,16 +3584,94 @@ void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom,int reduceIdVal)
       obj->xVelocity = MESH_X_MIN_VELOCITY + (MESH_X_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
       obj->zVelocity = MESH_Z_MIN_VELOCITY + (MESH_Z_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
       obj->state = 0; // hide
-      obj->yPos = obj->startArea.y;
+      obj->posV.y = obj->startArea.y;
 
-      obj->xPos = getRandomNumber(obj->startArea.x,obj->stopArea.x);
-      obj->zPos = getRandomNumber(obj->startArea.z,obj->stopArea.z);
-      setMeshID(obj->id, obj->type, obj->xPos, obj->yPos, obj->zPos);
+      obj->posV.x = getRandomNumber(obj->startArea.x,obj->stopArea.x);
+      obj->posV.z = getRandomNumber(obj->startArea.z,obj->stopArea.z);
+      setMeshID(obj->id, obj->type, obj->posV.x, obj->posV.y, obj->posV.x);
       hideMesh(obj->id);
     }
 
 }
 
+void updateVisibilityControlVal(struct visiblityControlVal *obj)
+{
+  struct Pointf vPoint  = {0.0,0.0,0.0};
+  struct Pointf vOldPoint  = {0.0,0.0,0.0};
+  struct Point mouseP  = {0,0,0}; 
+  int index = 0;
+  int oldIndexArea = obj->indexArea;
+  int isPosChanged = 0;
+  int isMouseMoved = 0;
+  struct Point2D max2DPoint = {0,0};
+  struct Point2D min2DPoint = {0,0};
+  struct Point2D ref2DPoint = {0,0};
+  // read the current position values of view point
+  getAndConvertViewPos(&vPoint);
+  getAndConvertOldViewPos(&vOldPoint);
+  getMousePos(&mouseP);
+  isPosChanged = (comparePointfs(&vPoint,&(obj->oldViewPos)) ==0);
+  isMouseMoved = (comparePointis(&mouseP,&(obj->oldMouse)) == 0);
+  ref2DPoint.x = (int)vPoint.x;
+  ref2DPoint.z = (int)vPoint.z;
+  // everytime when the 'w' is pressed then the direcction vector and referent radian are calculed
+  if (currentKeyPressed == 'w')
+  {
+      getMousePos(&(obj->refMouse));
+      obj->directionVector = vectorBetween2Points(&vOldPoint,&vPoint);
+      obj->refRadian = findRadian(obj->directionVector.x,obj->directionVector.z);
+      // clear buffer
+      currentKeyPressed = 0;
+  }
+  // when the view point moves or changes the position, the area id is updated
+  if (isPosChanged)
+  {
+      // check the current id agianst the current position first.
+      // if the view position is still in the same id area as last time
+      // then the while loop just checks only one time and then leave the loop
+      index = obj->indexArea;
+      if (isIn1DBound((float)(DEFAULT_NUM_ROOM-1),0.0,(float)index) == 0)
+      {
+        index = 0;
+      }
+      while(index < DEFAULT_NUM_ROOM)
+      {
+          min2DPoint =  (struct Point2D){dimensionOfGrid3x3[index][0],dimensionOfGrid3x3[index][1]};
+          max2DPoint =  (struct Point2D){min2DPoint.x + dimensionOfGrid3x3[index][2]-1,min2DPoint.z + dimensionOfGrid3x3[index][3]-1};
+          if (isIn2DBoundPoint2D(&min2DPoint,&max2DPoint,&ref2DPoint) == 1)
+          {
+            obj->indexArea = index;
+            index = DEFAULT_NUM_ROOM;
+          }
+          else
+          {
+            // it never exceeds or reaches the maximum value (DEFAULT_NUM_ROOM)
+            index = (index+1)%DEFAULT_NUM_ROOM;
+          }
+      }
+      if (oldIndexArea != obj->indexArea)
+      {
+        oldIndexArea = obj->indexArea;
+        memset(obj->isNeighborArea,0,sizeof(obj->isNeighborArea));
+        obj->isNeighborArea[oldIndexArea] = 1;
+        for (index = 0;index < 4 ;index++)
+        {
+          if (DoorDirections[oldIndexArea][index] != -1)
+          {
+            obj->isNeighborArea[DoorDirections[oldIndexArea][index]] = 1;
+          }
+        }
+      }
+
+      obj->oldViewPos = vPoint;
+  }
+  // when the view point changes the direction or mouse is moved, the delta of radian is updated.
+  if (isMouseMoved)
+  {
+      obj->deltaRadian =  (float)(mouseP.y-obj->refMouse.y)/(float)PI_RADIAN;
+      obj->oldMouse = mouseP;
+   }
+}
 void moveMesh(struct Underground *obj,const float second)
 {       
       int i;
@@ -3573,10 +3684,10 @@ void moveMesh(struct Underground *obj,const float second)
      float margin = 0.4;
      static float Xdirection = 0; // - , + or 0
      static float Zdirection = 0; // - , + or 0
-     struct Point maxPoint;
-     struct Point minPoint;
-      struct Point vPointi;
-      struct Pointf vPoint;
+     struct Point maxPoint = {-1,-1,-1};
+     struct Point minPoint = {-1,-1,-1};
+      struct Point vPointi = {0,0,0};
+      struct Pointf vPoint = {0.0,0.0,0.0};
       static struct Pointf vPointTemp;
       struct Pointf vOldPoint;
       struct Point refPoint;
@@ -3600,63 +3711,76 @@ void moveMesh(struct Underground *obj,const float second)
       if (currentMeshTime > timeUpdate)
       {      
 
+        roomIndex = findViewPointIsWhichRoom2D(&(obj->m_a2DMap));
+        if(isIn1DBound((float)(DEFAULT_NUM_ROOM-1),0,roomIndex))
+          findStartAndStopPointOfARoom(&(obj->m_rooms[roomIndex]),&maxPoint,&minPoint);
+      //  else printf("index Room for mesh : %d\n",roomIndex);
+
          meshMovingRefTime = clock();
           for(i = 0;i < DEFAULT_NUM_ROOM;i++)
           {
             // move the mesh according to the direction
             if(meshes[i].currentDirection == EAST)
             {
-              meshes[i].xPos += meshes[i].xVelocity/(float)getRandomNumber(1,2);
-              meshes[i].zPos += meshes[i].zVelocity/(float)getRandomNumber(7,10); 
+              meshes[i].posV.x += meshes[i].xVelocity/(float)getRandomNumber(1,2);
+              meshes[i].posV.z += meshes[i].zVelocity/(float)getRandomNumber(7,10); 
             }
             else if(meshes[i].currentDirection == WEST)
             {
-              meshes[i].xPos -= meshes[i].xVelocity/(float)getRandomNumber(1,2);
-              meshes[i].zPos -= meshes[i].zVelocity/(float)getRandomNumber(7,10);
+              meshes[i].posV.x -= meshes[i].xVelocity/(float)getRandomNumber(1,2);
+              meshes[i].posV.z -= meshes[i].zVelocity/(float)getRandomNumber(7,10);
             }
             else if(meshes[i].currentDirection == SOUTH)
             {
-              meshes[i].xPos -= meshes[i].xVelocity/(float)getRandomNumber(7,10);
-              meshes[i].zPos -= meshes[i].zVelocity/(float)getRandomNumber(1,2); 
+              meshes[i].posV.x -= meshes[i].xVelocity/(float)getRandomNumber(7,10);
+              meshes[i].posV.z -= meshes[i].zVelocity/(float)getRandomNumber(1,2); 
             }
             else if(meshes[i].currentDirection == NORTH)
             {
-              meshes[i].xPos += meshes[i].xVelocity/(float)getRandomNumber(7,10);
-              meshes[i].zPos += meshes[i].zVelocity/(float)getRandomNumber(1,2); 
+              meshes[i].posV.x += meshes[i].xVelocity/(float)getRandomNumber(7,10);
+              meshes[i].posV.z += meshes[i].zVelocity/(float)getRandomNumber(1,2); 
             }
-            if(meshes[i].xPos >= meshes[i].stopArea.x) meshes[i].currentDirection = WEST;
-            if(meshes[i].xPos <= meshes[i].startArea.x) meshes[i].currentDirection = EAST;
-            if(meshes[i].zPos >= meshes[i].stopArea.z) meshes[i].currentDirection = SOUTH;
-            if(meshes[i].zPos <= meshes[i].startArea.z) meshes[i].currentDirection = NORTH;
-            roomIndex = findViewPointIsWhichRoom2D(&(obj->m_a2DMap));
-            findStartAndStopPointOfARoom(&(obj->m_rooms[roomIndex]),&maxPoint,&minPoint);
-            refPoint.x = (int)meshes[i].xPos;
-            refPoint.z = (int)meshes[i].zPos;
-            if (Xdirection == 1.0) // ++ go ahead
-            {
-              vPointi.z = minPoint.z;
-              isAbleToSeeMesh = isIn2DBound(&maxPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
-              //printf("Xdirection+(%d) :%d\n",i,isAbleToSeeMesh);
+
+            if(meshes[i].posV.x >= meshes[i].stopArea.x) meshes[i].currentDirection = WEST;
+            if(meshes[i].posV.x <= meshes[i].startArea.x) meshes[i].currentDirection = EAST;
+            if(meshes[i].posV.z >= meshes[i].stopArea.z) meshes[i].currentDirection = SOUTH;
+            if(meshes[i].posV.z <= meshes[i].startArea.z) meshes[i].currentDirection = NORTH;
+
+            refPoint.x = (int)meshes[i].posV.x;
+            refPoint.z = (int)meshes[i].posV.z;
+
+            // if it is in the same room of view point or the neighbor room
+            isAbleToSeeMesh =  (visibilityMananger.isNeighborArea[i] == 1);
+            if (isAbleToSeeMesh==1)
+            {              
+
+              if (Xdirection == 1.0) // ++ go ahead
+              {
+                vPointi.z = minPoint.z;
+                isAbleToSeeMesh = isIn2DBound(&maxPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
+                //printf("Xdirection+(%d) :%d\n",i,isAbleToSeeMesh);
+              }
+              else if (Xdirection == -1.0) // -- go back
+              {
+                vPointi.z = maxPoint.z;
+                isAbleToSeeMesh = isIn2DBound(&minPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
+                //printf("Xdirection-(%d) :%d\n",i,isAbleToSeeMesh);
+              }
+              if (Zdirection == 1.0) // ++ go ahead
+              {
+                vPointi.x = minPoint.x;
+                isAbleToSeeMesh = isAbleToSeeMesh && isIn2DBound(&maxPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
+                //printf("Zdirection+(%d) :%d\n",i,isAbleToSeeMesh);
+              }
+              else if (Zdirection == -1.0) // -- go back
+              {
+                vPointi.x = maxPoint.x;
+                isAbleToSeeMesh = isAbleToSeeMesh && isIn2DBound(&minPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
+                //printf("Zdirection-(%d) :%d\n",i,isAbleToSeeMesh);
+              }
             }
-            else if (Xdirection == -1.0) // -- go back
-            {
-              vPointi.z = maxPoint.z;
-              isAbleToSeeMesh = isIn2DBound(&minPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
-              //printf("Xdirection-(%d) :%d\n",i,isAbleToSeeMesh);
-            }
-            if (Zdirection == 1.0) // ++ go ahead
-            {
-              vPointi.x = minPoint.x;
-              isAbleToSeeMesh = isAbleToSeeMesh && isIn2DBound(&maxPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
-              //printf("Zdirection+(%d) :%d\n",i,isAbleToSeeMesh);
-            }
-            else if (Zdirection == -1.0) // -- go back
-            {
-              vPointi.x = maxPoint.x;
-              isAbleToSeeMesh = isAbleToSeeMesh && isIn2DBound(&minPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
-              //printf("Zdirection-(%d) :%d\n",i,isAbleToSeeMesh);
-            }
-            setTranslateMesh(meshes[i].id,meshes[i].xPos, meshes[i].yPos, meshes[i].zPos);
+
+            setTranslateMesh(meshes[i].id,meshes[i].posV.x, meshes[i].posV.y, meshes[i].posV.z);
             changeStatusAndPrintInfo(&(meshes[i]),isAbleToSeeMesh,1); // 0 not print info , 1 print inf
 
           }
@@ -3718,71 +3842,64 @@ struct Pointf vectorBetween2Points(struct Pointf *p1,struct Pointf *p2)
 void findVisibilityAreaOfViewPos(struct Point *maxPoint,struct Point *minPoint)
 {
   // referent values
-  static struct Point radianRef;
-  static struct Pointf directionV;
-  static float deltaRadian = 0.0;
-
-  float newDelta = 0.0;
-  struct Pointf vPoint;
+  struct visiblityControlVal *obj = &visibilityMananger;
   static struct Pointf vPointTemp;
-  struct Pointf vOldPoint;
+  static struct Point mousePTemp; 
+
+  int stopPoint = 0;
+  float newDelta = 0.0;
+  struct Point mouseP; 
   struct Point refPoint;
+  struct Pointf vPoint;
+  struct Pointf vOldPoint;
+  struct Pointf directionV;
+  struct Pointf newVect3;
+
+  // read the current position values of view point
   getAndConvertViewPos(&vPoint);
   getAndConvertOldViewPos(&vOldPoint);
-  struct Point mouseP; 
-  static struct Point mousePt; 
-  getMousePos(&mouseP);
-  const float piRadian = 180.0/3.141592;
+  getMousePos(&mouseP); 
 
-  float magnitudeVector = 0.0;
-      struct Pointf newVect3;
-  if (currentKeyPressed == 'w')
+  updateVisibilityControlVal(obj);
+  if (!(comparePointis(&mouseP,&mousePTemp)&& comparePointfs(&vPoint,&vPointTemp)))
   {
-
-      struct Pointf delVect1;
-      struct Pointf delVect2;
-
-      getMousePos(&radianRef);
-      directionV = vectorBetween2Points(&vOldPoint,&vPoint);
-      magnitudeVector = sqrt(directionV.x*directionV.x + directionV.z*directionV.z);
-      deltaRadian = findRadian(directionV.x,directionV.z);
-      printf("mag:%f  U(%f,%f) R(%f,%f) %f\n",magnitudeVector,directionV.x/magnitudeVector,directionV.z/magnitudeVector,180*asin(directionV.x/magnitudeVector)/3.141592,180*acos(directionV.z/magnitudeVector)/3.141592,180*deltaRadian/3.141592);
-      // check previous and current of the view point
-      // clear buffer
-      currentKeyPressed = 0;
-
-      // find end point
-      ///jjjjjjj
-/*
-#define NO_MAP 2
-#define FOG_MAP 0
-#define FULL_MAP 1
-*/
-      //displayMap
-     // if((displayMap == FOG_MAP) &&(magnitudeVector > 0)) world[(int)(vPoint.x+directionV.x/magnitudeVector)][(int)vPoint.y][(int)(vPoint.z+directionV.z/magnitudeVector)] =2;
-     delVect1.x = directionV.x/magnitudeVector;
-     delVect1.z = directionV.z/magnitudeVector;
-     delVect2.x = (1.0)*(directionV.x >0)+(-1.0)*(directionV.x < 0);
-     delVect2.z = (1.0)*(directionV.z >0)+(-1.0)*(directionV.z < 0);
-
-     printf("Front(%d,%d) == (%d,%d)  sin/cos(%f,%f) artan0:%f\n",(int)(vPoint.x+delVect1.x),(int)(vPoint.z+delVect1.z),(int)(vPoint.x)+(int)delVect2.x,(int)(vPoint.z)+(int)delVect2.z,delVect1.x,delVect1.z,atan(0));
-  }
-  if (!(comparePointis(&mouseP,&mousePt)&& comparePointfs(&vPoint,&vPointTemp)))
-  {
-
-     newDelta =   deltaRadian + (mouseP.y-radianRef.y)/piRadian;
+    printf("VD(%3.2f,%3.2f) refRad:%2.2f, deltaRad:%2.2f\n",obj->directionVector.x,obj->directionVector.z,obj->refRadian,obj->deltaRadian);
+     newDelta =   obj->refRadian + obj->deltaRadian;
      newVect3.x = (vPoint.x + cos(newDelta));
      newVect3.z = (vPoint.z + sin(newDelta));
-     printf("delta:%f, newDel:%f deltaRadian:%f mouseRadDiff:%f\n",deltaRadian*piRadian,newDelta*piRadian,deltaRadian,(mouseP.y-radianRef.y)/piRadian);
+   //  printf("delta:%f, newDel:%f deltaRadian:%f mouseRadDiff:%f\n",deltaRadian*piRadian,newDelta*PI_RADIAN,deltaRadian,(mouseP.y-radianRef.y)/PI_RADIAN);
  //   printf("RM(%d%s%d,%d%s%d) ",radianRef.x,((radianRef.x>mouseP.x)?"":"+"),mouseP.x-radianRef.x,radianRef.y,((radianRef.y>mouseP.y)?"":"+"),mouseP.y-radianRef.y);
-    printf("RP(%3.2f%s%3.2f,%3.2f%s%3.2f)",vPoint.x,((directionV.x<0)?"":"+"),directionV.x,vPoint.z,((directionV.z<0)?"":"+"),directionV.z);
-    printf("nP(%3.2f,%3.2f) sin/cos(%f,%f)\n",newVect3.x,newVect3.z, cos(newDelta),sin(newDelta));
+   // printf("RP(%3.2f%s%3.2f,%3.2f%s%3.2f)",vPoint.x,((directionV.x<0)?"":"+"),directionV.x,vPoint.z,((directionV.z<0)?"":"+"),directionV.z);
+   // printf("nP(%3.2f,%3.2f) sin/cos(%f,%f)\n",newVect3.x,newVect3.z, cos(newDelta),sin(newDelta));
+    stopPoint = 0;
+    float count = 1.0;
+    while(stopPoint == 0)
+    {//int isIn1DBound(const float max,const float min,const float val)
+      if((isIn1DBound(99.0,0.0,newVect3.x)==0)||(isIn1DBound(99.0,0.0,newVect3.z)==0))
+      {
+        newVect3.x = (vPoint.x + cos(newDelta));
+        newVect3.z = (vPoint.z + sin(newDelta));
+         if(displayMap == FOG_MAP)printf("kkkkk (%f,%f) \n",newVect3.x,newVect3.z);
+        stopPoint = 1;
+      }
+      else if ( world[(int)newVect3.x][(int)vPoint.y][(int)newVect3.z] == 0)
+      {
+         newVect3.x = (vPoint.x + count*cos(newDelta));
+         newVect3.z = (vPoint.z + count*sin(newDelta));
+         count++;
+         if(displayMap == FOG_MAP)printf("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb (%f,%f) \n",newVect3.x,newVect3.z);
+      }
+      else
+      {
+          stopPoint =1;
+      }
+    }
     if(displayMap == FOG_MAP) world[(int)newVect3.x][(int)vPoint.y][(int)newVect3.z] =2;
 
 
    // printf("RM(%d%s%d,%d%s%d) pos(%f,%f,%f) VD(%3.2f,%3.2f)\n",mouseP.x-radianRef.x,mouseP.y-radianRef.y,radianRef.x,radianRef.y,vPoint.x,vPoint.y,vPoint.z,directionV.x,directionV.z);
     vPointTemp = vPoint;
-    mousePt = mouseP;
+    mousePTemp = mouseP;
   }
 }
 
