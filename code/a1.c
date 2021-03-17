@@ -393,10 +393,11 @@ void getAndConvertOldViewPos(struct Pointf *obj);
 void convertPointfToPointi(struct Pointf *obj1,struct Point *obj2);
 void getMousePos(struct Point *obj);
 int comparePointfs(struct Pointf *obj1,struct Pointf *obj2);
+int comparePointfsAsInt(struct Pointf *obj1,struct Pointf *obj2);
 int comparePointis(struct Point *obj1,struct Point *obj2);
-float findRadian(const float x,const float z);
-void findVisibilityAreaOfViewPos(struct Point *maxPoint,struct Point *minPoint);
+float findRadian(const float x,const float z); 
 void updateVisibilityControlVal(struct visiblityControlVal *obj);
+int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,struct aMesh *meshes);
 void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Point *stopP);
 void getStairOfUndergroundWolrd(struct Underground *obj,int upOrDownStair,struct Point *startP,struct Point *stopP); // 0 = up, 1 = down
 void SetMAXandMINPoint(const int **MaxPoint, const int **MinPoint, const int *P1, const int *P2);
@@ -443,12 +444,14 @@ int floorStyle1(int originalColor,int x,int y,int z);
 int getMaxMinAtTerrainPoint(const unsigned char terrain[WORLDX][WORLDZ],const struct Point *refP,int direction,int *maxVal,int *minVal);
 int readTerrain(const unsigned char terrain[WORLDX][WORLDZ],const int x,const int z);
 int isIn3DBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref); // yes = 1, otherwise = 0
+int isIn3DfBound(const struct Pointf *startP,const struct Pointf *stopP,const struct Pointf *ref); // yes = 1, otherwise = 0
 int isIn2DBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref); // yes = 1, otherwise = 0
 int isIn2DBoundPoint2D(const struct Point2D *startP,const struct Point2D *stopP,const struct Point2D *ref); // yes = 1, otherwise = 0
 int isIn1DBound(const float max,const float min,const float val); // yes = 1, otherwise = 0
 int boundValue(int max,int min,int originValue);
 int findMaxValue(int a,int b);
 int findMinValue(int a,int b);
+float dotProductOfPoint3D(struct Pointf *a,struct Pointf *b);
 void plotWolrd(GLubyte world[WORLDX][WORLDY][WORLDZ],const struct Point aPoint,const unsigned char value);
 void printPoint(const struct Point P1,const char *str);
 
@@ -1720,6 +1723,11 @@ int corridorsAndHallWayTextureStyle(int originalColor,int x,int y,int z)
 } 
 
 
+float dotProductOfPoint3D(struct Pointf *a,struct Pointf *b)
+{
+  return (a->x)*(b->x)+(a->y)*(b->y)+(a->z)*(b->z);
+}
+
 
 int findMaxValue(int a,int b)
 {
@@ -2404,6 +2412,14 @@ void generateTerrain(struct OnGround *obj,unsigned char terrain[WORLDX][WORLDZ],
       obj->lowestLv = minHeight;
 }
 
+int isIn3DfBound(const struct Pointf *startP,const struct Pointf *stopP,const struct Pointf *ref) // yes = 1, otherwise = 0
+{
+   int isInX = (ref->x >= findMinValue(startP->x,stopP->x)) && (ref->x <= findMaxValue(startP->x,stopP->x));
+   int isInY = (ref->y >= findMinValue(startP->y,stopP->y)) && (ref->y <= findMaxValue(startP->y,stopP->y));
+   int isInZ = (ref->z >= findMinValue(startP->z,stopP->z)) && (ref->z <= findMaxValue(startP->z,stopP->z));
+   return ((isInX+isInY+isInZ) == 3);
+}
+
 int isIn3DBound(const struct Point *startP,const struct Point *stopP,const struct Point *ref) // yes = 1, otherwise = 
 {
    int isInX = (ref->x >= findMinValue(startP->x,stopP->x)) && (ref->x <= findMaxValue(startP->x,stopP->x));
@@ -2925,6 +2941,11 @@ void getAndConvertOldViewPos(struct Pointf *obj)
    obj->z = (-1.0)*(zvf);
 }
 
+
+int comparePointfsAsInt(struct Pointf *obj1,struct Pointf *obj2)
+{
+  return ((((int)obj1->x) == ((int)obj2->x)) && (((int)obj1->y) == ((int)obj2->y)) && (((int)obj1->z) == ((int)obj2->z)));
+}
 
 int comparePointfs(struct Pointf *obj1,struct Pointf *obj2)
 {
@@ -3588,12 +3609,81 @@ void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom,int reduceIdVal)
 
       obj->posV.x = getRandomNumber(obj->startArea.x,obj->stopArea.x);
       obj->posV.z = getRandomNumber(obj->startArea.z,obj->stopArea.z);
-      setMeshID(obj->id, obj->type, obj->posV.x, obj->posV.y, obj->posV.x);
+      setMeshID(obj->id, obj->type, obj->posV.x, obj->posV.y, obj->posV.z);
       hideMesh(obj->id);
     }
 
 }
 
+int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,struct aMesh *meshes)
+{
+  int ret = 0;
+  struct Pointf vPoint  = {0.0,0.0,0.0};
+  struct Pointf meshVector = {0.0,0.0,0.0};
+  struct Pointf trackVector = {0.0,0.0,0.0};
+  struct Pointf newDirectionVect = {0.0,0.0,0.0};
+  int isNeighborMesh = obj->isNeighborArea[meshIndex];
+  float meshRadian = 0.0;
+  float isInFront = -1.0;
+
+  float newRadian = 0.0;
+  float count = 1.0;
+  int stopPoint = 0;
+
+  // read the current position values of view point
+  getAndConvertViewPos(&vPoint);
+  newRadian =   obj->refRadian + obj->deltaRadian;
+  if (isNeighborMesh == 1)
+  {
+    newDirectionVect.x = cos(newRadian);
+    newDirectionVect.z = sin(newRadian);
+    meshVector = vectorBetween2Points(&vPoint,&(meshes[meshIndex].posV));
+    newDirectionVect.y = meshVector.y;
+    meshRadian =  findRadian(meshVector.x,meshVector.z);
+    isInFront = dotProductOfPoint3D(&meshVector,&newDirectionVect);
+    //if((isInFront< 0.0) && (meshIndex ==obj->indexArea ))
+    //printf("vPId:%d (%3.2f,%3.2f) mash(%3.2f,%3.2f), isNeighbor:%d, inFront:%3.2f\n",obj->indexArea,newDirectionVect.x,newDirectionVect.z,meshVector.x,meshVector.z,meshIndex,isInFront);
+  }
+
+  if (isInFront >= 0.0)
+  {
+      trackVector.x = vPoint.x;
+      trackVector.z = vPoint.z;
+      trackVector.y = meshes[meshIndex].posV.y;
+      stopPoint = 0;
+      while(stopPoint == 0)
+      {//int isIn1DBound(const float max,const float min,const float val)
+        if((isIn1DBound(99.0,0.0,trackVector.x)==0)||(isIn1DBound(99.0,0.0,trackVector.z)==0))
+        {
+          stopPoint = 1;
+        }
+        else if (comparePointfsAsInt(&trackVector,&(meshes[meshIndex].posV)) == 1)
+        {
+          stopPoint = 1;
+          ret = 1;
+        //  printf("ret:%d, meshIndex:%d \n",ret,meshIndex);
+        }
+        else if ( world[(int)trackVector.x][(int)vPoint.y][(int)trackVector.z] == 0)
+        {
+          trackVector.x = (vPoint.x + count*cos(meshRadian));
+          trackVector.z = (vPoint.z + count*sin(meshRadian));
+         //   if( (meshIndex ==obj->indexArea ))  printf("mid:%d mesh:(%3.2f,%3.2f)trck:(%3.2f,%3.2f) vp(%3.2f,%3.2f)\n",meshIndex,meshes[meshIndex].posV.x,meshes[meshIndex].posV.z,trackVector.x,trackVector.z,vPoint.x,vPoint.z);
+          count = 0.125 + count;
+        }
+        else
+        {
+          //ret=1;
+
+  //  if( (meshIndex ==obj->indexArea ))
+  //       printf("Speci mid:%d mesh:(%3.2f,%3.2f)trck:(%3.2f,%3.2f) vp(%3.2f,%3.2f) wolrd:%d\n",meshIndex,meshes[meshIndex].posV.x,meshes[meshIndex].posV.z,trackVector.x,trackVector.z,vPoint.x,vPoint.z, world[(int)trackVector.x][(int)vPoint.y][(int)trackVector.z]);
+          stopPoint =1;
+        }
+      }
+
+  }
+  return ret;
+
+}
 void updateVisibilityControlVal(struct visiblityControlVal *obj)
 {
   struct Pointf vPoint  = {0.0,0.0,0.0};
@@ -3674,51 +3764,32 @@ void updateVisibilityControlVal(struct visiblityControlVal *obj)
 }
 void moveMesh(struct Underground *obj,const float second)
 {       
-      int i;
-      int roomIndex = 0;
+      int i; 
       int isAbleToSeeMesh = 0;
       static clock_t meshMovingRefTime = 0;
       const float timeUpdate = second;
       static float currentMeshTime = 0;
 
-     float margin = 0.4;
-     static float Xdirection = 0; // - , + or 0
-     static float Zdirection = 0; // - , + or 0
+     float margin = 0.4; 
      struct Point maxPoint = {-1,-1,-1};
-     struct Point minPoint = {-1,-1,-1};
-      struct Point vPointi = {0,0,0};
-      struct Pointf vPoint = {0.0,0.0,0.0};
-      static struct Pointf vPointTemp;
-      struct Pointf vOldPoint;
-      struct Point refPoint;
-     getAndConvertViewPos(&vPoint);
-     getAndConvertOldViewPos(&vOldPoint);
-     vPointi = (struct Point){(int)vPoint.x,(int)vPoint.y,(int)vPoint.z};
+     struct Point minPoint = {-1,-1,-1}; 
 
-     // When user presses 'w', the vector has value and the visibility test can work
-     if (currentKeyPressed == 'w')
-     {
-       // check previous and current of the view point
-       Xdirection =  (vPoint.x > vOldPoint.x) + (-1) *(vPoint.x < vOldPoint.x);
-       Zdirection =  (vPoint.z > vOldPoint.z) + (-1)* (vPoint.z < vOldPoint.z);
-       // clear buffer
-      // currentKeyPressed = 0;
-     }
+ 
 
       struct aMesh *meshes = obj->m_meshes;
-      findVisibilityAreaOfViewPos(&maxPoint,&minPoint);
+      updateVisibilityControlVal(&visibilityMananger);
       currentMeshTime = ((float)(clock()-meshMovingRefTime))/CLOCKS_PER_SEC;
       if (currentMeshTime > timeUpdate)
       {      
 
-        roomIndex = findViewPointIsWhichRoom2D(&(obj->m_a2DMap));
-        if(isIn1DBound((float)(DEFAULT_NUM_ROOM-1),0,roomIndex))
-          findStartAndStopPointOfARoom(&(obj->m_rooms[roomIndex]),&maxPoint,&minPoint);
-      //  else printf("index Room for mesh : %d\n",roomIndex);
+ 
 
          meshMovingRefTime = clock();
           for(i = 0;i < DEFAULT_NUM_ROOM;i++)
           {
+
+
+            isAbleToSeeMesh = testVisibilityOfAMesh(&visibilityMananger,i,obj->m_meshes);
             // move the mesh according to the direction
             if(meshes[i].currentDirection == EAST)
             {
@@ -3746,39 +3817,6 @@ void moveMesh(struct Underground *obj,const float second)
             if(meshes[i].posV.z >= meshes[i].stopArea.z) meshes[i].currentDirection = SOUTH;
             if(meshes[i].posV.z <= meshes[i].startArea.z) meshes[i].currentDirection = NORTH;
 
-            refPoint.x = (int)meshes[i].posV.x;
-            refPoint.z = (int)meshes[i].posV.z;
-
-            // if it is in the same room of view point or the neighbor room
-            isAbleToSeeMesh =  (visibilityMananger.isNeighborArea[i] == 1);
-            if (isAbleToSeeMesh==1)
-            {              
-
-              if (Xdirection == 1.0) // ++ go ahead
-              {
-                vPointi.z = minPoint.z;
-                isAbleToSeeMesh = isIn2DBound(&maxPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
-                //printf("Xdirection+(%d) :%d\n",i,isAbleToSeeMesh);
-              }
-              else if (Xdirection == -1.0) // -- go back
-              {
-                vPointi.z = maxPoint.z;
-                isAbleToSeeMesh = isIn2DBound(&minPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
-                //printf("Xdirection-(%d) :%d\n",i,isAbleToSeeMesh);
-              }
-              if (Zdirection == 1.0) // ++ go ahead
-              {
-                vPointi.x = minPoint.x;
-                isAbleToSeeMesh = isAbleToSeeMesh && isIn2DBound(&maxPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
-                //printf("Zdirection+(%d) :%d\n",i,isAbleToSeeMesh);
-              }
-              else if (Zdirection == -1.0) // -- go back
-              {
-                vPointi.x = maxPoint.x;
-                isAbleToSeeMesh = isAbleToSeeMesh && isIn2DBound(&minPoint,&vPointi,&refPoint); // yes = 1, otherwise = 0
-                //printf("Zdirection-(%d) :%d\n",i,isAbleToSeeMesh);
-              }
-            }
 
             setTranslateMesh(meshes[i].id,meshes[i].posV.x, meshes[i].posV.y, meshes[i].posV.z);
             changeStatusAndPrintInfo(&(meshes[i]),isAbleToSeeMesh,1); // 0 not print info , 1 print inf
@@ -3837,70 +3875,6 @@ void userDefinedkeyboard(unsigned char key, int x, int y)
 struct Pointf vectorBetween2Points(struct Pointf *p1,struct Pointf *p2)
 {
   return (struct Pointf){p2->x-p1->x,p2->y-p1->y,p2->z-p1->z};
-}
-
-void findVisibilityAreaOfViewPos(struct Point *maxPoint,struct Point *minPoint)
-{
-  // referent values
-  struct visiblityControlVal *obj = &visibilityMananger;
-  static struct Pointf vPointTemp;
-  static struct Point mousePTemp; 
-
-  int stopPoint = 0;
-  float newDelta = 0.0;
-  struct Point mouseP; 
-  struct Point refPoint;
-  struct Pointf vPoint;
-  struct Pointf vOldPoint;
-  struct Pointf directionV;
-  struct Pointf newVect3;
-
-  // read the current position values of view point
-  getAndConvertViewPos(&vPoint);
-  getAndConvertOldViewPos(&vOldPoint);
-  getMousePos(&mouseP); 
-
-  updateVisibilityControlVal(obj);
-  if (!(comparePointis(&mouseP,&mousePTemp)&& comparePointfs(&vPoint,&vPointTemp)))
-  {
-    printf("VD(%3.2f,%3.2f) refRad:%2.2f, deltaRad:%2.2f\n",obj->directionVector.x,obj->directionVector.z,obj->refRadian,obj->deltaRadian);
-     newDelta =   obj->refRadian + obj->deltaRadian;
-     newVect3.x = (vPoint.x + cos(newDelta));
-     newVect3.z = (vPoint.z + sin(newDelta));
-   //  printf("delta:%f, newDel:%f deltaRadian:%f mouseRadDiff:%f\n",deltaRadian*piRadian,newDelta*PI_RADIAN,deltaRadian,(mouseP.y-radianRef.y)/PI_RADIAN);
- //   printf("RM(%d%s%d,%d%s%d) ",radianRef.x,((radianRef.x>mouseP.x)?"":"+"),mouseP.x-radianRef.x,radianRef.y,((radianRef.y>mouseP.y)?"":"+"),mouseP.y-radianRef.y);
-   // printf("RP(%3.2f%s%3.2f,%3.2f%s%3.2f)",vPoint.x,((directionV.x<0)?"":"+"),directionV.x,vPoint.z,((directionV.z<0)?"":"+"),directionV.z);
-   // printf("nP(%3.2f,%3.2f) sin/cos(%f,%f)\n",newVect3.x,newVect3.z, cos(newDelta),sin(newDelta));
-    stopPoint = 0;
-    float count = 1.0;
-    while(stopPoint == 0)
-    {//int isIn1DBound(const float max,const float min,const float val)
-      if((isIn1DBound(99.0,0.0,newVect3.x)==0)||(isIn1DBound(99.0,0.0,newVect3.z)==0))
-      {
-        newVect3.x = (vPoint.x + cos(newDelta));
-        newVect3.z = (vPoint.z + sin(newDelta));
-         if(displayMap == FOG_MAP)printf("kkkkk (%f,%f) \n",newVect3.x,newVect3.z);
-        stopPoint = 1;
-      }
-      else if ( world[(int)newVect3.x][(int)vPoint.y][(int)newVect3.z] == 0)
-      {
-         newVect3.x = (vPoint.x + count*cos(newDelta));
-         newVect3.z = (vPoint.z + count*sin(newDelta));
-         count++;
-         if(displayMap == FOG_MAP)printf("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb (%f,%f) \n",newVect3.x,newVect3.z);
-      }
-      else
-      {
-          stopPoint =1;
-      }
-    }
-    if(displayMap == FOG_MAP) world[(int)newVect3.x][(int)vPoint.y][(int)newVect3.z] =2;
-
-
-   // printf("RM(%d%s%d,%d%s%d) pos(%f,%f,%f) VD(%3.2f,%3.2f)\n",mouseP.x-radianRef.x,mouseP.y-radianRef.y,radianRef.x,radianRef.y,vPoint.x,vPoint.y,vPoint.z,directionV.x,directionV.z);
-    vPointTemp = vPoint;
-    mousePTemp = mouseP;
-  }
 }
 
 
