@@ -1801,6 +1801,10 @@ void createUnderground(struct Underground *obj)
    int i =0;
    int protectInfinityLoopVal = 30;
 
+   // initial visiblity test manager
+   visibilityMananger.indexArea = -1;
+
+
    flycontrol = 0;
    makeWorld();
    //ground custom colors (brown and light brown)
@@ -3602,11 +3606,12 @@ void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom,int reduceIdVal)
       obj->currentDirection = getRandomNumber(WEST,NORTH);
       obj->startArea = (struct Point){startP.x+1,startP.y,startP.z+1};
       obj->stopArea = (struct Point){startP.x+1+getRandomNumber(2,4),startP.y,startP.z+1+getRandomNumber(2,4)};
-      obj->xVelocity = MESH_X_MIN_VELOCITY + (MESH_X_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
+      obj->xVelocity = MESH_X_MIN_VELOCITY + (MESH_X_MAX_VELOCITY - MESH_X_MIN_VELOCITY)/(float)getRandomNumber(1,10);
       obj->zVelocity = MESH_Z_MIN_VELOCITY + (MESH_Z_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
       obj->state = 0; // hide
       obj->posV.y = obj->startArea.y;
 
+      world[obj->startArea.x][obj->startArea.y][obj->startArea.z] = 2;
       obj->posV.x = getRandomNumber(obj->startArea.x,obj->stopArea.x);
       obj->posV.z = getRandomNumber(obj->startArea.z,obj->stopArea.z);
       setMeshID(obj->id, obj->type, obj->posV.x, obj->posV.y, obj->posV.z);
@@ -3633,6 +3638,9 @@ int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,st
   // read the current position values of view point
   getAndConvertViewPos(&vPoint);
   newRadian =   obj->refRadian + obj->deltaRadian;
+
+  // if it is a Neughbor or the same room mesh, then we check whether that it is in front of view point or not 
+  //  by dot product between the direction vector of point view and mesh vector
   if (isNeighborMesh == 1)
   {
     newDirectionVect.x = cos(newRadian);
@@ -3641,44 +3649,42 @@ int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,st
     newDirectionVect.y = meshVector.y;
     meshRadian =  findRadian(meshVector.x,meshVector.z);
     isInFront = dotProductOfPoint3D(&meshVector,&newDirectionVect);
-    //if((isInFront< 0.0) && (meshIndex ==obj->indexArea ))
-    //printf("vPId:%d (%3.2f,%3.2f) mash(%3.2f,%3.2f), isNeighbor:%d, inFront:%3.2f\n",obj->indexArea,newDirectionVect.x,newDirectionVect.z,meshVector.x,meshVector.z,meshIndex,isInFront);
   }
 
+  // if it is in front of view point, check that view point can see it without obstrucle or wall, cube convers  the mesh
   if (isInFront >= 0.0)
   {
       trackVector.x = vPoint.x;
       trackVector.z = vPoint.z;
-      trackVector.y = meshes[meshIndex].posV.y;
       stopPoint = 0;
-      while(stopPoint == 0)
-      {//int isIn1DBound(const float max,const float min,const float val)
-        if((isIn1DBound(99.0,0.0,trackVector.x)==0)||(isIn1DBound(99.0,0.0,trackVector.z)==0))
+         while(stopPoint == 0)
         {
-          stopPoint = 1;
+          if((isIn1DBound(99.0,0.0,trackVector.x)==0)||(isIn1DBound(99.0,0.0,trackVector.z)==0))
+          {
+            stopPoint = 1;
+          }
+          // MOB can be found in the cicle area redius =1.75 cell  (but fish's lenth is around 2 cell)
+          else if (pow(pow(meshes[meshIndex].posV.x-trackVector.x ,2)+pow(meshes[meshIndex].posV.z - trackVector.z ,2),0.5) < 1.75)
+          {            
+            stopPoint = 1;
+            ret = 1;
+          }
+          else if (comparePointfsAsInt(&trackVector,&(meshes[meshIndex].posV)) == 1)
+          {
+            stopPoint = 1;
+            ret = 1;
+          }
+          else if ( world[(int)trackVector.x][(int)vPoint.y][(int)trackVector.z] == 0)
+          {
+            trackVector.x = (vPoint.x + count*cos(meshRadian));
+            trackVector.z = (vPoint.z + count*sin(meshRadian));
+            count = 0.125 + count;
+          }
+          else
+          {
+             stopPoint =1;
+          }
         }
-        else if (comparePointfsAsInt(&trackVector,&(meshes[meshIndex].posV)) == 1)
-        {
-          stopPoint = 1;
-          ret = 1;
-        //  printf("ret:%d, meshIndex:%d \n",ret,meshIndex);
-        }
-        else if ( world[(int)trackVector.x][(int)vPoint.y][(int)trackVector.z] == 0)
-        {
-          trackVector.x = (vPoint.x + count*cos(meshRadian));
-          trackVector.z = (vPoint.z + count*sin(meshRadian));
-         //   if( (meshIndex ==obj->indexArea ))  printf("mid:%d mesh:(%3.2f,%3.2f)trck:(%3.2f,%3.2f) vp(%3.2f,%3.2f)\n",meshIndex,meshes[meshIndex].posV.x,meshes[meshIndex].posV.z,trackVector.x,trackVector.z,vPoint.x,vPoint.z);
-          count = 0.125 + count;
-        }
-        else
-        {
-          //ret=1;
-
-  //  if( (meshIndex ==obj->indexArea ))
-  //       printf("Speci mid:%d mesh:(%3.2f,%3.2f)trck:(%3.2f,%3.2f) vp(%3.2f,%3.2f) wolrd:%d\n",meshIndex,meshes[meshIndex].posV.x,meshes[meshIndex].posV.z,trackVector.x,trackVector.z,vPoint.x,vPoint.z, world[(int)trackVector.x][(int)vPoint.y][(int)trackVector.z]);
-          stopPoint =1;
-        }
-      }
 
   }
   return ret;
@@ -3791,6 +3797,7 @@ void moveMesh(struct Underground *obj,const float second)
 
             isAbleToSeeMesh = testVisibilityOfAMesh(&visibilityMananger,i,obj->m_meshes);
             // move the mesh according to the direction
+            
             if(meshes[i].currentDirection == EAST)
             {
               meshes[i].posV.x += meshes[i].xVelocity/(float)getRandomNumber(1,2);
