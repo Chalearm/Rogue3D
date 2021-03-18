@@ -265,6 +265,7 @@ struct aMesh
   int type;
   int state; // 0 = hide, 1 = show
   int currentDirection;
+  int directionCounter; // count to change the direction
   struct Point startArea;
   struct Point stopArea;
   // current position
@@ -325,10 +326,10 @@ struct OnGround
 
 #define PI_RADIAN 57.295779513   // 180/PI
 // default mesh attribute defined area
-#define MESH_X_MIN_VELOCITY 0.05
-#define MESH_X_MAX_VELOCITY 0.3
-#define MESH_Z_MIN_VELOCITY 0.05
-#define MESH_Z_MAX_VELOCITY 0.3
+#define MESH_X_MIN_VELOCITY 5
+#define MESH_X_MAX_VELOCITY 40
+#define MESH_Z_MIN_VELOCITY 5
+#define MESH_Z_MAX_VELOCITY 40
 
 // ********** End of default mesh attribute defined area
 // Texture id defined area
@@ -869,8 +870,29 @@ float x, y, z;
             fallState = 0;
             newY = floorLv + 1.0;
          }
+         //qqq   DEFAULT_LOWEST_CLOUD
          if ((newY < (floorLv + 1)) || (newY > 49.0))
+         {
             newY = floorLv + 1.0;
+         }
+         else if (world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz] == 0)
+         {
+            int hight = (-1)*(int)vpy;
+            int highest = hight +5;
+            int index = 0;
+            for (index = hight+1; index < highest;index++)
+            {
+                if (index >= DEFAULT_LOWEST_CLOUD)
+                {
+                  index = highest;
+                }
+                else if (world[-1 * (int)vpx][index][-1 * (int)vpz] == 1) // green filed only
+                {
+                  newY = index+1;
+                  index = highest;
+                }
+            }
+         }
          setViewPosition(vpx, newY * (-1.0), vpz);
       }
 
@@ -3605,13 +3627,14 @@ void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom,int reduceIdVal)
       findStartAndStopPointOfARoom(aRoom,&stopP,&startP);
       obj->currentDirection = getRandomNumber(WEST,NORTH);
       obj->startArea = (struct Point){startP.x+1,startP.y,startP.z+1};
-      obj->stopArea = (struct Point){startP.x+1+getRandomNumber(2,4),startP.y,startP.z+1+getRandomNumber(2,4)};
-      obj->xVelocity = MESH_X_MIN_VELOCITY + (MESH_X_MAX_VELOCITY - MESH_X_MIN_VELOCITY)/(float)getRandomNumber(1,10);
-      obj->zVelocity = MESH_Z_MIN_VELOCITY + (MESH_Z_MAX_VELOCITY - MESH_Z_MIN_VELOCITY)/(float)getRandomNumber(1,10);
+      obj->stopArea = (struct Point){stopP.x-1,startP.y,stopP.z-1};
+      obj->xVelocity = ((float)getRandomNumber(MESH_X_MIN_VELOCITY,MESH_X_MAX_VELOCITY))/100.0;
+      obj->zVelocity = ((float)getRandomNumber(MESH_Z_MIN_VELOCITY,MESH_Z_MAX_VELOCITY))/100.0;
       obj->state = 0; // hide
       obj->posV.y = obj->startArea.y;
 
-      world[obj->startArea.x][obj->startArea.y][obj->startArea.z] = 2;
+      world[obj->startArea.x][obj->startArea.y][obj->startArea.z] = 1;
+      world[obj->stopArea.x][obj->stopArea.y][obj->stopArea.z] = 3;
       obj->posV.x = getRandomNumber(obj->startArea.x,obj->stopArea.x);
       obj->posV.z = getRandomNumber(obj->startArea.z,obj->stopArea.z);
       setMeshID(obj->id, obj->type, obj->posV.x, obj->posV.y, obj->posV.z);
@@ -3797,7 +3820,13 @@ void moveMesh(struct Underground *obj,const float second)
 
             isAbleToSeeMesh = testVisibilityOfAMesh(&visibilityMananger,i,obj->m_meshes);
             // move the mesh according to the direction
-            
+            if ((meshes[i].directionCounter <= 0) || (meshes[i].directionCounter > 100))
+            {
+              meshes[i].currentDirection = getRandomNumber(WEST,NORTH);
+              meshes[i].directionCounter = getRandomNumber(3,100);
+              meshes[i].xVelocity =  ((float)getRandomNumber(MESH_X_MIN_VELOCITY,MESH_X_MAX_VELOCITY))/100.0;
+              meshes[i].zVelocity =  ((float)getRandomNumber(MESH_Z_MIN_VELOCITY,MESH_Z_MAX_VELOCITY))/100.0;
+            }
             if(meshes[i].currentDirection == EAST)
             {
               meshes[i].posV.x += meshes[i].xVelocity/(float)getRandomNumber(1,2);
@@ -3818,7 +3847,7 @@ void moveMesh(struct Underground *obj,const float second)
               meshes[i].posV.x += meshes[i].xVelocity/(float)getRandomNumber(7,10);
               meshes[i].posV.z += meshes[i].zVelocity/(float)getRandomNumber(1,2); 
             }
-
+            meshes[i].directionCounter--;
             if(meshes[i].posV.x >= meshes[i].stopArea.x) meshes[i].currentDirection = WEST;
             if(meshes[i].posV.x <= meshes[i].startArea.x) meshes[i].currentDirection = EAST;
             if(meshes[i].posV.z >= meshes[i].stopArea.z) meshes[i].currentDirection = SOUTH;
