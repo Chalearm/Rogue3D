@@ -269,11 +269,9 @@ struct aMesh
   int directionCounter; // count to change the direction
   struct Point startArea;
   struct Point stopArea;
+  struct Point randomDestination; // for fish
   // current position
   struct Pointf posV;
-  float xVelocity;
-  float zVelocity;
-
 
   // for bat 
   int areaOfBatIndex;
@@ -281,6 +279,14 @@ struct aMesh
   int currentAreaIndex;
   int areaDestinationIndex; 
   int journeyState;
+
+  int xMoveState;
+  int zMoveState;
+
+  int xPlayerMoveState;
+  int zPlayerMoveState;
+
+  int turnState; // 0 Player, 1 mesh
 
 };
 struct Underground
@@ -335,11 +341,7 @@ struct OnGround
 };
 
 #define PI_RADIAN 57.295779513   // 180/PI
-// default mesh attribute defined area
-#define MESH_X_MIN_VELOCITY 5
-#define MESH_X_MAX_VELOCITY 40
-#define MESH_Z_MIN_VELOCITY 5
-#define MESH_Z_MAX_VELOCITY 40
+
 
 // ********** End of default mesh attribute defined area
 // Texture id defined area
@@ -401,6 +403,7 @@ struct Point2D convert3DPointTo2DPoint(const struct Point *obj);
 
 // Mesh function
 void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom,int reduceIdVal);
+void fightingWithMeshes(struct Underground *obj,const float turnBasedTime);
 void changeStatusAndPrintInfo(struct aMesh *obj,int state,int option); // 0 not print info , 1 print info
  
 void userDefinedkeyboard(unsigned char key, int x, int y);
@@ -458,7 +461,7 @@ void fishMove(struct aMesh *obj);
 void batMove(struct aMesh *obj,struct Underground *uObj);
 void visibilityTestOfMesh(struct aMesh *obj,struct Underground *uObj);
 void directionRandomMoveOfAMesh(struct aMesh *obj);
-void randomSearchOfMesh();
+int collsionResponseForMeshes(struct Underground *obj);
 
 void generateTerrain(struct OnGround *obj,unsigned char terrain[WORLDX][WORLDZ], const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
 void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point *northWestP, struct Point *northEastP, struct Point *southEastP);
@@ -652,7 +655,16 @@ void collisionResponse()
                  world[-1 * (int)(vxp - margin * Xdirection)][SpaceOverHeadPos][-1 * (int)(vzp - margin * Zdirection)];
    outOfSpace = (((-1 * (int)vxp) > 99) || ((-1 * (int)vyp) > 49) || ((-1 * (int)vzp) > 99));
    outOfSpace = outOfSpace || (((-1 * (int)vxp) < 0) || ((-1 * (int)vyp) <= (g_floorLv)) || ((-1 * (int)vzp) < 0));
+
+   if (stage_Lv != -1)
+   {
+     int tempVal = collsionResponseForMeshes(&Undergrounds[stage_Lv]);
+    isAble2Jump =  isAble2Jump || (tempVal == 1);
+    isHit = isHit || tempVal;
+   }
    // protect to pass through
+
+
    if ((outOfSpace == 1) || ((isHit != 0) && (isAble2Jump != 0)))
    {
       setViewPosition(tempX, tempY, tempZ);
@@ -990,6 +1002,7 @@ float x, y, z;
          {
             // move meshed every 0.08 second
             handleAIMesh(&(Undergrounds[stage_Lv]),0.08);
+            fightingWithMeshes(&(Undergrounds[stage_Lv]),0.2);
          }
 
    }
@@ -3215,10 +3228,12 @@ void drawAMeshInARoomInMap2D(struct aMesh *mesh)
     point2Ds[0].x = (int)mesh->posV.x;
     point2Ds[0].z = (int)mesh->posV.z;
     point2Ds[1] = (struct Point2D){point2Ds[0].x+2,point2Ds[0].z+2};
-    getColorOfAmeshInMap2D(mesh,color);
-    setPointsAndColorOfLineOrBox(&aMeshPos,point2Ds,1,color);
-    drawBoxMap2DWithTransFn(&aMeshPos,&mapTransformFuntion);
-
+    if (mesh->state != DEAD)
+    {
+      getColorOfAmeshInMap2D(mesh,color);
+      setPointsAndColorOfLineOrBox(&aMeshPos,point2Ds,1,color);
+      drawBoxMap2DWithTransFn(&aMeshPos,&mapTransformFuntion);
+    }
 }
 void updateUndergroundMap2D(struct Underground *obj,const int displayMode)  // 1 = no map, 2 = fog, 0 = normal map
 {
@@ -3666,11 +3681,10 @@ void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom,int reduceIdVal)
       obj->currentDirection = getRandomNumber(WEST,NORTH);
       obj->startArea = (struct Point){startP.x+1,startP.y,startP.z+1};
       obj->stopArea = (struct Point){stopP.x-1,startP.y,stopP.z-1};
-      obj->xVelocity = ((float)getRandomNumber(MESH_X_MIN_VELOCITY,MESH_X_MAX_VELOCITY))/100.0;
-      obj->zVelocity = ((float)getRandomNumber(MESH_Z_MIN_VELOCITY,MESH_Z_MAX_VELOCITY))/100.0;
+      obj->randomDestination = (struct Point){getRandomNumber(obj->startArea.x,obj->stopArea.x),obj->startArea.y,getRandomNumber(obj->startArea.z,obj->stopArea.z)};
       obj->visiblityState = HIDDEN; // hide
       obj->state = MOVEAROUND;
-      if(obj->type > 1) //not fish
+      if(obj->type > FISH) //not fish
       {
         obj->posV.y = obj->startArea.y;
       }
@@ -4129,60 +4143,70 @@ void batMove(struct aMesh *obj,struct Underground *uObj)
 
               //printf("id:%d random(%3.2f,%3.2f)\n",obj->id,newPos.x ,newPos.z);
           }
-  
 
-
-      obj->posV.z  += newPos.z;
-      obj->posV.x  += newPos.x;
       if (obj->state == FIGHT)
       {
-        if (pow(vPoint.x - obj->posV.x,2) < 1.0)obj->posV.x = oldMovePos.x;
-        if (pow(vPoint.z - obj->posV.z,2) < 1.0)obj->posV.z = oldMovePos.z;
+
+        if (obj->turnState == 0)
+        {
+            // do nothing just wait
+            
+            if((((int)obj->xPlayerMoveState != (int)vPoint.x) || ((int)obj->zPlayerMoveState != (int)vPoint.z)))
+            {
+              obj->turnState = 1;
+            obj->xPlayerMoveState =  vPoint.x;
+            obj->zPlayerMoveState =  vPoint.z;
+            }
+        }
+        else 
+        {
+            obj->posV.z  += newPos.z;
+            obj->posV.x  += newPos.x;
+            if ((pow(vPoint.x - obj->posV.x,2) < 1.0) && (pow(vPoint.z - obj->posV.z,2) < 1.0))
+            {
+              obj->posV.x = oldMovePos.x;
+              obj->posV.z = oldMovePos.z;
+            }
+            if ((obj->turnState == 1) && (((int)obj->xMoveState != (int)obj->posV.x) || ((int)obj->zMoveState != (int)obj->posV.z)))
+            {
+              obj->xMoveState =obj->posV.x;
+              obj->zMoveState =obj->posV.z;
+              obj->turnState = 0;
+            }
+
+        }
+
       }
-      meshCollideHanndle(&(obj->posV),&oldMovePos);
-      if (obj->areaDestinationIndex == roomIndex)obj->journeyState = 0;
+      else
+      {
+        obj->posV.z  += newPos.z;
+        obj->posV.x  += newPos.x;
+        if (obj->areaDestinationIndex == roomIndex)obj->journeyState = 0;
+        else if ((roomIndex != -1)&&(roomIndex != obj->areaOfBatIndex))obj->journeyState = 0;
+      }
+      
+        meshCollideHanndle(&(obj->posV),&oldMovePos);
   }
 }
 
-void directionRandomMoveOfAMesh(struct aMesh *obj)
+int collsionResponseForMeshes(struct Underground *obj)
 {
-  if ((obj->directionCounter <= 0) || (obj->directionCounter > 100))
-  {
-    obj->currentDirection = getRandomNumber(WEST,NORTH);
-    obj->directionCounter = getRandomNumber(3,100);
-    obj->xVelocity =  ((float)getRandomNumber(MESH_X_MIN_VELOCITY,MESH_X_MAX_VELOCITY))/100.0;
-    obj->zVelocity =  ((float)getRandomNumber(MESH_Z_MIN_VELOCITY,MESH_Z_MAX_VELOCITY))/100.0;
-  }
-  if(obj->currentDirection == EAST)
-  {
-    obj->posV.x += obj->xVelocity/(float)getRandomNumber(1,2);
-    obj->posV.z += obj->zVelocity/(float)getRandomNumber(7,10); 
-  }
-  else if(obj->currentDirection == WEST)
-  {
-    obj->posV.x -= obj->xVelocity/(float)getRandomNumber(1,2);
-    obj->posV.z -= obj->zVelocity/(float)getRandomNumber(7,10);
-  }
-  else if(obj->currentDirection == SOUTH)
-  {
-    obj->posV.x -= obj->xVelocity/(float)getRandomNumber(7,10);
-    obj->posV.z -= obj->zVelocity/(float)getRandomNumber(1,2); 
-  }
-  else if(obj->currentDirection == NORTH)
-  {
-    obj->posV.x += obj->xVelocity/(float)getRandomNumber(7,10);
-    obj->posV.z += obj->zVelocity/(float)getRandomNumber(1,2); 
-  }
-  obj->directionCounter--;
-  // if in room and for fish
-  if (obj->type == FISH)
-  {  
-    if(obj->posV.x >= obj->stopArea.x) obj->currentDirection = WEST;
-    if(obj->posV.x <= obj->startArea.x) obj->currentDirection = EAST;
-    if(obj->posV.z >= obj->stopArea.z) obj->currentDirection = SOUTH;
-    if(obj->posV.z <= obj->startArea.z) obj->currentDirection = NORTH;
-  }
+    int index = 0;
+    int ret = 0;
+    struct Pointf vPoint = {0.0,0.0,0.0};
+    struct aMesh *meshes = obj->m_meshes;
+    getAndConvertViewPos(&vPoint);
+    for (index = 0 ; index < DEFAULT_NUM_ROOM;index++)
+    {
+        if ( (pow(vPoint.x -meshes[index].posV.x,2) < 1.1) &&  (pow(vPoint.z -meshes[index].posV.z,2) < 1.1) && (meshes[index].state != DEAD))
+        {
+          index = DEFAULT_NUM_ROOM;
+          ret = 1;
+        }
+    }
+    return ret;
 }
+
 void fishMove(struct aMesh *obj)
 {
 
@@ -4190,13 +4214,124 @@ void fishMove(struct aMesh *obj)
   float oldMeshZ = 0.0;
   struct Pointf vPoint  = {0.0,0.0,0.0};
   struct Pointf oldMovePos  = {0.0,0.0,0.0};
+  struct Pointf directionVector  = {0.0,0.0,0.0};
+  float radian = 0.0;
+
+  struct Pointf newPos  = {0.0,0.0,0.0};
+  struct Pointf aPointf  = {0.0,0.0,0.0};
+  struct Pointf aPointf2  = {0.0,0.0,0.0};
+  struct Pointf aPointf3  = {0.0,0.0,0.0};
   getAndConvertViewPos(&vPoint);
+  if (obj->state == FIGHT)
+  {
+
+      aPointf = (struct Pointf){vPoint.x,(float)obj->posV.y,vPoint.z};
+  }
+  else
+  {
+
+      aPointf = (struct Pointf){(float)obj->randomDestination.x,(float)obj->posV.y,(float)obj->randomDestination.z};
+  }
+      directionVector = vectorBetween2Points(&(obj->posV),&aPointf);
+      radian = findRadian(directionVector.x,directionVector.z);
+   if ((pow(obj->posV.x-(float)obj->randomDestination.x,2) < 1.1) && (pow(obj->posV.z-(float)obj->randomDestination.z,2) < 1.1))
+  {
+      obj->randomDestination = (struct Point){getRandomNumber(obj->startArea.x,obj->stopArea.x),obj->startArea.y,getRandomNumber(obj->startArea.z,obj->stopArea.z)};
+  }
+ // printf("id:%d (%d %d %d)\n",obj->id,obj->randomDestination.x,obj->randomDestination.y,obj->randomDestination.z);
 
   // move the mesh according to the direction
   oldMovePos = obj->posV;
-  directionRandomMoveOfAMesh(obj);
+
+
+
+  float sinSign  = (float)(sin(radian) >= 0) + (sin(radian) < 0)*(-1.0); 
+  float cosSign  = (float)(cos(radian) >= 0) + (cos(radian) < 0)*(-1.0); 
+  float fraction = ((float)getRandomNumber(0,1000))/1000.0;
+  aPointf = (struct Pointf){obj->posV.x+cos(radian),obj->posV.y,obj->posV.z+sin(radian)};
+  aPointf2 = (struct Pointf){obj->posV.x,obj->posV.y,obj->posV.z+sin(radian)};
+  aPointf3 = (struct Pointf){obj->posV.x+cos(radian),obj->posV.y,obj->posV.z};
+
+  if ((meshCollideHanndle(&aPointf,&oldMovePos) == 0) && getRandomNumber(0,3) != 1)
+  {
+    newPos.z = (((float)getRandomNumber(0,1000))/1000.0)*sin(radian);
+    newPos.x = (((float)getRandomNumber(0,1000))/1000.0)*cos(radian);
+  //  roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
+        // printf("3.1  id:%d rm(%d)  ,radian(%3.2f) cos(%3.2f) curPos(%3.2f,%3.2f)(%d) nextPos(%3.2f,%3.2f)(%d) :\n",obj->id,roomIndex,radian*180.0/3.14,cos(radian),obj->posV.x,obj->posV.z,readWorldSpace(obj->posV),obj->posV.x+newPos.x,obj->posV.z+newPos.z,readWorldSpace((struct Pointf){obj->posV.x+cos(radian),obj->posV.y,obj->posV.z+sin(radian)}));
+  }
+  else if ((meshCollideHanndle(&aPointf2,&oldMovePos) == 0) && getRandomNumber(0,3) != 1)
+  {
+    newPos.z = (((float)getRandomNumber(0,1000))/1000.0)*sin(radian);
+   // roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
+      //  printf("3.2  id:%d rm(%d) ,radian(%3.2f) cos(%3.2f) curPos(%3.2f,%3.2f)(%d) nextPos(%3.2f,%3.2f)(%d) :\n",obj->id,roomIndex,radian*180.0/3.14,cos(radian),obj->posV.x,obj->posV.z,readWorldSpace(obj->posV),obj->posV.x,obj->posV.z+newPos.z,readWorldSpace((struct Pointf){obj->posV.x,obj->posV.y,obj->posV.z+sin(radian)}));
+  }
+  else  if ((meshCollideHanndle(&aPointf3,&oldMovePos) == 0) && getRandomNumber(0,3) != 1)
+  {
+    newPos.x = (((float)getRandomNumber(0,1000))/1000.0)*cos(radian);
+   //roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
+    //   printf("3.3  id:%d rm(%d) ,radian(%3.2f)  curPos(%3.2f,%3.2f)(%d) nextPos(%3.2f,%3.2f)(%d) :\n",obj->id,roomIndex,radian*180.0/3.14,obj->posV.x,obj->posV.z,readWorldSpace(obj->posV),obj->posV.x+newPos.x,obj->posV.z,readWorldSpace((struct Pointf){obj->posV.x+cos(radian),obj->posV.y,obj->posV.z}));
+  }
+  else
+  {
+    newPos.z = -1.0+ (((float)getRandomNumber(600,2000))/1000.0);
+    newPos.x = -1.0+((float)getRandomNumber(600,2000))/1000.0;
+
+  //printf("id:%d random(%3.2f,%3.2f)\n",obj->id,newPos.x ,newPos.z);
+  }
+
+
+    if (obj->state == FIGHT)
+    {
+      if (obj->turnState == 0)
+      {
+          // do nothing just wait
+          
+          if((((int)obj->xPlayerMoveState != (int)vPoint.x) || ((int)obj->zPlayerMoveState != (int)vPoint.z)))
+          {
+            obj->turnState = 1;
+          obj->xPlayerMoveState =  vPoint.x;
+          obj->zPlayerMoveState =  vPoint.z;
+          }
+      }
+      else 
+      {
+          obj->posV.z  += newPos.z;
+          obj->posV.x  += newPos.x;
+          if ((pow(vPoint.x - obj->posV.x,2) < 1.0) && (pow(vPoint.z - obj->posV.z,2) < 1.0))
+          {
+            obj->posV.x = oldMovePos.x;
+            obj->posV.z = oldMovePos.z;
+          }
+          if ((obj->turnState == 1) && (((int)obj->xMoveState != (int)obj->posV.x) || ((int)obj->zMoveState != (int)obj->posV.z)))
+          {
+            obj->xMoveState =obj->posV.x;
+            obj->zMoveState =obj->posV.z;
+            obj->turnState = 0;
+          }
+
+      }
+
+    }
+    else
+    {
+      obj->posV.z  += newPos.z;
+      obj->posV.x  += newPos.x;
+      if(obj->posV.x >= obj->stopArea.x) obj->posV.x = oldMovePos.x;
+      if(obj->posV.x <= obj->startArea.x) obj->posV.x = oldMovePos.x;
+      if(obj->posV.z >= obj->stopArea.z)obj->posV.z = oldMovePos.z;
+      if(obj->posV.z <= obj->startArea.z) obj->posV.z = oldMovePos.z;
+    }
+
+
+
   // detect collision
-  meshCollideHanndle(&(obj->posV),&oldMovePos);
+  aPointf = obj->posV;
+  aPointf.y = aPointf.y - 1.0;
+  if (meshCollideHanndle(&aPointf,&oldMovePos) == 1)
+  {
+    obj->posV.x = oldMovePos.x;
+    obj->posV.z = oldMovePos.z;
+  }
 
 }
 int timer(const float second)
@@ -4235,27 +4370,92 @@ void handleAIMesh(struct Underground *obj,const float second)
           for(i = 0;i < DEFAULT_NUM_ROOM;i++)
           {
 
+            if(meshes[i].state != DEAD)
+            {
 
-            isAbleToSeeMesh = testVisibilityOfAMesh(&visibilityMananger,i,obj->m_meshes);
+              isAbleToSeeMesh = testVisibilityOfAMesh(&visibilityMananger,i,obj->m_meshes);
 
-            visibilityTestOfMesh(&meshes[i],obj);
-            if (isAbleToSeeMesh == 1)isAbleToSeeMesh = SHOWN;
-            else isAbleToSeeMesh = HIDDEN;
+              visibilityTestOfMesh(&meshes[i],obj);
+              if (isAbleToSeeMesh == 1)
+              {
+                isAbleToSeeMesh = SHOWN;
+              }
+              else
+              {
+                 isAbleToSeeMesh = HIDDEN;
+              }
 
 
-          if (meshes[i].type == 1) // fish
-              fishMove(&meshes[i]);
-          if (meshes[i].type == 2) // bat
-              batMove(&meshes[i],obj);
+            if (meshes[i].type == FISH) // fish
+                fishMove(&meshes[i]);
+            if (meshes[i].type == BAT) // bat
+                batMove(&meshes[i],obj);
 
 
-            setTranslateMesh(meshes[i].id,meshes[i].posV.x, meshes[i].posV.y, meshes[i].posV.z);
-            changeStatusAndPrintInfo(&(meshes[i]),isAbleToSeeMesh,1); // 0 not print info , 1 print inf
-
+              setTranslateMesh(meshes[i].id,meshes[i].posV.x, meshes[i].posV.y, meshes[i].posV.z);
+              changeStatusAndPrintInfo(&(meshes[i]),isAbleToSeeMesh,1); // 0 not print info , 1 print inf
+            }
           }
       }
 }
 
+void fightingWithMeshes(struct Underground *obj,const float turnBasedTime)
+{
+
+      int i; 
+      int isAbleToSeeMesh = 0;
+      struct Pointf vPoint  = {0.0,0.0,0.0};
+      static clock_t meshMovingRefTime = 0;
+      const float timeUpdate = turnBasedTime;
+      static float currentMeshTime = 0;
+      static int turnState = 0; //0 is view point , 1 is MOB
+      float oldMeshX = 0.0;
+      float oldMeshZ = 0.0;
+      int hitResult = 0;
+
+      struct aMesh *meshes = obj->m_meshes;
+      getAndConvertViewPos(&vPoint);
+      currentMeshTime = ((float)(clock()-meshMovingRefTime))/CLOCKS_PER_SEC;
+      if (currentMeshTime > timeUpdate)
+      {      
+         meshMovingRefTime = clock();
+          for(i = 0;i < DEFAULT_NUM_ROOM;i++)
+          {
+              if(meshes[i].state != DEAD)
+            {
+              if (calEucidianDistance2D(&vPoint,&(meshes[i].posV)) < 1.5)
+              {
+                  if (turnState == 0) // Player turn
+                  {
+                      hitResult = getRandomNumber(0,10000);
+                      turnState = 1;
+                      if (hitResult > 4999) printf("Player misses\n");
+                      else 
+                      {
+                          printf("Player hits\n");
+                          changeStatusAndPrintInfo(&(meshes[i]),HIDDEN,0); // 0 not print info , 1 print inf
+                          changeStatusAndPrintInfo(&(meshes[i]),DEAD,0); // 0 not print info , 1 print inf
+                      }
+
+                  }
+                  else // MOB turn
+                  {
+
+                      hitResult = getRandomNumber(0,10000);
+                      turnState = 0;
+                      if (hitResult > 4999) printf("%s mesh #%d misses\n",printMeshName(meshes[i].type),meshes[i].id);
+                      else 
+                      {
+                          printf("%s mesh #%d hits\n",printMeshName(meshes[i].type),meshes[i].id);
+                         // changeStatusAndPrintInfo(&(meshes[i]),DEAD,0); // 0 not print info , 1 print inf
+                      };
+                  }
+                }
+              }
+
+          }
+      }
+}
 const char* printMeshName(const int id)
 {
   switch(id)
@@ -4291,11 +4491,7 @@ void changeStatusAndPrintInfo(struct aMesh *obj,int state,int option) // 0 not p
     }
     if(option ==1)
     {
-
-  struct Pointf vPoint  = {0.0,0.0,0.0};
-  getAndConvertViewPos(&vPoint);
-        printf("%s mesh #%d is %svisible\n",printMeshName(obj->type),obj->id,((state==0)?"not ":""));
-      printf("mesh(%3.2f,%3.2f) vpoint(%3.2f,%3.2f)\n",obj->posV.x,obj->posV.z,vPoint.x,vPoint.z);    
+        printf("%s mesh #%d is %svisible\n",printMeshName(obj->type),obj->id,((state==0)?"not ":""));   
     }
 
   }
