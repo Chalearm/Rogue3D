@@ -272,6 +272,14 @@ struct aMesh
   struct Pointf posV;
   float xVelocity;
   float zVelocity;
+
+
+  // for bat 
+  int areaOfBatIndex;
+  int directionSearchIndex;
+  int areaDestinationIndex; 
+  int journeyState;
+
 };
 struct Underground
 {
@@ -397,6 +405,7 @@ int comparePointfs(struct Pointf *obj1,struct Pointf *obj2);
 int comparePointfsAsInt(struct Pointf *obj1,struct Pointf *obj2);
 int comparePointis(struct Point *obj1,struct Point *obj2);
 float findRadian(const float x,const float z); 
+void meshCollideHanndle(struct aMesh *obj,struct Pointf *oldPos);
 void updateVisibilityControlVal(struct visiblityControlVal *obj);
 int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,struct aMesh *meshes);
 void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Point *stopP);
@@ -428,7 +437,14 @@ void setCubePositionInMap2D(struct Underground *obj);
 int isOnUpStairUnderground(struct Underground *obj);
 int isOnDownStairUnderground(struct Underground *obj);
 void changeVisiteStateInUnderground(struct Underground *obj,const int state);
-void moveMesh(struct Underground *obj,const float second);
+void handleAIMesh(struct Underground *obj,const float second);
+int timer(const float second);
+void hideAllMeshesIntheUnderground(struct Underground *obj);
+
+void fishMove(struct aMesh *obj);
+void batMove(struct aMesh *obj,struct Underground *uObj);
+void directionRandomMoveOfAMesh(struct aMesh *obj);
+void randomSearchOfMesh();
 
 void generateTerrain(struct OnGround *obj,unsigned char terrain[WORLDX][WORLDZ], const struct Point *startBoundPoint,const struct Point *stopBoundPoint);
 void updateBoundaryPointsForTerrainStyle2(struct Point *southWestP, struct Point *northWestP, struct Point *northEastP, struct Point *southEastP);
@@ -467,7 +483,7 @@ void addWallToMap2D(struct Map *obj,const struct Wall *aWall,GLfloat color[4],co
 void convertWallPositionToPoint2Ds(const struct Wall *obj,struct Point2D *P1,struct Point2D *P2);
 void findStartAndStopPointOfARoom(struct Room *obj,struct Point *maxPoint,struct Point *minPoint);
 void findStartAndStopPointOfARoom2D(struct Room *obj,struct Point2D *maxPoint,struct Point2D *minPoint);
-int findViewPointIsWhichRoom2D(struct Map *obj);
+int findObjPointIsWhichRoom2D(struct Map *obj,struct Pointf *vPoint);
 void drawAMeshInARoomInMap2D(struct aMesh *mesh);
 void getColorOfAmeshInMap2D(struct aMesh *mesh,GLfloat *color);
 void drawARoomInMap2D(struct Map *obj,const int roomID);
@@ -870,7 +886,7 @@ float x, y, z;
             fallState = 0;
             newY = floorLv + 1.0;
          }
-         //qqq   DEFAULT_LOWEST_CLOUD
+
          if ((newY < (floorLv + 1)) || (newY > 49.0))
          {
             newY = floorLv + 1.0;
@@ -912,6 +928,8 @@ float x, y, z;
            }
            if (isOnDownStairUnderground(&Undergrounds[stage_Lv]) == 1)
            {
+              // hide all mesh first
+              hideAllMeshesIntheUnderground(&Undergrounds[stage_Lv]);
               stage_Lv++;
               changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_DOWN);
               createUnderground(&Undergrounds[stage_Lv]);
@@ -921,24 +939,30 @@ float x, y, z;
          {           
            if(isOnUpStairUnderground(&Undergrounds[stage_Lv]) == 1)
            { 
+              // hide all mesh first
+              hideAllMeshesIntheUnderground(&Undergrounds[stage_Lv]);
               stage_Lv--;
               changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_UP);
-           createUnderground(&Undergrounds[stage_Lv]);
+              createUnderground(&Undergrounds[stage_Lv]);
            }
          }
          else if(stage_Lv > 0)
          {           
            if(isOnUpStairUnderground(&Undergrounds[stage_Lv]) == 1)
            { 
+              // hide all mesh first
+              hideAllMeshesIntheUnderground(&Undergrounds[stage_Lv]);
               stage_Lv--;
               changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_UP);
-           createUnderground(&Undergrounds[stage_Lv]);
+              createUnderground(&Undergrounds[stage_Lv]);
            }
            if (isOnDownStairUnderground(&Undergrounds[stage_Lv]) == 1)
            {
+              // hide all mesh first
+              hideAllMeshesIntheUnderground(&Undergrounds[stage_Lv]);
               stage_Lv++;
               changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_DOWN);
-           createUnderground(&Undergrounds[stage_Lv]);
+              createUnderground(&Undergrounds[stage_Lv]);
            }
          }
 
@@ -950,7 +974,7 @@ float x, y, z;
          else
          {
             // move meshed every 0.08 second
-            moveMesh(&(Undergrounds[stage_Lv]),0.08);
+            handleAIMesh(&(Undergrounds[stage_Lv]),0.08);
          }
 
    }
@@ -3097,16 +3121,15 @@ void findStartAndStopPointOfARoom2D(struct Room *obj,struct Point2D *maxPoint,st
   *maxPoint = convert3DPointTo2DPoint(&roomP[0]);
   *minPoint = convert3DPointTo2DPoint(&roomP[1]);
 }
-int findViewPointIsWhichRoom2D(struct Map *obj)
+int findObjPointIsWhichRoom2D(struct Map *obj,struct Pointf *vPoint)
 {
-  struct Point2D vPoint2D;
-  struct Pointf vPoint;
+  struct Point2D vPoint2D; 
   struct Point vPointi;
   int indexRoom=0;
   int indexRet = -1;
   struct LineOrBox2D *roomPos = obj->roomsPos;
-  getAndConvertViewPos(&vPoint);
-  convertPointfToPointi(&vPoint,&vPointi);
+ // getAndConvertViewPos(&vPoint);
+  convertPointfToPointi(vPoint,&vPointi);
   vPoint2D = convert3DPointTo2DPoint(&vPointi);
   vPoint2D = point2DTransformFuntionForMap(&vPoint2D);
   for(indexRoom = 0; indexRoom<DEFAULT_NUM_ROOM;indexRoom++)
@@ -3198,7 +3221,8 @@ void updateUndergroundMap2D(struct Underground *obj,const int displayMode)  // 1
       {
         drawBoxMap2D(&(a2DMapP->stairsPos[0]));
       }
-      indexRoom =  findViewPointIsWhichRoom2D(a2DMapP);
+      getAndConvertViewPos(&vPoint);
+      indexRoom =  findObjPointIsWhichRoom2D(a2DMapP,&vPoint);
       if (displayMode == FOG_MAP)
       { 
         // to protect in case of indexRoom == -1
@@ -3209,7 +3233,6 @@ void updateUndergroundMap2D(struct Underground *obj,const int displayMode)  // 1
         }
         drawFogInMap(&(a2DMapP->aFogMap));
       }
-      getAndConvertViewPos(&vPoint);
       convertPointfToPointi(&vPoint,&vPointi);
       clearFogPosition(&(a2DMapP->aFogMap),vPointi.x,vPointi.z);
       clearFogInArea(&(a2DMapP->aFogMap),&(a2DMapP->roomsPos[indexRoom]));
@@ -3623,7 +3646,7 @@ void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom,int reduceIdVal)
       struct Point startP;
       struct Point stopP;
       obj->id = idMesh++;
-      obj->type = getRandomNumber(0,3); // 0=cow, 1=fish, 2=bat, 3=cactus
+      obj->type = getRandomNumber(1,3); //  1=fish, 2=bat, 3=cactus  -- 33% randome
       findStartAndStopPointOfARoom(aRoom,&stopP,&startP);
       obj->currentDirection = getRandomNumber(WEST,NORTH);
       obj->startArea = (struct Point){startP.x+1,startP.y,startP.z+1};
@@ -3631,18 +3654,76 @@ void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom,int reduceIdVal)
       obj->xVelocity = ((float)getRandomNumber(MESH_X_MIN_VELOCITY,MESH_X_MAX_VELOCITY))/100.0;
       obj->zVelocity = ((float)getRandomNumber(MESH_Z_MIN_VELOCITY,MESH_Z_MAX_VELOCITY))/100.0;
       obj->state = 0; // hide
-      obj->posV.y = obj->startArea.y;
+      if(obj->type > 1) //not fish
+      {
+        obj->posV.y = obj->startArea.y;
+      }
+      else
+      {
+        obj->posV.y = obj->startArea.y+1;
+      }
 
-      world[obj->startArea.x][obj->startArea.y][obj->startArea.z] = 1;
-      world[obj->stopArea.x][obj->stopArea.y][obj->stopArea.z] = 3;
+      //world[obj->startArea.x][obj->startArea.y][obj->startArea.z] = 1;
+      //world[obj->stopArea.x][obj->stopArea.y][obj->stopArea.z] = 3;
       obj->posV.x = getRandomNumber(obj->startArea.x,obj->stopArea.x);
       obj->posV.z = getRandomNumber(obj->startArea.z,obj->stopArea.z);
+      // check that is a space or solid area
+      if (world[(int)obj->posV.x][obj->startArea.y][(int)obj->posV.z] != 0)
+      {
+        int i,j;
+        for (i = (int)(stopP.x-1); i >startP.x;i--)
+          for (j =(int)(stopP.z-1); j >startP.z;j--)
+          {
+            if (world[i][obj->startArea.y][j] != 0)
+            {
+              obj->posV.x = (float)i;
+              obj->posV.z = (float)j;
+            }
+          }
+      }
+      obj->areaOfBatIndex = -1;
+      obj->directionSearchIndex = -1;
+      obj->areaDestinationIndex = -1; 
+      obj->journeyState = 0;
+
       setMeshID(obj->id, obj->type, obj->posV.x, obj->posV.y, obj->posV.z);
       hideMesh(obj->id);
     }
 
 }
 
+void meshCollideHanndle(struct aMesh *obj,struct Pointf *oldPos)
+{
+  struct Pointf vPoint  = {0.0,0.0,0.0};
+  float oldMeshX = oldPos->x;
+  float oldMeshZ = oldPos->z;
+  getAndConvertViewPos(&vPoint);
+    // detect collision
+  if ((world[(int)obj->posV.x][(int)obj->posV.y-(obj->type ==1)/*fish type*/][(int)obj->posV.z] != 0) ||
+  (((int)vPoint.x == (int)obj->posV.x) && ((int)vPoint.z == (int)obj->posV.z) ))
+  {
+    if (world[(int)oldMeshX][(int)obj->posV.y-(obj->type ==1)/*fish type*/][(int)obj->posV.z] == 0)
+    {
+      obj->posV.x = oldMeshX;
+      obj->currentDirection = SOUTH+getRandomNumber(WEST,EAST);
+    }
+    if (world[(int)obj->posV.x][(int)obj->posV.y-(obj->type ==1)/*fish type*/][(int)oldMeshZ] == 0){
+      obj->posV.z = oldMeshZ;
+      obj->currentDirection = getRandomNumber(WEST,EAST);
+    }
+
+    if(((int)vPoint.x == (int)obj->posV.x) && ((int)vPoint.z != (int)oldMeshZ) )
+    {
+      obj->posV.z = oldMeshZ;
+      obj->currentDirection = getRandomNumber(WEST,EAST);
+    }
+    if(((int)vPoint.x != (int)oldMeshX) && ((int)vPoint.z == (int)obj->posV.z) )
+    {
+      obj->posV.x = oldMeshX;
+      obj->currentDirection = SOUTH+getRandomNumber(WEST,EAST);
+    }
+  }
+}
 int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,struct aMesh *meshes)
 {
   int ret = 0;
@@ -3791,27 +3872,218 @@ void updateVisibilityControlVal(struct visiblityControlVal *obj)
       obj->oldMouse = mouseP;
    }
 }
-void moveMesh(struct Underground *obj,const float second)
+
+
+void hideAllMeshesIntheUnderground(struct Underground *obj)
+{
+  int index = 0;
+  struct aMesh *meshes = obj->m_meshes;
+  for(index = 0;index < DEFAULT_NUM_ROOM;index++)
+  {
+    if (meshes[index].state == 1) // show 
+    {
+       hideMesh(meshes[index].id);
+       meshes[index].state =0;
+    }
+  }
+}
+
+void batMove(struct aMesh *obj,struct Underground *uObj)
+{
+
+  int index = 0;
+  int roomIndex = 0;
+  struct Room *pRoom = NULL;
+  struct Point startP;
+  struct Point stopP;
+  struct Pointf directionVector  = {0.0,0.0,0.0};
+  struct Pointf doorPosition  = {0.0,0.0,0.0};
+  struct Point2D max2DPoint = {0,0};
+  struct Point2D min2DPoint = {0,0};
+  struct Point2D ref2DPoint = {0,0};
+  struct Pointf destinationPoint = {0.0,0.0,0.0};
+  struct Pointf oldMovePos ={0.0,0.0,0.0};
+  float radian = 0.0;
+ // struct Pointf vector1 = {0.0,0.0,0.0};
+  ref2DPoint.x = (int)obj->posV.x;
+  ref2DPoint.z = (int)obj->posV.z;
+
+  if (obj->journeyState == 0)
+  {
+    // find that where a bat is
+    while(index < DEFAULT_NUM_ROOM)
+    {
+      min2DPoint =  (struct Point2D){dimensionOfGrid3x3[index][0],dimensionOfGrid3x3[index][1]};
+      max2DPoint =  (struct Point2D){min2DPoint.x + dimensionOfGrid3x3[index][2]-1,min2DPoint.z + dimensionOfGrid3x3[index][3]-1};
+      if (isIn2DBoundPoint2D(&min2DPoint,&max2DPoint,&ref2DPoint) == 1)
+      {
+        obj->areaOfBatIndex = index;
+        index = DEFAULT_NUM_ROOM;
+      }
+      else
+      {
+        index++;
+      }
+    }
+    //printf("bat is in %d point(%d,%d)\n",obj->areaOfBatIndex,ref2DPoint.x,ref2DPoint.z);
+    // search the destination the bat will go
+    if (obj->areaOfBatIndex != -1)
+    {
+      while(obj->areaDestinationIndex  ==-1)
+      {
+        obj->directionSearchIndex  = getRandomNumber(0,3);
+        obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
+      }
+      obj->journeyState = 1;  
+    }
+
+
+  }
+  if (obj->journeyState == 1)
+  {
+      destinationPoint = (struct Pointf){((float)dimensionOfGrid3x3[obj->areaDestinationIndex ][0]+(float)dimensionOfGrid3x3[obj->areaDestinationIndex][2])/2.0,
+                                       0.0,
+                                      ((float)dimensionOfGrid3x3[obj->areaDestinationIndex ][1]+(float)dimensionOfGrid3x3[obj->areaDestinationIndex ][3])/2.0};
+      destinationPoint.y = obj->posV.y;
+      directionVector = vectorBetween2Points(&(obj->posV),&destinationPoint);
+
+      // if the bat is still in the room
+      // search door 
+      roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
+      oldMovePos = obj->posV;
+      if (roomIndex != -1)
+      {      
+        //doorWidth
+        pRoom = &(uObj->m_rooms[roomIndex]);
+        startP = pRoom->DoorPosition[obj->directionSearchIndex];
+        doorPosition = (struct Pointf){(float)startP.x,(float)startP.y,(float)startP.z};
+        doorPosition.x = (doorPosition.x + 0.5*(float)pRoom->doorWidth*(obj->directionSearchIndex == SOUTH ||obj->directionSearchIndex == NORTH));
+        doorPosition.z = (doorPosition.z + 0.5*(float)pRoom->doorWidth*(obj->directionSearchIndex == EAST ||obj->directionSearchIndex == WEST));
+        directionVector = vectorBetween2Points(&(obj->posV),&doorPosition);
+        radian =  findRadian(directionVector.x,directionVector.z);
+        
+        if(getRandomNumber(0,4) !=0)  // greedy move
+        {
+           obj->posV.x += cos(radian);
+           obj->posV.z += sin(radian);
+        }
+        else
+        {
+          directionRandomMoveOfAMesh(obj);
+        }
+//qqqq
+
+        printf("destID:%d, direction:%d, DoorPoint:(%3.2f,%3.2f,%3.2f)\n",obj->areaDestinationIndex,obj->directionSearchIndex ,doorPosition.x,doorPosition.y,doorPosition.z);
+        
+      }
+      // in hall way
+      else
+      {
+          radian =  findRadian(directionVector.x,directionVector.z);
+          if(getRandomNumber(0,4) <1)  // greedy move
+          {
+
+           obj->posV.x += cos(radian);
+           obj->posV.z += sin(radian);
+          }
+          else
+          {
+
+            directionRandomMoveOfAMesh(obj);
+          }
+      }
+
+
+      meshCollideHanndle(obj,&oldMovePos);
+  }
+}
+
+void directionRandomMoveOfAMesh(struct aMesh *obj)
+{
+  if ((obj->directionCounter <= 0) || (obj->directionCounter > 100))
+  {
+    obj->currentDirection = getRandomNumber(WEST,NORTH);
+    obj->directionCounter = getRandomNumber(3,100);
+    obj->xVelocity =  ((float)getRandomNumber(MESH_X_MIN_VELOCITY,MESH_X_MAX_VELOCITY))/100.0;
+    obj->zVelocity =  ((float)getRandomNumber(MESH_Z_MIN_VELOCITY,MESH_Z_MAX_VELOCITY))/100.0;
+  }
+  if(obj->currentDirection == EAST)
+  {
+    obj->posV.x += obj->xVelocity/(float)getRandomNumber(1,2);
+    obj->posV.z += obj->zVelocity/(float)getRandomNumber(7,10); 
+  }
+  else if(obj->currentDirection == WEST)
+  {
+    obj->posV.x -= obj->xVelocity/(float)getRandomNumber(1,2);
+    obj->posV.z -= obj->zVelocity/(float)getRandomNumber(7,10);
+  }
+  else if(obj->currentDirection == SOUTH)
+  {
+    obj->posV.x -= obj->xVelocity/(float)getRandomNumber(7,10);
+    obj->posV.z -= obj->zVelocity/(float)getRandomNumber(1,2); 
+  }
+  else if(obj->currentDirection == NORTH)
+  {
+    obj->posV.x += obj->xVelocity/(float)getRandomNumber(7,10);
+    obj->posV.z += obj->zVelocity/(float)getRandomNumber(1,2); 
+  }
+  obj->directionCounter--;
+  // if in room and for fish
+  if (obj->type == 1)
+  {  
+    if(obj->posV.x >= obj->stopArea.x) obj->currentDirection = WEST;
+    if(obj->posV.x <= obj->startArea.x) obj->currentDirection = EAST;
+    if(obj->posV.z >= obj->stopArea.z) obj->currentDirection = SOUTH;
+    if(obj->posV.z <= obj->startArea.z) obj->currentDirection = NORTH;
+  }
+}
+void fishMove(struct aMesh *obj)
+{
+
+  float oldMeshX = 0.0;
+  float oldMeshZ = 0.0;
+  struct Pointf vPoint  = {0.0,0.0,0.0};
+  struct Pointf oldMovePos  = {0.0,0.0,0.0};
+  getAndConvertViewPos(&vPoint);
+
+  // move the mesh according to the direction
+  oldMovePos = obj->posV;
+  directionRandomMoveOfAMesh(obj);
+  // detect collision
+  meshCollideHanndle(obj,&oldMovePos);
+
+}
+int timer(const float second)
+{
+  int ret = 0;
+  static clock_t refTime = 0;
+  const float timeUpdate = second;
+  static float currentMeshTime = 0;
+  currentMeshTime = ((float)(clock()-refTime))/CLOCKS_PER_SEC;
+  if (currentMeshTime > timeUpdate)
+  {
+     refTime = clock();
+     ret = 1;
+  }
+  return ret;
+}
+void handleAIMesh(struct Underground *obj,const float second)
 {       
       int i; 
       int isAbleToSeeMesh = 0;
+  struct Pointf vPoint  = {0.0,0.0,0.0};
       static clock_t meshMovingRefTime = 0;
       const float timeUpdate = second;
       static float currentMeshTime = 0;
-
-     float margin = 0.4; 
-     struct Point maxPoint = {-1,-1,-1};
-     struct Point minPoint = {-1,-1,-1}; 
-
- 
+      float oldMeshX = 0.0;
+      float oldMeshZ = 0.0;
 
       struct aMesh *meshes = obj->m_meshes;
       updateVisibilityControlVal(&visibilityMananger);
+  getAndConvertViewPos(&vPoint);
       currentMeshTime = ((float)(clock()-meshMovingRefTime))/CLOCKS_PER_SEC;
       if (currentMeshTime > timeUpdate)
       {      
-
- 
 
          meshMovingRefTime = clock();
           for(i = 0;i < DEFAULT_NUM_ROOM;i++)
@@ -3819,39 +4091,12 @@ void moveMesh(struct Underground *obj,const float second)
 
 
             isAbleToSeeMesh = testVisibilityOfAMesh(&visibilityMananger,i,obj->m_meshes);
-            // move the mesh according to the direction
-            if ((meshes[i].directionCounter <= 0) || (meshes[i].directionCounter > 100))
-            {
-              meshes[i].currentDirection = getRandomNumber(WEST,NORTH);
-              meshes[i].directionCounter = getRandomNumber(3,100);
-              meshes[i].xVelocity =  ((float)getRandomNumber(MESH_X_MIN_VELOCITY,MESH_X_MAX_VELOCITY))/100.0;
-              meshes[i].zVelocity =  ((float)getRandomNumber(MESH_Z_MIN_VELOCITY,MESH_Z_MAX_VELOCITY))/100.0;
-            }
-            if(meshes[i].currentDirection == EAST)
-            {
-              meshes[i].posV.x += meshes[i].xVelocity/(float)getRandomNumber(1,2);
-              meshes[i].posV.z += meshes[i].zVelocity/(float)getRandomNumber(7,10); 
-            }
-            else if(meshes[i].currentDirection == WEST)
-            {
-              meshes[i].posV.x -= meshes[i].xVelocity/(float)getRandomNumber(1,2);
-              meshes[i].posV.z -= meshes[i].zVelocity/(float)getRandomNumber(7,10);
-            }
-            else if(meshes[i].currentDirection == SOUTH)
-            {
-              meshes[i].posV.x -= meshes[i].xVelocity/(float)getRandomNumber(7,10);
-              meshes[i].posV.z -= meshes[i].zVelocity/(float)getRandomNumber(1,2); 
-            }
-            else if(meshes[i].currentDirection == NORTH)
-            {
-              meshes[i].posV.x += meshes[i].xVelocity/(float)getRandomNumber(7,10);
-              meshes[i].posV.z += meshes[i].zVelocity/(float)getRandomNumber(1,2); 
-            }
-            meshes[i].directionCounter--;
-            if(meshes[i].posV.x >= meshes[i].stopArea.x) meshes[i].currentDirection = WEST;
-            if(meshes[i].posV.x <= meshes[i].startArea.x) meshes[i].currentDirection = EAST;
-            if(meshes[i].posV.z >= meshes[i].stopArea.z) meshes[i].currentDirection = SOUTH;
-            if(meshes[i].posV.z <= meshes[i].startArea.z) meshes[i].currentDirection = NORTH;
+
+
+          if (meshes[i].type == 1) // fish
+              fishMove(&meshes[i]);
+          if (meshes[i].type == 2) // bat
+              batMove(&meshes[i],obj);
 
 
             setTranslateMesh(meshes[i].id,meshes[i].posV.x, meshes[i].posV.y, meshes[i].posV.z);
