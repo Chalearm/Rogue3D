@@ -921,7 +921,7 @@ float x, y, z;
          else if (world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz] == 0)
          {
             int hight = (-1)*(int)vpy;
-            int highest = hight +5;
+            int highest = hight +18;
             int index = 0;
             for (index = hight+1; index < highest;index++)
             {
@@ -1888,6 +1888,8 @@ void createUnderground(struct Underground *obj)
    setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
    struct Point FloorStartPoint = {0,obj->m_groundLv,0};
    struct Point FloorEndPoint = {WORLDX-1,obj->m_groundLv,WORLDZ-1};
+
+
    // Build Roofs of Corridors
    //printf("create underground state: -2 \n");
    while((protectInfinityLoopVal-- > 0) && ((foundGoodPlaceForUpStair == 0 )||(foundGoodPlaceForDownStair == 0)))
@@ -1895,6 +1897,11 @@ void createUnderground(struct Underground *obj)
       foundGoodPlaceForUpStair =0;
       foundGoodPlaceForDownStair = 0;
       makeWorld();
+         //build base 
+   FloorStartPoint.y =0;
+    BuildABox(&FloorStartPoint,&FloorEndPoint,0,&floorStyle1);
+
+   FloorStartPoint.y =obj->m_groundLv;
       BuildABox(&FloorStartPoint,&FloorEndPoint,0,&floorStyle1);
 
       // initi map parameter
@@ -2159,6 +2166,9 @@ void locateAndBuildStairOnTerrain(struct OnGround *obj)
       g_floorLv = obj->lowestLv; 
       setViewPosition(obj->downStair.StartPoint.x*(-1),(-1)*(startStairPoint.y+1),obj->downStair.StartPoint.z*(-1));
 
+      struct Point FloorStartPoint = {0,0,0};
+      struct Point FloorEndPoint = {WORLDX-1, obj->lowestLv,WORLDZ-1};
+      BuildABox(&FloorStartPoint,&FloorEndPoint,21,&normalColorStyle);
       BuildStair(&(obj->downStair));
 
 }
