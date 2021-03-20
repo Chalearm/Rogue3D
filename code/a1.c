@@ -929,7 +929,7 @@ float x, y, z;
             newY = floorLv + 1.0;
          }
          if (world[-1 * (int)vpx][(int)newY][-1 * (int)vpz] != 0) newY += 0.75;
-         if (world[-1 * (int)vpx][(int)newY][-1 * (int)vpz] != 0){newY += 0.25; printf("change 2\n");} 
+         if (world[-1 * (int)vpx][(int)newY][-1 * (int)vpz] != 0) newY += 0.25;
         isState2Calculate = 1;
 
       }
@@ -966,7 +966,7 @@ float x, y, z;
                 }
                 else if ((world[-1 * (int)vpx][index][-1 * (int)vpz] != 0) && (isOnDownStairFor2D(&OutsideLand) == 0) ) // green filed only
                 {
-                  printf("fallState:%d dd newY:%3.2f index:%d  wrld:%d\n",fallState,newY,index,world[-1 * (int)vpx][index][-1 * (int)vpz] );
+                  //printf("fallState:%d dd newY:%3.2f index:%d  wrld:%d\n",fallState,newY,index,world[-1 * (int)vpx][index][-1 * (int)vpz] );
                   newY = index+1;
                   index = highest;
                   fallState = 0;
