@@ -1001,7 +1001,7 @@ float x, y, z;
          else
          {
             // move meshed every 0.08 second
-            handleAIMesh(&(Undergrounds[stage_Lv]),0.08);
+            handleAIMesh(&(Undergrounds[stage_Lv]),0.0002);
             fightingWithMeshes(&(Undergrounds[stage_Lv]),0.2);
          }
 
@@ -3791,14 +3791,14 @@ void visibilityTestOfMesh(struct aMesh *obj,struct Underground *uObj)
         {
           stopPoint = 1;
         }
+        else if (pow(pow(vPoint.x-obj->posV.x ,2)+pow(vPoint.z - obj->posV.z ,2),0.5) > 20.0)
+        {
+          stopPoint = 1;
+        obj->state = MOVEAROUND;
+        }
         // MOB can be found in the cicle area redius =1.75 cell  (but fish's lenth is around 2 cell)
         else if (pow(pow(vPoint.x-trackVector.x ,2)+pow(vPoint.z - trackVector.z ,2),0.5) < 1.75)
         {            
-          stopPoint = 1;
-          obj->state = FIGHT;
-        }
-        else if (comparePointfsAsInt(&trackVector,&(vPoint)) == 1)
-        {
           stopPoint = 1;
           obj->state = FIGHT;
         }
@@ -4032,9 +4032,35 @@ void batMove(struct aMesh *obj,struct Underground *uObj)
     // search the destination the bat will go
     if (obj->areaOfBatIndex != -1)
     {
+
+      if (vPoint.x < obj->posV.x) // go west 
+      {
+          obj->directionSearchIndex  = 0;
+        obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
+      }
+      else if (vPoint.x > obj->posV.x) // go east 
+      {
+        
+          obj->directionSearchIndex  = 1;
+        obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
+      }
+      else if (vPoint.z > obj->posV.z) // go north 
+      {
+        
+          obj->directionSearchIndex  = 3;
+        obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
+      }
+      else if (vPoint.z < obj->posV.z) // go south 
+      {
+        
+          obj->directionSearchIndex  = 2;
+        obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
+      }      
+
       while(obj->areaDestinationIndex  ==-1)
       {
         obj->directionSearchIndex  = getRandomNumber(0,3);
+
         obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
       }
       obj->journeyState = 1;  
@@ -4071,6 +4097,7 @@ void batMove(struct aMesh *obj,struct Underground *uObj)
 
       if (obj->state != FIGHT)
       {
+       // printf("kkkkkk \n");
         directionVector = vectorBetween2Points(&(obj->posV),&toAreaCenterPoint);
       }
       else
