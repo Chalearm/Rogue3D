@@ -128,7 +128,7 @@ extern void keyboard(unsigned char, int, int);
 #define DEFAULT_DOOR_HEIGHT 3
 #define DEFAULT_DOOR_WIDTH 3
 #define DEFAULT_ROOM_HEIGHT 6
-#define DEFAULT_GRAVITY 1000
+#define DEFAULT_GRAVITY 45
 #define DEFAULT_COLLISION_MARGIN 0.4
 #define DEFAULT_SPARFORCORRIDORS_X 4
 #define DEFAULT_SPARFORCORRIDORS_Z 4
@@ -438,6 +438,7 @@ int checkRoomAndOppositeRoomCanBuildCorridorAndHallway(int XorZSide,int roomID, 
 void setPrameterOfOnGround_defauleValue1(struct OnGround *obj);
 void createOnGround(struct OnGround *obj);
 int isOnDownStair(struct OnGround *obj);
+int isOnDownStairFor2D(struct OnGround *obj);
 // Underground functions
 void setParameterOfUnderground_defaultValue1(struct Underground *obj,int hasDownStair);
 void createUnderground(struct Underground *obj);
@@ -451,6 +452,7 @@ void setRoomsPositionInMap2D(struct Underground *obj);
 void setCubePositionInMap2D(struct Underground *obj);
 int isOnUpStairUnderground(struct Underground *obj);
 int isOnDownStairUnderground(struct Underground *obj);
+int isOnDownStairUndergroundFor2D(struct Underground *obj);
 void changeVisiteStateInUnderground(struct Underground *obj,const int state);
 void handleAIMesh(struct Underground *obj,const float second);
 int timer(const float second);
@@ -864,15 +866,21 @@ float x, y, z;
 
     /* end testworld animation */
 
-
    } else {
 
   /* your code goes here */
+          struct Pointf viewPoint;
+          struct Pointf p1;
+          struct Pointf p2;
+          getAndConvertViewPos(&viewPoint);
+
 
       int valOfWorldAtBelowVP = 0;
       float vpx = 0;
       float vpy = 0;
       float vpz = 0;
+      int isUpSideDonwFound = 0;
+      int isState2Calculate = 0;
       float gravityVal =DEFAULT_GRAVITY;
       float newY = 0;
       float floorLv = g_floorLv -1;
@@ -887,10 +895,12 @@ float x, y, z;
 
       if (fallState == 0)
       {
+       //   printf("fState:%d, VP:(%3.2f,%3.2f,%3.2f) wV:%d wUp:%d, wDonw:%d \n",fallState,viewPoint.x,viewPoint.y,viewPoint.z,readWorldSpace(viewPoint),readWorldSpace(p1),readWorldSpace(p2)); 
          fallState = (valOfWorldAtBelowVP == 0);
       }
       else if (fallState == 1)
       {
+
          clkRef = clock();
          timePast = 0;
          timeCurrent = 0;
@@ -918,42 +928,57 @@ float x, y, z;
          {
             newY = floorLv + 1.0;
          }
-         else if (stage_Lv > -1)
+         if (world[-1 * (int)vpx][(int)newY][-1 * (int)vpz] != 0) newY += 0.75;
+         if (world[-1 * (int)vpx][(int)newY][-1 * (int)vpz] != 0){newY += 0.25; printf("change 2\n");} 
+        isState2Calculate = 1;
+
+      }
+
+      // special case
+      
+          if (stage_Lv > -1)
          {  
             int hight = (-1)*(int)vpy;
+            if (fallState == 2)hight = newY;
+
             if( hight <=Undergrounds[stage_Lv].m_groundLv)
             {
-              if ((world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz] != 0) &&(world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz] != 23))
+              if (isOnDownStairUndergroundFor2D(&Undergrounds[stage_Lv]) ==0)
               {
-
                 newY = Undergrounds[stage_Lv].m_groundLv+1;
                 fallState = 0;
+                isUpSideDonwFound = 1;
               }
             }
 
          }
-         else if ((world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz] == 0) && (stage_Lv == -1))
+         else if ((world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz] == 0) && (stage_Lv == -1) && (newY > 0.0))
          {
-            int hight = (-1)*(int)vpy;
-            int highest = hight +18;
+            int height = (-1)*(int)vpy;
+            int highest = height +18;
             int index = 0;
-            for (index = hight+1; index < highest;index++)
+            if (fallState == 2)height = newY;
+            for (index = height; index < highest;index++)
             {
                 if (index >= DEFAULT_LOWEST_CLOUD)
                 {
                   index = highest;
-                  fallState = 0;
                 }
-                else if (world[-1 * (int)vpx][index][-1 * (int)vpz] == 1) // green filed only
+                else if ((world[-1 * (int)vpx][index][-1 * (int)vpz] != 0) && (isOnDownStairFor2D(&OutsideLand) == 0) ) // green filed only
                 {
+                  printf("fallState:%d dd newY:%3.2f index:%d  wrld:%d\n",fallState,newY,index,world[-1 * (int)vpx][index][-1 * (int)vpz] );
                   newY = index+1;
                   index = highest;
                   fallState = 0;
+                  isUpSideDonwFound = 1;
                 }
             }
-         }
-         setViewPosition(vpx, newY * (-1.0), vpz);
-      }
+         }  
+         
+        if (isState2Calculate ==1 || isUpSideDonwFound == 1)
+        {
+          setViewPosition(vpx, newY * (-1.0), vpz);
+        }
 
           // detect up/down stair event to change level
          if((isOnDownStair(&OutsideLand) == 1) && (stage_Lv == -1))
@@ -2598,6 +2623,27 @@ void createOnGround(struct OnGround *obj)
    locateAndBuildStairOnTerrain(obj);
    obj->state = TERRAIN_AND_STAIR_IS_BUILT;
 }
+
+int isOnDownStairFor2D(struct OnGround *obj)
+{   float vxp,vyp,vzp;
+   struct Point viewPosition = {-1,-1,-1};
+   int ret = 0;
+   if ((obj->state) == READY || obj->state == TERRAIN_AND_STAIR_IS_BUILT)
+   {      
+      struct Point startStairPoint =  getReferentStairPoint(&(obj->downStair),START_POINT);
+      struct Point stopStairPoint =  getReferentStairPoint(&(obj->downStair),STOP_POINT);
+      getViewPosition(&vxp,&vyp,&vzp);
+      startStairPoint.y = obj->downStair.StartPoint.y+1;
+      stopStairPoint.y = obj->downStair.StartPoint.y+1;
+      viewPosition.x = (-1)*((int)vxp);
+      viewPosition.y = (-1)*((int)vyp);
+      viewPosition.z = (-1)*((int)vzp);
+      //obj->lowestLv
+      //printf("VP(%d,%d,%d)\n",viewPosition.x,viewPosition.y,viewPosition.z);
+      ret = isIn2DBound(&startStairPoint,&stopStairPoint,&viewPosition);
+   } 
+   return ret;
+}
 int isOnDownStair(struct OnGround *obj)
 {
    float vxp,vyp,vzp;
@@ -2862,6 +2908,25 @@ int isOnUpStairUnderground(struct Underground *obj)
    return ret;
 }
 
+int isOnDownStairUndergroundFor2D(struct Underground *obj)
+{
+   struct Pointf viewPosition = {-1.0,-1.0,-1.0};
+   struct Point viewPositioni = {-1,-1,-1};
+   int ret = 0;
+   if (obj->m_state == GENERATED_UNDERGROUND_DONE)
+   {      
+      struct Point startStairPoint =  getReferentStairPoint(&(obj->m_downStair),START_POINT);
+      struct Point stopStairPoint =  getReferentStairPoint(&(obj->m_downStair),STOP_POINT);
+      startStairPoint.y =  1+obj->m_downStairGroundLv;
+      stopStairPoint.y = 1+obj->m_downStairGroundLv;
+      getAndConvertViewPos(&viewPosition);
+      convertPointfToPointi(&viewPosition,&viewPositioni);
+      //obj->lowestLv
+      //printf("VP(%d,%d,%d)\n",viewPosition.x,viewPosition.y,viewPosition.z);
+      ret = isIn2DBound(&startStairPoint,&stopStairPoint,&viewPositioni); 
+   } 
+   return ret;
+}
 int isOnDownStairUnderground(struct Underground *obj)
 {
    struct Pointf viewPosition = {-1.0,-1.0,-1.0};
@@ -4038,6 +4103,9 @@ void batMove(struct aMesh *obj,struct Underground *uObj)
   float radian = 0.0;
   int oppositeDoorDirection =-1;
   getAndConvertViewPos(&vPoint);
+  float distanceToPlayer = 0.0;
+  float distanceToPlayer2 = 0.0;
+  int oldDirectionIdex =  0;
  // struct Pointf vector1 = {0.0,0.0,0.0};
 
   if (obj->journeyState == 0)
@@ -4050,36 +4118,137 @@ void batMove(struct aMesh *obj,struct Underground *uObj)
     if (obj->areaOfBatIndex != -1)
     {
 
-      if (vPoint.x < obj->posV.x) // go west 
+      if ((vPoint.x < obj->posV.x) && (DoorDirections[obj->areaOfBatIndex ][0] >=0) )// go west 
       {
           obj->directionSearchIndex  = 0;
         obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
+
+        pRoom = &(uObj->m_rooms[obj->areaDestinationIndex ]);
+
+        if (obj->directionSearchIndex == WEST)oppositeDoorDirection = EAST;
+        if (obj->directionSearchIndex == EAST)oppositeDoorDirection = WEST;
+        if (obj->directionSearchIndex == SOUTH)oppositeDoorDirection = NORTH;
+        if (obj->directionSearchIndex == NORTH)oppositeDoorDirection = SOUTH;
+
+        startP = pRoom->DoorPosition[oppositeDoorDirection];
+        if (oppositeDoorDirection < EAST)
+          toAreaCenterPoint = (struct Pointf){(float)startP.x,startP.y,(float)startP.z + + 0.5*(float)pRoom->doorWidth};
+        if (oppositeDoorDirection > EAST)
+          toAreaCenterPoint = (struct Pointf){(float)startP.x + 0.5*(float)pRoom->doorWidth,startP.y,(float)startP.z};
+          toAreaCenterPoint.y = vPoint.y;
+        distanceToPlayer = calEucidianDistance2D(&vPoint,&toAreaCenterPoint);
+
       }
-      else if (vPoint.x > obj->posV.x) // go east 
+
+      if ((vPoint.x > obj->posV.x) && (DoorDirections[obj->areaOfBatIndex ][1] >=0) ) // go east
       {
         
+         oldDirectionIdex = obj->directionSearchIndex;
+
+
           obj->directionSearchIndex  = 1;
         obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
+
+         pRoom = &(uObj->m_rooms[obj->areaDestinationIndex ]);
+
+        if (obj->directionSearchIndex == WEST)oppositeDoorDirection = EAST;
+        if (obj->directionSearchIndex == EAST)oppositeDoorDirection = WEST;
+        if (obj->directionSearchIndex == SOUTH)oppositeDoorDirection = NORTH;
+        if (obj->directionSearchIndex == NORTH)oppositeDoorDirection = SOUTH;
+
+        startP = pRoom->DoorPosition[oppositeDoorDirection];
+        if (oppositeDoorDirection < EAST)
+          toAreaCenterPoint = (struct Pointf){(float)startP.x,startP.y,(float)startP.z + + 0.5*(float)pRoom->doorWidth};
+        if (oppositeDoorDirection > EAST)
+          toAreaCenterPoint = (struct Pointf){(float)startP.x + 0.5*(float)pRoom->doorWidth,startP.y,(float)startP.z};
+          toAreaCenterPoint.y = vPoint.y;
+        distanceToPlayer2 = calEucidianDistance2D(&vPoint,&toAreaCenterPoint);
+        if (distanceToPlayer < distanceToPlayer2)
+        {
+          obj->directionSearchIndex =oldDirectionIdex;
+          obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
+        }
+        else
+        {
+          distanceToPlayer = distanceToPlayer2;
+        }
+
+
       }
-      else if (vPoint.z > obj->posV.z) // go north 
+       if ((vPoint.z > obj->posV.z) && (DoorDirections[obj->areaOfBatIndex ][3] >=0))// go north 
       {
+
+         oldDirectionIdex = obj->directionSearchIndex;
         
           obj->directionSearchIndex  = 3;
         obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
+
+                 pRoom = &(uObj->m_rooms[obj->areaDestinationIndex ]);
+
+        if (obj->directionSearchIndex == WEST)oppositeDoorDirection = EAST;
+        if (obj->directionSearchIndex == EAST)oppositeDoorDirection = WEST;
+        if (obj->directionSearchIndex == SOUTH)oppositeDoorDirection = NORTH;
+        if (obj->directionSearchIndex == NORTH)oppositeDoorDirection = SOUTH;
+
+        startP = pRoom->DoorPosition[oppositeDoorDirection];
+        if (oppositeDoorDirection < EAST)
+          toAreaCenterPoint = (struct Pointf){(float)startP.x,startP.y,(float)startP.z + + 0.5*(float)pRoom->doorWidth};
+        if (oppositeDoorDirection > EAST)
+          toAreaCenterPoint = (struct Pointf){(float)startP.x + 0.5*(float)pRoom->doorWidth,startP.y,(float)startP.z};
+          toAreaCenterPoint.y = vPoint.y;
+        distanceToPlayer2 = calEucidianDistance2D(&vPoint,&toAreaCenterPoint);
+        if (distanceToPlayer < distanceToPlayer2)
+        {
+          obj->directionSearchIndex =oldDirectionIdex;
+          obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
+        }
+        else
+        {
+          distanceToPlayer = distanceToPlayer2;
+        }
+
+
       }
-      else if (vPoint.z < obj->posV.z) // go south 
+       if ((vPoint.z < obj->posV.z) && (DoorDirections[obj->areaOfBatIndex ][2] >=0)) // go south 
       {
+
+         oldDirectionIdex = obj->directionSearchIndex;
         
           obj->directionSearchIndex  = 2;
         obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
-      }      
 
+                 pRoom = &(uObj->m_rooms[obj->areaDestinationIndex ]);
+
+        if (obj->directionSearchIndex == WEST)oppositeDoorDirection = EAST;
+        if (obj->directionSearchIndex == EAST)oppositeDoorDirection = WEST;
+        if (obj->directionSearchIndex == SOUTH)oppositeDoorDirection = NORTH;
+        if (obj->directionSearchIndex == NORTH)oppositeDoorDirection = SOUTH;
+
+        startP = pRoom->DoorPosition[oppositeDoorDirection];
+        if (oppositeDoorDirection < EAST)
+          toAreaCenterPoint = (struct Pointf){(float)startP.x,startP.y,(float)startP.z + + 0.5*(float)pRoom->doorWidth};
+        if (oppositeDoorDirection > EAST)
+          toAreaCenterPoint = (struct Pointf){(float)startP.x + 0.5*(float)pRoom->doorWidth,startP.y,(float)startP.z};
+          toAreaCenterPoint.y = vPoint.y;
+        distanceToPlayer2 = calEucidianDistance2D(&vPoint,&toAreaCenterPoint);
+        if (distanceToPlayer < distanceToPlayer2)
+        {
+          obj->directionSearchIndex =oldDirectionIdex;
+          obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
+        }
+        else
+        {
+          distanceToPlayer = distanceToPlayer2;
+        }
+      }      
+/*
       while(obj->areaDestinationIndex  ==-1)
       {
         obj->directionSearchIndex  = getRandomNumber(0,3);
 
         obj->areaDestinationIndex  = DoorDirections[obj->areaOfBatIndex ][obj->directionSearchIndex ];
       }
+      */
       obj->journeyState = 1;  
     }
 
@@ -4518,6 +4687,8 @@ const char* printMeshName(const int id)
 }
 void changeStatusAndPrintInfo(struct aMesh *obj,int state,int option) // 0 not print info , 1 print inf
 {
+
+ // printf("%s obj->state:%d , state:%s (%d), vs(%d) option:%d fact1(%d) fact2(%d)\n",printMeshName(obj->type),obj->state,((state==HIDDEN)?"HIDDERN":"SHOWN"),state,obj->visiblityState,option,(obj->visiblityState  != state) ,((obj->visiblityState  != state) && ((state == HIDDEN) ||(state == SHOWN))));
   if (((obj->state != state) &&  ( (state != SHOWN) && (state != HIDDEN))))
   {
         obj->state = state;
