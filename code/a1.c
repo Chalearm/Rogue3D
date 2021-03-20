@@ -128,7 +128,7 @@ extern void keyboard(unsigned char, int, int);
 #define DEFAULT_DOOR_HEIGHT 3
 #define DEFAULT_DOOR_WIDTH 3
 #define DEFAULT_ROOM_HEIGHT 6
-#define DEFAULT_GRAVITY 100
+#define DEFAULT_GRAVITY 1000
 #define DEFAULT_COLLISION_MARGIN 0.4
 #define DEFAULT_SPARFORCORRIDORS_X 4
 #define DEFAULT_SPARFORCORRIDORS_Z 4
@@ -918,7 +918,21 @@ float x, y, z;
          {
             newY = floorLv + 1.0;
          }
-         else if (world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz] == 0)
+         else if (stage_Lv > -1)
+         {  
+            int hight = (-1)*(int)vpy;
+            if( hight <=Undergrounds[stage_Lv].m_groundLv)
+            {
+              if ((world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz] != 0) &&(world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz] != 23))
+              {
+
+                newY = Undergrounds[stage_Lv].m_groundLv+1;
+                fallState = 0;
+              }
+            }
+
+         }
+         else if ((world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz] == 0) && (stage_Lv == -1))
          {
             int hight = (-1)*(int)vpy;
             int highest = hight +18;
@@ -928,11 +942,13 @@ float x, y, z;
                 if (index >= DEFAULT_LOWEST_CLOUD)
                 {
                   index = highest;
+                  fallState = 0;
                 }
                 else if (world[-1 * (int)vpx][index][-1 * (int)vpz] == 1) // green filed only
                 {
                   newY = index+1;
                   index = highest;
+                  fallState = 0;
                 }
             }
          }
@@ -1897,11 +1913,6 @@ void createUnderground(struct Underground *obj)
       foundGoodPlaceForUpStair =0;
       foundGoodPlaceForDownStair = 0;
       makeWorld();
-         //build base 
-   FloorStartPoint.y =0;
-    BuildABox(&FloorStartPoint,&FloorEndPoint,0,&floorStyle1);
-
-   FloorStartPoint.y =obj->m_groundLv;
       BuildABox(&FloorStartPoint,&FloorEndPoint,0,&floorStyle1);
 
       // initi map parameter
@@ -2165,10 +2176,6 @@ void locateAndBuildStairOnTerrain(struct OnGround *obj)
       }
       g_floorLv = obj->lowestLv; 
       setViewPosition(obj->downStair.StartPoint.x*(-1),(-1)*(startStairPoint.y+1),obj->downStair.StartPoint.z*(-1));
-
-      struct Point FloorStartPoint = {0,0,0};
-      struct Point FloorEndPoint = {WORLDX-1, obj->lowestLv,WORLDZ-1};
-      BuildABox(&FloorStartPoint,&FloorEndPoint,21,&normalColorStyle);
       BuildStair(&(obj->downStair));
 
 }
