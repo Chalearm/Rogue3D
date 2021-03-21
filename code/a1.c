@@ -423,6 +423,7 @@ float findRadian(const float x,const float z);
 int meshCollideHanndle(struct Pointf *obj,struct Pointf *oldPos);
 void updateVisibilityControlVal(struct visiblityControlVal *obj);
 int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,struct aMesh *meshes);
+float distanceAliveBatToPlayer(struct aMesh *meshes,const int indexMesh);
 void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Point *stopP);
 void getStairOfUndergroundWolrd(struct Underground *obj,int upOrDownStair,struct Point *startP,struct Point *stopP); // 0 = up, 1 = down
 void SetMAXandMINPoint(const int **MaxPoint, const int **MinPoint, const int *P1, const int *P2);
@@ -868,11 +869,11 @@ float x, y, z;
 
    } else {
 
-  /* your code goes here */
-          struct Pointf viewPoint;
-          struct Pointf p1;
-          struct Pointf p2;
-          getAndConvertViewPos(&viewPoint);
+      /* your code goes here */
+      struct Pointf viewPoint;
+      struct Pointf p1;
+      struct Pointf p2;
+      getAndConvertViewPos(&viewPoint);
 
 
       int valOfWorldAtBelowVP = 0;
@@ -3078,7 +3079,6 @@ void moveCloudInOutsideLand(struct OnGround *obj,const float second)
                for(k=0;k<100;k++)
                   world[i][DEFAULT_LOWEST_CLOUD+j][k] = obj->cloudSpace[(i+moveId)%100][j][(k+moveId)%100];
                moveId = (1+moveId)%100;
-               
 
       }
 }
@@ -3898,6 +3898,20 @@ void visibilityTestOfMesh(struct aMesh *obj,struct Underground *uObj)
     }
 
 }
+
+
+float distanceAliveBatToPlayer(struct aMesh *meshes,const int indexMesh)
+{
+  float distanceVal = 100.0;
+  struct Pointf vPoint  = {0.0,0.0,0.0};
+  getAndConvertViewPos(&vPoint);
+  if ((meshes[indexMesh].type == BAT) && (meshes[indexMesh].state != DEAD))
+  {
+    distanceVal = calEucidianDistance2D(&vPoint,&(meshes[indexMesh].posV));
+  }
+
+  return distanceVal;
+}
 int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,struct aMesh *meshes)
 {
   int ret = 0;
@@ -3919,7 +3933,7 @@ int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,st
 
   // if it is a Neughbor or the same room mesh, then we check whether that it is in front of view point or not 
   //  by dot product between the direction vector of point view and mesh vector
-  if (isNeighborMesh == 1)
+  if ((isNeighborMesh == 1) || (distanceAliveBatToPlayer(meshes,meshIndex) <33.0))
   {
     newDirectionVect.x = cos(newRadian);
     newDirectionVect.z = sin(newRadian);
@@ -3927,6 +3941,50 @@ int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,st
     newDirectionVect.y = meshVector.y;
     meshRadian =  findRadian(meshVector.x,meshVector.z);
     isInFront = dotProductOfPoint3D(&meshVector,&newDirectionVect);
+///kkkkkkk
+//findObjPointIsWhichRoom2D();
+    /*
+if(currentKeyPressed == 'c')
+{
+  int index = 0;
+  int rmIndex,rmMeshIndex = 0;
+  struct Point2D max2DPoint = {0,0};
+  struct Point2D min2DPoint = {0,0};
+  struct Point2D ref2DPoint = {vPoint.x,vPoint.z};
+        while(index < DEFAULT_NUM_ROOM)
+      {
+          min2DPoint =  (struct Point2D){dimensionOfGrid3x3[index][0],dimensionOfGrid3x3[index][1]};
+          max2DPoint =  (struct Point2D){min2DPoint.x + dimensionOfGrid3x3[index][2]-1,min2DPoint.z + dimensionOfGrid3x3[index][3]-1};
+          if (isIn2DBoundPoint2D(&min2DPoint,&max2DPoint,&ref2DPoint) == 1)
+          {
+            rmIndex= index;
+            index = DEFAULT_NUM_ROOM;
+          }
+          else
+          {
+            // it never exceeds or reaches the maximum value (DEFAULT_NUM_ROOM)
+            index = (index+1);
+          }
+      }
+      index = 0;
+      while(index < DEFAULT_NUM_ROOM)
+      {
+          min2DPoint =  (struct Point2D){dimensionOfGrid3x3[index][0],dimensionOfGrid3x3[index][1]};
+          max2DPoint =  (struct Point2D){min2DPoint.x + dimensionOfGrid3x3[index][2]-1,min2DPoint.z + dimensionOfGrid3x3[index][3]-1};
+          if (isIn2DBoundPoint2D(&min2DPoint,&max2DPoint,&ref2DPoint) == 1)
+          {
+            rmMeshIndex = index;
+            index = DEFAULT_NUM_ROOM;
+          }
+          else
+          {
+            // it never exceeds or reaches the maximum value (DEFAULT_NUM_ROOM)
+            index = (index+1);
+          }
+      }
+      printf("RmID:(%d), vf(%3.2f,%3.2f) meshID:%d  rmMesh(%d)(%3.2f,%3.2f) inFront:%3.2f\n",rmIndex,vPoint.x,vPoint.z,meshes[meshIndex].id,rmMeshIndex,meshes[meshIndex].posV.x,meshes[meshIndex].posV.z,isInFront);
+}
+*/
   }
 
   // if it is in front of view point, check that view point can see it without obstrucle or wall, cube convers  the mesh
@@ -3935,35 +3993,34 @@ int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,st
       trackVector.x = vPoint.x;
       trackVector.z = vPoint.z;
       stopPoint = 0;
-         while(stopPoint == 0)
+      while(stopPoint == 0)
+      {
+        if((isIn1DBound(99.0,0.0,trackVector.x)==0)||(isIn1DBound(99.0,0.0,trackVector.z)==0))
         {
-          if((isIn1DBound(99.0,0.0,trackVector.x)==0)||(isIn1DBound(99.0,0.0,trackVector.z)==0))
-          {
-            stopPoint = 1;
-          }
-          // MOB can be found in the cicle area redius =1.75 cell  (but fish's lenth is around 2 cell)
-          else if (pow(pow(meshes[meshIndex].posV.x-trackVector.x ,2)+pow(meshes[meshIndex].posV.z - trackVector.z ,2),0.5) < 1.75)
-          {            
-            stopPoint = 1;
-            ret = 1;
-          }
-          else if (comparePointfsAsInt(&trackVector,&(meshes[meshIndex].posV)) == 1)
-          {
-            stopPoint = 1;
-            ret = 1;
-          }
-          else if ( world[(int)trackVector.x][(int)vPoint.y][(int)trackVector.z] == 0)
-          {
-            trackVector.x = (vPoint.x + count*cos(meshRadian));
-            trackVector.z = (vPoint.z + count*sin(meshRadian));
-            count = 0.125 + count;
-          }
-          else
-          {
-             stopPoint =1;
-          }
+          stopPoint = 1;
         }
-
+        // MOB can be found in the cicle area redius =1.75 cell  (but fish's lenth is around 2 cell)
+        else if (pow(pow(meshes[meshIndex].posV.x-trackVector.x ,2)+pow(meshes[meshIndex].posV.z - trackVector.z ,2),0.5) < 1.75)
+        {            
+          stopPoint = 1;
+          ret = 1;
+        }
+        else if (comparePointfsAsInt(&trackVector,&(meshes[meshIndex].posV)) == 1)
+        {
+          stopPoint = 1;
+          ret = 1;
+        }
+        else if ( world[(int)trackVector.x][(int)vPoint.y][(int)trackVector.z] == 0)
+        {
+          trackVector.x = (vPoint.x + count*cos(meshRadian));
+          trackVector.z = (vPoint.z + count*sin(meshRadian));
+          count = 0.125 + count;
+        }
+        else
+        {
+          stopPoint =1;
+        }
+      }
   }
   return ret;
 
