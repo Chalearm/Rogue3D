@@ -3991,6 +3991,7 @@ if(currentKeyPressed == 'c')
   if (isInFront >= 0.0)
   {
       trackVector.x = vPoint.x;
+      trackVector.y = vPoint.y;
       trackVector.z = vPoint.z;
       stopPoint = 0;
       while(stopPoint == 0)
@@ -4010,7 +4011,7 @@ if(currentKeyPressed == 'c')
           stopPoint = 1;
           ret = 1;
         }
-        else if ( world[(int)trackVector.x][(int)vPoint.y][(int)trackVector.z] == 0)
+        else if (readWorldSpace(trackVector) == 0)
         {
           trackVector.x = (vPoint.x + count*cos(meshRadian));
           trackVector.z = (vPoint.z + count*sin(meshRadian));
