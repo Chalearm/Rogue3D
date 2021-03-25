@@ -486,6 +486,7 @@ int isIn2DBound(const struct Point *startP,const struct Point *stopP,const struc
 int isIn2DBoundPoint2D(const struct Point2D *startP,const struct Point2D *stopP,const struct Point2D *ref); // yes = 1, otherwise = 0
 int isIn1DBound(const float max,const float min,const float val); // yes = 1, otherwise = 0
 int readWorldSpace(const struct Pointf aPoint);
+int readTranslatedWorldSpace(const struct Pointf aPoint,const float xOffset,const float yOffset,const float zOffset);
 int boundValue(int max,int min,int originValue);
 int findMaxValue(int a,int b);
 int findMinValue(int a,int b);
@@ -624,6 +625,8 @@ void collisionResponse()
 {
 
    /* your code for collisions goes here */
+   struct Pointf vPoint = {0.0,0.0,0.0};
+   struct Pointf vOldPoint = {0.0,0.0,0.0};
    float tempX=0.0;
    float tempY=0.0;
    float tempZ=0.0;
@@ -633,32 +636,33 @@ void collisionResponse()
    float vzp = 0;
    float Xdirection = 0; // - , + or 0
    float Zdirection = 0; // - , + or 0
+   float Ydirection = 0; // - , + or 0
    int isHit = 0;
    int isAble2Jump = 0;
-   int outOfSpace = 0;
-   int SpaceOverHeadPos = 0;
+   int outOfSpace = 0; 
    getViewPosition(&vxp, &vyp, &vzp);
    getOldViewPosition(&tempX, &tempY, &tempZ);
+   getAndConvertViewPos(&vPoint);
+   getAndConvertOldViewPos(&vOldPoint);
    Xdirection = -1 * (vxp > tempX) + (vxp < tempX);
    Zdirection = -1 * (vzp > tempZ) + (vzp < tempZ);
+   Ydirection = -1 * (vyp > tempZ) + (vyp < tempY);
    int ValueAtCubePointDetect     = 0;
    int ValueAtMarginXOfCubeDetect = 0;
    int ValueAtMarginZOfCubeDetect = 0;
-   int ValueAtMarginXZOfCubeDetect= 0;
-   SpaceOverHeadPos = 1 + (-1) * (int)vyp;
+   int ValueAtMarginXZOfCubeDetect= 0; 
 
-   ValueAtCubePointDetect     = world[-1 * (int)vxp][-1 * (int)vyp][-1 * (int)vzp];
-   ValueAtMarginXOfCubeDetect = world[-1 * (int)(vxp - margin * Xdirection)][-1 * (int)vyp][-1 * (int)vzp];
-   ValueAtMarginZOfCubeDetect = world[-1 * (int)vxp][-1 * (int)vyp][-1 * (int)(vzp - margin * Zdirection)];
-   ValueAtMarginXZOfCubeDetect= world[-1 * (int)(vxp - margin * Xdirection)][-1 * (int)vyp][-1 * (int)(vzp - margin * Zdirection)];
+   ValueAtCubePointDetect     = readWorldSpace(vPoint);
+   ValueAtMarginXOfCubeDetect = readTranslatedWorldSpace(vPoint,margin * Xdirection,0,0);
+   ValueAtMarginZOfCubeDetect = readTranslatedWorldSpace(vPoint,0,0,margin * Zdirection);
+   ValueAtMarginXZOfCubeDetect= readTranslatedWorldSpace(vPoint,margin * Xdirection,0,margin * Zdirection);
    isHit = ((ValueAtCubePointDetect + ValueAtMarginXOfCubeDetect + ValueAtMarginZOfCubeDetect + ValueAtMarginXZOfCubeDetect) > 0);
-   isAble2Jump = world[-1 * (int)vxp][SpaceOverHeadPos][-1 * (int)vzp] +
-                 world[-1 * (int)(vxp - margin * Xdirection)][SpaceOverHeadPos][-1 * (int)vzp] +
-                 world[-1 * (int)vxp][SpaceOverHeadPos][-1 * (int)(vzp - margin * Zdirection)] +
-                 world[-1 * (int)(vxp - margin * Xdirection)][SpaceOverHeadPos][-1 * (int)(vzp - margin * Zdirection)];
-   outOfSpace = (((-1 * (int)vxp) > 99) || ((-1 * (int)vyp) > 49) || ((-1 * (int)vzp) > 99));
-   outOfSpace = outOfSpace || (((-1 * (int)vxp) < 0) || ((-1 * (int)vyp) <= (g_floorLv)) || ((-1 * (int)vzp) < 0));
-
+   isAble2Jump = readTranslatedWorldSpace(vPoint,0,1,0)+
+                 readTranslatedWorldSpace(vPoint,margin * Xdirection,1,0)+
+                 readTranslatedWorldSpace(vPoint,0,1,margin * Zdirection)+
+                 readTranslatedWorldSpace(vPoint,margin * Xdirection,1,margin * Zdirection);
+   outOfSpace = ((isIn1DBound(99,0,vPoint.x) == 0) || (isIn1DBound(49,0,vPoint.y) == 0) || (isIn1DBound(99,0,vPoint.z) == 0) || (vPoint.y <= g_floorLv));
+  
    if (stage_Lv != -1)
    {
      int tempVal = collsionResponseForMeshes(&Undergrounds[stage_Lv]);
@@ -667,31 +671,46 @@ void collisionResponse()
    }
    // protect to pass through
 
+   // slide along with the wall side on X-axis
+  if ((readTranslatedWorldSpace(vOldPoint,Xdirection,0,0) == 0) && (isHit != 0) && (isAble2Jump != 0 ))  
+  {   // printf("-2LIne:%d, cur(%3.2f,%3.2f) old(%3.2f,%3.2f) isAble2Jump:%d wX:%d, wZ:%d\n",__LINE__,(-1.0)*vxp,(-1.0)*vzp,(-1.0)*tempX,(-1.0)*tempZ,isAble2Jump,world[(-1 * (int)vxp)+(int)Xdirection][-1 * (int)vyp][-1 * (int)vzp],world[(-1 * (int)vxp)][-1 * (int)vyp][(-1 * (int)vzp) + (int)Zdirection]);
+      setViewPosition(vxp, tempY, tempZ);
+  }
 
-   if ((outOfSpace == 1) || ((isHit != 0) && (isAble2Jump != 0)))
-   {
-      setViewPosition(tempX, tempY, tempZ);
-   }
+   // slide along with the wall side on Z-axis
+  else if ((readTranslatedWorldSpace(vOldPoint,0,0,Zdirection) == 0) && (isHit != 0) && (isAble2Jump != 0 ))  
+  {   // printf("-1LIne:%d, cur(%3.2f,%3.2f) old(%3.2f,%3.2f) isAble2Jump:%d wX:%d, wZ:%d\n",__LINE__,(-1.0)*vxp,(-1.0)*vzp,(-1.0)*tempX,(-1.0)*tempZ,isAble2Jump,world[(-1 * (int)vxp)+(int)Xdirection][-1 * (int)vyp][-1 * (int)vzp],world[(-1 * (int)vxp)][-1 * (int)vyp][(-1 * (int)vzp) + (int)Zdirection]);
+      setViewPosition(tempX, tempY, vzp);
+  }
+  else if ((outOfSpace == 1) || ((isHit != 0) && (isAble2Jump != 0)))
+  {
+  //  printf("0LIne:%d, cur(%3.2f,%3.2f) old(%3.2f,%3.2f) isAble2Jump:%d wX:%d, wZ:%d\n",__LINE__,(-1.0)*vxp,(-1.0)*vzp,(-1.0)*tempX,(-1.0)*tempZ,isAble2Jump,world[(-1 * (int)vxp)+(int)Xdirection][-1 * (int)vyp][-1 * (int)vzp],world[(-1 * (int)vxp)][-1 * (int)vyp][(-1 * (int)vzp) + (int)Zdirection]);
+    setViewPosition(tempX, tempY, tempZ);
+  }
    // jump on the box
    else if ((isHit != 0) && (isAble2Jump == 0))
    {
       if (ValueAtCubePointDetect != 0)
       {
+      //  printf("LIne:%d, cur(%3.2f,%3.2f) old(%3.2f,%3.2f) isAble2Jump:%d wX:%d, wZ:%d\n",__LINE__,(-1.0)*vxp,(-1.0)*vzp,(-1.0)*tempX,(-1.0)*tempZ,isAble2Jump,world[(-1 * (int)vxp)+(int)Xdirection][-1 * (int)vyp][-1 * (int)vzp],world[(-1 * (int)vxp)][-1 * (int)vyp][(-1 * (int)vzp) + (int)Zdirection]);
          tempX = (float)(int)vxp;
          tempZ = (float)(int)vzp;
       }
       else if (ValueAtMarginXOfCubeDetect != 0)
       {
+      //  printf("LIne:%d, cur(%3.2f,%3.2f) old(%3.2f,%3.2f) isAble2Jump:%d wX:%d, wZ:%d\n",__LINE__,(-1.0)*vxp,(-1.0)*vzp,(-1.0)*tempX,(-1.0)*tempZ,isAble2Jump,world[(-1 * (int)vxp)+(int)Xdirection][-1 * (int)vyp][-1 * (int)vzp],world[(-1 * (int)vxp)][-1 * (int)vyp][(-1 * (int)vzp) + (int)Zdirection]);
          tempX = (float)(int)(vxp - margin * Xdirection);
          tempZ = (float)(int)vzp;
       }
       else if (ValueAtMarginZOfCubeDetect != 0)
       {
+      //  printf("LIne:%d, cur(%3.2f,%3.2f) old(%3.2f,%3.2f) isAble2Jump:%d wX:%d, wZ:%d\n",__LINE__,(-1.0)*vxp,(-1.0)*vzp,(-1.0)*tempX,(-1.0)*tempZ,isAble2Jump,world[(-1 * (int)vxp)+(int)Xdirection][-1 * (int)vyp][-1 * (int)vzp],world[(-1 * (int)vxp)][-1 * (int)vyp][(-1 * (int)vzp) + (int)Zdirection]);
          tempX = (float)(int)vxp;
          tempZ = (float)(int)(vzp - margin * Zdirection);
       }
       else if (ValueAtMarginXZOfCubeDetect != 0)
       {
+       // printf("LIne:%d, cur(%3.2f,%3.2f) old(%3.2f,%3.2f) isAble2Jump:%d wX:%d, wZ:%d\n",__LINE__,(-1.0)*vxp,(-1.0)*vzp,(-1.0)*tempX,(-1.0)*tempZ,isAble2Jump,world[(-1 * (int)vxp)+(int)Xdirection][-1 * (int)vyp][-1 * (int)vzp],world[(-1 * (int)vxp)][-1 * (int)vyp][(-1 * (int)vzp) + (int)Zdirection]);
          tempX = (float)(int)(vxp - margin * Xdirection);
          tempZ = (float)(int)(vzp - margin * Zdirection);
       }
@@ -4123,6 +4142,23 @@ void hideAllMeshesIntheUnderground(struct Underground *obj)
        meshes[index].visiblityState =HIDDEN;
     }
   }
+}
+
+int readTranslatedWorldSpace(const struct Pointf aPoint,const float xOffset,const float yOffset,const float zOffset)
+{
+  int ret = 0;
+  ret = isIn1DBound(99,0,aPoint.x); // yes = 1, otherwise = 0
+  ret = ret && isIn1DBound(49,0,aPoint.y); // yes = 1, otherwise = 0
+  ret = ret && isIn1DBound(99,0,aPoint.z); // yes = 1, otherwise = 0
+  if (ret == 1)
+  {
+   ret = world[(int)(aPoint.x+xOffset)][(int)(aPoint.y+yOffset)][(int)(aPoint.z+zOffset)];
+  }
+  else
+  {
+    ret = -1;
+  }
+  return ret;
 }
 int readWorldSpace(const struct Pointf aPoint)
 {
