@@ -119,8 +119,15 @@ extern void keyboard(unsigned char, int, int);
 #define NUM_TILE_Z 50
 #define MAX_NUM_LINE_IN_MAP 100
 #define MAX_NUM_STAIR_IN_MAP 2
+/* cave level default parameters */ 
+#define DEFAULT_CAVE_LV_GRAVITY 22
+#define DEFAULT_CAVE_LV_HIGHEST_CEILING 48
+#define DEFAULT_CAVE_LV_LOWEST_CEILING 15
+#define DEFAULT_CAVE_LV_GROUND_LV 10
+#define DEFAULT_CAVE_LV_WALL_HEIGHT 10
+#define DEFAULT_CAVE_LV_WALL_COLOR TXT_WALL_ID1
 
-
+/* Underground default parameters */
 #define UP_STAIR 0
 #define DOWN_STAIR 1
 #define DEFAULT_NUM_ROOM 9
@@ -134,7 +141,7 @@ extern void keyboard(unsigned char, int, int);
 #define DEFAULT_SPARFORCORRIDORS_Z 4
 #define DEFAULT_ROOM_SIZE_MAX 20
 #define DEFAULT_ROOM_SIZE_MIN 5
-#define DEFAULT_ROOM_COLOR TXT_WALL_ID1 // Green 
+#define DEFAULT_ROOM_COLOR TXT_WALL_ID1  
 #define DEFAULT_CUBE_COLOR TXT_CUBE_ID1
 
 #define DEFAULT_VIEW_POINT_X 1
@@ -340,6 +347,27 @@ struct OnGround
    int lowestLvOfCubesNum;
 };
 
+struct CaveLv
+{
+   unsigned char m_state; // 1 = already set (READY STATE), 2 = Terrain and Stair already create, otherwise = not ready
+   int m_visitedState;
+   unsigned char m_caveCeiling[WORLDX][WORLDZ];
+   unsigned char m_stairOption; // 0 = no stair, 1 = only upstair, 2 = only down stair, 3 both up and down stairs
+   int m_roomColor;
+   struct Room m_aRoom;
+   struct stair m_upStair;
+   struct stair m_downStair;
+   struct Point m_upViewPoint;
+   struct Point m_downViewPoint;
+   float m_gravity;
+   int m_highestLv;
+   int m_lowestLv;
+   int m_wallheight;
+   int m_groundLv;
+   int m_downStairGroundLv;
+
+};
+
 #define PI_RADIAN 57.295779513   // 180/PI
 
 
@@ -377,6 +405,7 @@ struct OnGround
 #define NOT_READY 0
 #define TERRAIN_AND_STAIR_IS_BUILT 2
 #define GENERATED_UNDERGROUND_DONE 2
+#define GENERATED_CAVE_LV_DONE 2
 #define WEST 0
 #define EAST 1
 #define SOUTH 2
@@ -440,6 +469,19 @@ void setPrameterOfOnGround_defauleValue1(struct OnGround *obj);
 void createOnGround(struct OnGround *obj);
 int isOnDownStair(struct OnGround *obj);
 int isOnDownStairFor2D(struct OnGround *obj);
+// stage control
+void controlStage(int *stageLv,struct CaveLv *objCave,const int numCave, struct Underground *objU, const int numUnderg, struct OnGround *objOG);
+
+// cave level funciton
+void setParameteOfCaveLv_defaultValue(struct CaveLv *obj,int hasDownStair);
+void changeVisiteStateInCave(struct CaveLv *obj,const int state);
+void initialStairsOfCaveLv(struct CaveLv *obj);
+void createCaveLv(struct CaveLv *obj);
+void buildStairsInCaveLv(struct CaveLv *obj);
+int isOnUpStairInCaveLV(struct CaveLv *obj);
+int isOnDownStairInCaveLV(struct CaveLv *obj);
+int isOnDownStairInCaveLVFor2D(struct CaveLv *obj);
+
 // Underground functions
 void setParameterOfUnderground_defaultValue1(struct Underground *obj,int hasDownStair);
 void createUnderground(struct Underground *obj);
@@ -459,6 +501,7 @@ void handleAIMesh(struct Underground *obj,const float second);
 int timer(const float second);
 void hideAllMeshesIntheUnderground(struct Underground *obj);
 float calEucidianDistance2D(struct Pointf *p1,struct Pointf *p2);
+float calEucidianDistance3Di(struct Point *p1,struct Point *p2);
 
 void fishMove(struct aMesh *obj);
 void batMove(struct aMesh *obj,struct Underground *uObj);
@@ -511,7 +554,6 @@ void getColorOfAmeshInMap2D(struct aMesh *mesh,GLfloat *color);
 void drawARoomInMap2D(struct Map *obj,const int roomID);
 
 // Fog map functions
-//jjjjj1
 // fog map initial function
 void setFogAreaInFogMap(struct FogMap *obj,GLfloat fogColor[4],struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*));
 
@@ -566,12 +608,14 @@ void initialFogMap(struct FogMap *obj);
 #define Y_DISTANCE 1
 #define Z_DISTANCE 2
 
-#define DEFAULT_NUM_UNDERGROUND_LV 4
+#define DEFAULT_NUM_UNDERGROUND_LV 2
+#define DEFAULT_NUM_CAVE_LV 2
 float alphaVal = 0.9;
 int stage_Lv = -1;
 unsigned char currentKeyPressed = 0;
 struct OnGround OutsideLand;
 struct Underground Undergrounds[DEFAULT_NUM_UNDERGROUND_LV];
+struct CaveLv caveLvs[DEFAULT_NUM_CAVE_LV];
 struct visiblityControlVal visibilityMananger;
 // define the dimension of Grid 3X3
 int dimensionOfGrid3x3[9][4] = {{0, 0, 33, 33},
@@ -760,9 +804,9 @@ void draw2D() {
               getStairOfOutSideWorld(&OutsideLand,&stairP1,&stairP2);
               drawAStairInMap(&stairP1,&stairP2,grey,&mapTransformFuntion);
            }
-           else if (stage_Lv > -1)
+           else if (stage_Lv%2 == 0)
            {
-              updateUndergroundMap2D(&Undergrounds[stage_Lv],displayMap);
+              updateUndergroundMap2D(&Undergrounds[stage_Lv/2],displayMap);
            }
            // draw background
            set2Dcolour(black);
@@ -893,6 +937,7 @@ float x, y, z;
       struct Pointf p1;
       struct Pointf p2;
       getAndConvertViewPos(&viewPoint);
+      int lvIndex = stage_Lv/2;
 
 
       int valOfWorldAtBelowVP = 0;
@@ -959,17 +1004,27 @@ float x, y, z;
           if (stage_Lv > -1)
          {  
             int hight = (-1)*(int)vpy;
+            int indexLv = stage_Lv/2;
             if (fallState == 2)hight = newY;
-
-            if( hight <=Undergrounds[stage_Lv].m_groundLv)
+            if ((stage_Lv%2 == 0)  && ( hight <=Undergrounds[indexLv].m_groundLv))// maze level
             {
-              if (isOnDownStairUndergroundFor2D(&Undergrounds[stage_Lv]) ==0)
-              {
-                newY = Undergrounds[stage_Lv].m_groundLv+1;
-                fallState = 0;
-                isUpSideDonwFound = 1;
-              }
+                if (isOnDownStairUndergroundFor2D(&Undergrounds[indexLv]) ==0)
+                {
+                  newY = Undergrounds[indexLv].m_groundLv+1;
+                  fallState = 0;
+                  isUpSideDonwFound = 1;
+                } 
             }
+            else if  ((stage_Lv%2 == 1)  && ( hight <=caveLvs[indexLv].m_groundLv))  // cave level
+            {
+                if (isOnDownStairInCaveLVFor2D(&caveLvs[indexLv]) ==0)
+                {
+                  newY = Undergrounds[indexLv].m_groundLv+1;
+                  fallState = 0;
+                  isUpSideDonwFound = 1;
+                } 
+            }
+
 
          }
          else if ((world[-1 * (int)vpx][(-1 * (int)vpy) - 1][-1 * (int)vpz] == 0) && (stage_Lv == -1) && (newY > 0.0))
@@ -999,72 +1054,20 @@ float x, y, z;
         {
           setViewPosition(vpx, newY * (-1.0), vpz);
         }
-
-          // detect up/down stair event to change level
-         if((isOnDownStair(&OutsideLand) == 1) && (stage_Lv == -1))
-         {
-            stage_Lv = 0;
-            changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_DOWN);
-            createUnderground(&Undergrounds[stage_Lv]);
-         }
-         else if (stage_Lv == 0)
-         {
-           if(isOnUpStairUnderground(&Undergrounds[stage_Lv]) == 1)
-           {
-              createOnGround(&OutsideLand);
-              stage_Lv = -1;
-           }
-           if (isOnDownStairUnderground(&Undergrounds[stage_Lv]) == 1)
-           {
-              // hide all mesh first
-              hideAllMeshesIntheUnderground(&Undergrounds[stage_Lv]);
-              stage_Lv++;
-              changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_DOWN);
-              createUnderground(&Undergrounds[stage_Lv]);
-           }
-         }
-         else if (stage_Lv == (DEFAULT_NUM_UNDERGROUND_LV -1))
-         {           
-           if(isOnUpStairUnderground(&Undergrounds[stage_Lv]) == 1)
-           { 
-              // hide all mesh first
-              hideAllMeshesIntheUnderground(&Undergrounds[stage_Lv]);
-              stage_Lv--;
-              changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_UP);
-              createUnderground(&Undergrounds[stage_Lv]);
-           }
-         }
-         else if(stage_Lv > 0)
-         {           
-           if(isOnUpStairUnderground(&Undergrounds[stage_Lv]) == 1)
-           { 
-              // hide all mesh first
-              hideAllMeshesIntheUnderground(&Undergrounds[stage_Lv]);
-              stage_Lv--;
-              changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_UP);
-              createUnderground(&Undergrounds[stage_Lv]);
-           }
-           if (isOnDownStairUnderground(&Undergrounds[stage_Lv]) == 1)
-           {
-              // hide all mesh first
-              hideAllMeshesIntheUnderground(&Undergrounds[stage_Lv]);
-              stage_Lv++;
-              changeVisiteStateInUnderground(&Undergrounds[stage_Lv],ALREADY_DOWN);
-              createUnderground(&Undergrounds[stage_Lv]);
-           }
-         }
-
-         if(stage_Lv == -1)
-         {
-            // move cloud every 0.1 second
-            moveCloudInOutsideLand(&OutsideLand,0.1);
-         }
-         else
-         {
-            // move meshed every 0.08 second
-            handleAIMesh(&(Undergrounds[stage_Lv]),0.0002);
-            fightingWithMeshes(&(Undergrounds[stage_Lv]),0.2);
-         }
+        // change stage
+        controlStage(&stage_Lv,caveLvs,DEFAULT_NUM_CAVE_LV,Undergrounds,DEFAULT_NUM_UNDERGROUND_LV,&OutsideLand);
+        lvIndex = stage_Lv/2;
+        if(stage_Lv == -1)
+        {
+          // move cloud every 0.1 second
+          moveCloudInOutsideLand(&OutsideLand,0.1);
+        }
+        else if (stage_Lv%2 == 0)
+        {
+          // move meshed every 0.08 second
+          handleAIMesh(&(Undergrounds[lvIndex]),0.0002);
+          fightingWithMeshes(&(Undergrounds[lvIndex]),0.2);
+        }
 
    }
 }
@@ -1109,7 +1112,7 @@ int getRandomNumber(int minimum, int maximum)
   }
   else
   {
-    printf("cannot random - min:%d, max:%d",minimum,maximum);
+   // printf("cannot random - min:%d, max:%d \n",minimum,maximum);
   }
   return ret;
 }
@@ -1293,15 +1296,20 @@ int i, j, k;
       makeWorld();
       setAllTexture();
       int index = 0;
-      for (index = 0;index < DEFAULT_NUM_UNDERGROUND_LV ; index++)
+      int count = findMaxValue(DEFAULT_NUM_UNDERGROUND_LV,DEFAULT_NUM_CAVE_LV);
+      for (index = 0;index < count ; index++)
       {
-        if (index == (DEFAULT_NUM_UNDERGROUND_LV -1 ))
-        {
-          setParameterOfUnderground_defaultValue1(&Undergrounds[index],ONLY_UP_STAIR);
-        }
-        else
+        if (index < DEFAULT_NUM_UNDERGROUND_LV)
         {
           setParameterOfUnderground_defaultValue1(&Undergrounds[index],BOTH_UP_DOWN_STAIR);
+        }
+        if (index == (DEFAULT_NUM_CAVE_LV -1))
+        {
+          setParameteOfCaveLv_defaultValue(&caveLvs[index],ONLY_UP_STAIR);
+        }
+        else if (index < DEFAULT_NUM_CAVE_LV)
+        {
+          setParameteOfCaveLv_defaultValue(&caveLvs[index],BOTH_UP_DOWN_STAIR);
         }
       }
       setPrameterOfOnGround_defauleValue1(&OutsideLand);
@@ -1885,6 +1893,119 @@ int boundValue(int max,int min,int originValue)
    if(originValue < min)
       ret = min;
    return ret;
+}
+// kkkkkkkkkkkk
+void setParameteOfCaveLv_defaultValue(struct CaveLv *obj,int hasDownStair)
+{
+   obj->m_visitedState = NOT_VISITED;
+   obj->m_stairOption = hasDownStair; // 0 = no stair, 1 = only upstair, 2 = only down stair, 3 both up and down stairs
+   obj->m_roomColor = DEFAULT_CAVE_LV_WALL_COLOR;
+   obj->m_highestLv = DEFAULT_CAVE_LV_HIGHEST_CEILING;
+   obj->m_lowestLv = DEFAULT_CAVE_LV_LOWEST_CEILING;
+   obj->m_groundLv = DEFAULT_CAVE_LV_GROUND_LV;
+   obj->m_downStairGroundLv = DEFAULT_CAVE_LV_GROUND_LV;
+   obj->m_gravity = DEFAULT_CAVE_LV_GRAVITY;
+   obj->m_wallheight = DEFAULT_CAVE_LV_WALL_HEIGHT;
+   obj->m_downViewPoint = (struct Point){0,0,0};
+   obj->m_upViewPoint = (struct Point){0,0,0};
+   obj->m_state = READY; // 1 = already set (READY STATE), 2 = Ceiling of cave and Stair already create, otherwise = not ready
+}
+
+void initialStairsOfCaveLv(struct CaveLv *obj)
+{ 
+  struct Point upStairStartPoint = {0,0,0};
+  struct Point downStairStartPoint = {0,0,0};
+  int maxWidth = 2 + findMaxValue(DEFAULT_STAIR_WIDTH,DEFAULT_STAIR_STEP_NUM); // for locating stairs
+  float distanceBetween2Stair = 0.0;
+  int protectInfinityLoopVal = 100;
+  if (obj->m_state == READY)
+  {
+    // initial stair attribute
+    if (obj->m_stairOption == BOTH_UP_DOWN_STAIR || obj->m_stairOption == ONLY_UP_STAIR)
+    {
+      upStairStartPoint.y =  obj->m_groundLv + 1;
+      upStairStartPoint.x =  getRandomNumber(2 + maxWidth, WORLDX - maxWidth -2);
+      upStairStartPoint.z =  getRandomNumber(2 + maxWidth, WORLDZ - maxWidth -2);
+      obj->m_upStair = setStairAttribute(upStairStartPoint,getRandomNumber(WEST,NORTH),DEFAULT_STAIR_WIDTH,DEFAULT_STAIR_STEP_NUM,UP_STAIR,5); // white
+    }
+    // build down, stair
+    if  (obj->m_stairOption == BOTH_UP_DOWN_STAIR || obj->m_stairOption == ONLY_DOWN_STAIR)
+    {
+      // to make sure that both stairs will be not located overlay
+      while ((distanceBetween2Stair < (maxWidth+2)) && protectInfinityLoopVal--)
+      {
+        downStairStartPoint.y =  obj->m_groundLv + 1;
+        downStairStartPoint.x =  getRandomNumber(2 + maxWidth, WORLDX - maxWidth -2);
+        downStairStartPoint.z =  getRandomNumber(2 + maxWidth, WORLDZ - maxWidth -2);
+        distanceBetween2Stair = calEucidianDistance3Di(&upStairStartPoint,&downStairStartPoint);
+      }
+      downStairStartPoint.y = obj->m_groundLv - DEFAULT_STAIR_STEP_NUM - 1;
+      obj->m_downStairGroundLv = downStairStartPoint.y;
+      int stairColor = 23;//Grey   
+      setUserColour(stairColor, 0.604, 0.604, 0.604, 1.0, 0.2, 0.2, 0.2, 1.0); //Grey 
+      obj->m_downStair = setStairAttribute(downStairStartPoint,getRandomNumber(WEST,NORTH),DEFAULT_STAIR_WIDTH,DEFAULT_STAIR_STEP_NUM,DOWN_STAIR,stairColor); // Grey   
+    } 
+  }
+}
+
+void buildStairsInCaveLv(struct CaveLv *obj)
+{
+  if (obj->m_state == GENERATED_CAVE_LV_DONE)
+  {
+    // initial stair attribute
+    if (obj->m_stairOption == BOTH_UP_DOWN_STAIR || obj->m_stairOption == ONLY_UP_STAIR)
+    {
+      BuildStair(&(obj->m_upStair));
+    }
+    // build down, stair
+    if  (obj->m_stairOption == BOTH_UP_DOWN_STAIR || obj->m_stairOption == ONLY_DOWN_STAIR)
+    { 
+      BuildStair(&(obj->m_downStair));
+    } 
+  }
+}
+void createCaveLv(struct CaveLv *obj)
+{    
+  int currentState = obj->m_state;
+  // declare variable
+  const struct Point RoomStartPoint = {0,obj->m_groundLv ,0};
+  const struct Point FloorStartPoint = {0,obj->m_groundLv,0};
+  const struct Point FloorEndPoint = {WORLDX-1,obj->m_groundLv,WORLDZ-1};
+
+  // clear world first and disable fly control
+  flycontrol = 0;
+  makeWorld();
+  initialStairsOfCaveLv(obj);
+  //ground custom colors (brown and light brown)
+  //light brown color (20) and dark (21)
+  // build ground
+  setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
+  setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
+  BuildABox(&FloorStartPoint,&FloorEndPoint,0,&floorStyle1);
+
+  // build  room and stairs
+  if (currentState == READY)
+  {
+    // 0 is for making the cubes to no color or not creating
+    obj->m_aRoom = BuildEasyRoom(&RoomStartPoint,WORLDX,WORLDZ,obj->m_wallheight,NOT_HAVE_ROOF,NOT_HAVE_GROUND,obj->m_roomColor,0,BUILT_LATER);
+  }
+  if (currentState == READY)
+  {
+    obj->m_state = GENERATED_CAVE_LV_DONE;
+  }
+
+  buildStairsInCaveLv(obj);    
+  BuildARoom(&(obj->m_aRoom));
+  g_floorLv =findMinValue(obj->m_groundLv,obj->m_downStairGroundLv);
+  // set the view point position
+  if (obj->m_visitedState == ALREADY_DOWN)
+  {
+    // 
+  }
+  else if (obj->m_visitedState == ALREADY_UP)
+  {
+
+  }
 }
 
 
@@ -2905,6 +3026,10 @@ int findProperPositionToPlaceUpStairInRoomOfUnderground(struct Underground *obj,
 
 }
 
+void changeVisiteStateInCave(struct CaveLv *obj,const int state)
+{
+  obj->m_visitedState = state;
+}
 void changeVisiteStateInUnderground(struct Underground *obj,const int state)
 {
   obj->m_visitedState = state;
@@ -2928,6 +3053,23 @@ int isOnUpStairUnderground(struct Underground *obj)
    return ret;
 }
 
+int isOnDownStairInCaveLVFor2D(struct CaveLv *obj)
+{
+   struct Pointf viewPosition = {-1.0,-1.0,-1.0};
+   struct Point viewPositioni = {-1,-1,-1};
+   int ret = 0;
+   if (obj->m_state == GENERATED_CAVE_LV_DONE)
+   {      
+      struct Point startStairPoint =  getReferentStairPoint(&(obj->m_downStair),START_POINT);
+      struct Point stopStairPoint =  getReferentStairPoint(&(obj->m_downStair),STOP_POINT);
+      startStairPoint.y =  1+obj->m_downStairGroundLv;
+      stopStairPoint.y = 1+obj->m_downStairGroundLv;
+      getAndConvertViewPos(&viewPosition);
+      convertPointfToPointi(&viewPosition,&viewPositioni);
+      ret = isIn2DBound(&startStairPoint,&stopStairPoint,&viewPositioni); 
+   } 
+   return ret;
+}
 int isOnDownStairUndergroundFor2D(struct Underground *obj)
 {
    struct Pointf viewPosition = {-1.0,-1.0,-1.0};
@@ -2941,12 +3083,47 @@ int isOnDownStairUndergroundFor2D(struct Underground *obj)
       stopStairPoint.y = 1+obj->m_downStairGroundLv;
       getAndConvertViewPos(&viewPosition);
       convertPointfToPointi(&viewPosition,&viewPositioni);
-      //obj->lowestLv
-      //printf("VP(%d,%d,%d)\n",viewPosition.x,viewPosition.y,viewPosition.z);
       ret = isIn2DBound(&startStairPoint,&stopStairPoint,&viewPositioni); 
    } 
    return ret;
 }
+
+
+int isOnUpStairInCaveLV(struct CaveLv *obj)
+{
+  struct Pointf viewPosition = {-1.0,-1.0,-1.0};
+  struct Point viewPositioni = {-1,-1,-1};
+  int ret = 0;
+  if (obj->m_state == GENERATED_CAVE_LV_DONE)
+  {
+      struct Point startStairPoint =  getReferentStairPoint(&(obj->m_upStair),START_POINT);
+      struct Point stopStairPoint =  getReferentStairPoint(&(obj->m_upStair),STOP_POINT);
+      stopStairPoint.y +=1;
+      getAndConvertViewPos(&viewPosition);
+      convertPointfToPointi(&viewPosition,&viewPositioni);
+      ret = isIn3DBound(&startStairPoint,&stopStairPoint,&viewPositioni); 
+  }
+  return ret;
+}
+
+int isOnDownStairInCaveLV(struct CaveLv *obj)
+{
+  struct Pointf viewPosition = {-1.0,-1.0,-1.0};
+  struct Point viewPositioni = {-1,-1,-1};
+  int ret = 0;
+  if (obj->m_state == GENERATED_CAVE_LV_DONE)
+  {
+      struct Point startStairPoint =  getReferentStairPoint(&(obj->m_downStair),START_POINT);
+      struct Point stopStairPoint =  getReferentStairPoint(&(obj->m_downStair),STOP_POINT);
+      startStairPoint.y =  1+obj->m_downStairGroundLv;
+      stopStairPoint.y = 1+obj->m_downStairGroundLv;
+      getAndConvertViewPos(&viewPosition);
+      convertPointfToPointi(&viewPosition,&viewPositioni);
+      ret = isIn3DBound(&startStairPoint,&stopStairPoint,&viewPositioni);
+  }
+  return ret;
+}
+
 int isOnDownStairUnderground(struct Underground *obj)
 {
    struct Pointf viewPosition = {-1.0,-1.0,-1.0};
@@ -4124,6 +4301,15 @@ void updateVisibilityControlVal(struct visiblityControlVal *obj)
    }
 }
 
+float calEucidianDistance3Di(struct Point *p1,struct Point *p2)
+{
+  int xDelta = p1->x - p2->x;
+  int yDelta = p1->y - p2->y;
+  int zDelta = p1->z - p2->z;
+  float norm2Sum = pow((double)xDelta,2) + pow((double)yDelta,2) + pow((double)zDelta,2);
+  return pow(norm2Sum,0.5);
+}
+
 float calEucidianDistance2D(struct Pointf *p1,struct Pointf *p2)
 {
   struct Pointf  diffPoint = vectorBetween2Points(p1,p2);
@@ -4824,6 +5010,94 @@ struct Pointf vectorBetween2Points(struct Pointf *p1,struct Pointf *p2)
   return (struct Pointf){p2->x-p1->x,p2->y-p1->y,p2->z-p1->z};
 }
 
+// stage control
+void controlStage(int *stageLv,struct CaveLv *objCave,const int numCave, struct Underground *objU, const int numUnderg, struct OnGround *objOG)
+{
+    int stageVal = *stageLv;
+    int lvIndex = stageVal/2;  // for  cave and maze level
+    int isStageChanged = 0;
+    int upOrDown = 0;
+    int isStageAvailable = ((stageLv != 0) && (objCave != 0) && (numCave > 0) && (numUnderg > 0) && (objOG != 0) && (objU != 0));
+
+    // invalid control stage case
+    if (isStageAvailable == 0)
+    {
+      // do nothing
+    }
+    // at out door
+    else if (stageVal == -1 )
+    {
+         if(isOnDownStair(objOG) == 1)
+         {
+            stageVal = 0;
+            lvIndex = (stageVal/2)%numUnderg; 
+            changeVisiteStateInUnderground(&objU[lvIndex],ALREADY_DOWN);
+            createUnderground(&objU[lvIndex]);
+         }
+    }
+
+    // at maze n
+    else if (stageVal%2 == 0)
+    {
+           if((isOnUpStairUnderground(&objU[lvIndex]) == 1) && (stageVal == 0))
+           {
+              createOnGround(objOG);
+              stageVal--;
+           }
+           else if(isOnUpStairUnderground(&objU[lvIndex]) == 1)
+           { 
+              // hide all mesh first
+              hideAllMeshesIntheUnderground(&objU[lvIndex]);
+              stageVal--;
+              upOrDown = ALREADY_UP;
+              isStageChanged = 1;
+           }
+           else if (isOnDownStairUnderground(&objU[lvIndex]) == 1)
+           {
+              // hide all mesh first
+              hideAllMeshesIntheUnderground(&objU[lvIndex]);
+              stageVal++;
+              upOrDown = ALREADY_DOWN;
+              isStageChanged = 1;
+           }
+           if (isStageChanged == 1)
+           {
+              lvIndex = (stageVal/2)%numCave;
+              changeVisiteStateInCave(&objCave[lvIndex],upOrDown);
+              createCaveLv(&objCave[lvIndex]);
+           }
+    }
+    // at cave n
+    else if (stageVal%2 == 1)
+    {
+           if(isOnUpStairInCaveLV(&objCave[lvIndex]) == 1)
+           { 
+              // hide all mesh first
+             // hideAllMeshesIntheUnderground(&objU[lvIndex]);
+              stageVal--;
+              upOrDown = ALREADY_UP;
+              isStageChanged = 1;
+           }
+           else if (isOnDownStairInCaveLV(&objCave[lvIndex]) == 1)
+           {
+              // hide all mesh first
+             // hideAllMeshesIntheUnderground(&objU[lvIndex]);
+              stageVal++;
+              upOrDown = ALREADY_DOWN;
+              isStageChanged = 1;
+           }
+           if (isStageChanged == 1)
+           {
+              lvIndex = (stageVal/2)%numUnderg;
+              changeVisiteStateInUnderground(&objU[lvIndex],upOrDown);
+              createUnderground(&objU[lvIndex]);
+           }
+    }
+
+
+
+    *stageLv = stageVal;
+}
 
 float findRadian(const float x,const float z)
 {
