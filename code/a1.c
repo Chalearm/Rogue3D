@@ -350,6 +350,7 @@ struct OnGround
 struct CaveLv
 {
    unsigned char m_state; // 1 = already set (READY STATE), 2 = Terrain and Stair already create, otherwise = not ready
+   struct Map m_a2DMap;
    int m_visitedState;
    unsigned char m_caveCeiling[WORLDX][WORLDZ];
    unsigned char m_stairOption; // 0 = no stair, 1 = only upstair, 2 = only down stair, 3 both up and down stairs
@@ -482,6 +483,9 @@ int isOnUpStairInCaveLV(struct CaveLv *obj);
 int isOnDownStairInCaveLV(struct CaveLv *obj);
 int isOnDownStairInCaveLVFor2D(struct CaveLv *obj);
 
+void getStairOfCaveLv(struct CaveLv *obj,int upOrDownStair,struct Point *startP,struct Point *stopP); // 0 = up, 1 = down
+void updateCaveLvMap2D(struct CaveLv *obj,const int displayMode); // 1 = no map, 2 = fog, 0 = normal map
+
 // Underground functions
 void setParameterOfUnderground_defaultValue1(struct Underground *obj,int hasDownStair);
 void createUnderground(struct Underground *obj);
@@ -489,6 +493,7 @@ int findProperPositionToPlaceUpStairInRoomOfUnderground(struct Underground *obj,
 int findProperPositionToPlaceDownStairInRoomOfUnderground(struct Underground *obj,struct Point *stairPoint,int *stairDirection,const int stairWidth,const int stairNum);
 void listTheAreaProperforBuildDownStairInUnderground(struct Underground *obj,int listRoom[DEFAULT_NUM_ROOM],int *numEle,const int stairWidth,const int stairNum);
 // Underground map setting functions
+void setStairPositionForCaveLvInMap2D(struct CaveLv *obj);
 void updateUndergroundMap2D(struct Underground *obj,const int displayMode); // 1 = no map, 2 = fog, 0 = normal map
 void setStairPositionInMap2D(struct Underground *obj);
 void setRoomsPositionInMap2D(struct Underground *obj);
@@ -793,6 +798,7 @@ void draw2D() {
       GLfloat black[] = {0.0, 0.0, 0.0, alphaVal};
       GLfloat green[] = {0.0, 0.5, 0.0, alphaVal};
       GLfloat grey[] = {0.6, 0.6, 0.6, alphaVal};
+      int lvIndex = stage_Lv/2;
 
       if (displayMap != NO_MAP )
       {
@@ -806,7 +812,11 @@ void draw2D() {
            }
            else if (stage_Lv%2 == 0)
            {
-              updateUndergroundMap2D(&Undergrounds[stage_Lv/2],displayMap);
+              updateUndergroundMap2D(&Undergrounds[lvIndex],displayMap);
+           }
+           else if  (stage_Lv%2 == 1)
+           {
+              updateCaveLvMap2D(&caveLvs[lvIndex],displayMap);
            }
            // draw background
            set2Dcolour(black);
@@ -1986,11 +1996,13 @@ void createCaveLv(struct CaveLv *obj)
   // build  room and stairs
   if (currentState == READY)
   {
+    initialMap2D(&(obj->m_a2DMap));
     // 0 is for making the cubes to no color or not creating
     obj->m_aRoom = BuildEasyRoom(&RoomStartPoint,WORLDX,WORLDZ,obj->m_wallheight,NOT_HAVE_ROOF,NOT_HAVE_GROUND,obj->m_roomColor,0,BUILT_LATER);
   }
   if (currentState == READY)
   {
+    setStairPositionForCaveLvInMap2D(obj);
     obj->m_state = GENERATED_CAVE_LV_DONE;
   }
 
@@ -3341,6 +3353,29 @@ void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Poi
    }
 }
 
+void getStairOfCaveLv(struct CaveLv *obj,int upOrDownStair,struct Point *startP,struct Point *stopP) // 0 = up, 1 = down
+{
+   if (obj->m_state == READY)
+   {
+      if(upOrDownStair == 0)// up stair
+      {  
+            *startP = getReferentStairPoint(&(obj->m_upStair),0); // 0 = start, 1 = stop
+            *stopP = getReferentStairPoint(&(obj->m_upStair),1); // 0 = start, 1 = stop
+      }
+      else if (upOrDownStair == 1) // down stair
+      {            
+            *startP = getReferentStairPoint(&(obj->m_downStair),0); // 0 = start, 1 = stop
+            *stopP = getReferentStairPoint(&(obj->m_downStair),1); // 0 = start, 1 = stop
+      }
+   }
+   else
+   {
+      startP->x = 0;
+      startP->y = 0;
+      startP->z = 0;
+      *stopP = *startP;
+   }
+}
 
 void getStairOfUndergroundWolrd(struct Underground *obj,int upOrDownStair,struct Point *startP,struct Point *stopP) // 0 = up, 1 = down
 {   
@@ -3513,6 +3548,28 @@ void drawAMeshInARoomInMap2D(struct aMesh *mesh)
       drawBoxMap2DWithTransFn(&aMeshPos,&mapTransformFuntion);
     }
 }
+
+void updateCaveLvMap2D(struct CaveLv *obj,const int displayMode) // 1 = no map, 2 = fog, 0 = normal map
+{
+  struct Map *a2DMapP = &(obj->m_a2DMap);
+  if(obj->m_state == GENERATED_CAVE_LV_DONE)
+  {
+      // drae up stair position in a map
+      // Always shows the up-stair
+      if ((obj->m_stairOption == ONLY_UP_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR))
+      {
+        drawBoxMap2D(&(a2DMapP->stairsPos[0]));
+      }
+
+            // drae down stair position in a map
+      if (((obj->m_stairOption == ONLY_DOWN_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR)) && (a2DMapP->numStairs == 2))
+      {
+        drawBoxMap2D(&(a2DMapP->stairsPos[1]));
+      } 
+
+  }
+}
+
 void updateUndergroundMap2D(struct Underground *obj,const int displayMode)  // 1 = no map, 2 = fog, 0 = normal map
 {
    int indexRoom = 0;
@@ -3878,6 +3935,39 @@ void setRoomsPositionInMap2D(struct Underground *obj)
          //printLineOrBoxObj(&(a2DMapP->roomsPos[indexRoom]));
       }
    }
+}
+void setStairPositionForCaveLvInMap2D(struct CaveLv *obj)
+{
+    struct Point stairP1;
+    struct Point stairP2;
+    struct Point2D aPoint2D[2];
+    struct Map *a2DMapP = &(obj->m_a2DMap);
+    int indexRoom = 0;
+    GLfloat white[] = {1.0, 1.0, 1.0, alphaVal};
+    GLfloat grey[] = {0.4, 0.4, 0.4, alphaVal};
+   if (obj->m_state == READY)
+   {
+      // drae up stair position in a map
+      if ((obj->m_stairOption == ONLY_UP_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR))
+      {
+        getStairOfCaveLv(obj,0,&stairP1,&stairP2); // 0 = up, 1 = down
+        aPoint2D[0] = convert3DPointTo2DPoint(&stairP1);
+        aPoint2D[1] = convert3DPointTo2DPoint(&stairP2);
+        setPointsAndColorOfLineOrBox(&(a2DMapP->stairsPos[a2DMapP->numStairs]),aPoint2D,0,white);
+        a2DMapP->stairsPos[a2DMapP->numStairs] = mapTransformFuntion(&(a2DMapP->stairsPos[a2DMapP->numStairs]));
+        a2DMapP->numStairs++;
+      }
+      // drae down stair position in a map
+       if ((obj->m_stairOption == ONLY_DOWN_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR))
+      {
+        getStairOfCaveLv(obj,1,&stairP1,&stairP2); // 0 = up, 1 = down
+        aPoint2D[0] = convert3DPointTo2DPoint(&stairP1);
+        aPoint2D[1] = convert3DPointTo2DPoint(&stairP2);
+        setPointsAndColorOfLineOrBox(&(a2DMapP->stairsPos[a2DMapP->numStairs]),aPoint2D,0,grey);
+        a2DMapP->stairsPos[a2DMapP->numStairs] = mapTransformFuntion(&(a2DMapP->stairsPos[a2DMapP->numStairs]));
+        a2DMapP->numStairs++;
+      }
+    }
 }
 void setStairPositionInMap2D(struct Underground *obj)
 {
