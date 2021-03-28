@@ -455,7 +455,6 @@ void updateVisibilityControlVal(struct visiblityControlVal *obj);
 int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,struct aMesh *meshes);
 float distanceAliveBatToPlayer(struct aMesh *meshes,const int indexMesh);
 void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Point *stopP);
-void getStairOfUndergroundWolrd(struct Underground *obj,int upOrDownStair,struct Point *startP,struct Point *stopP); // 0 = up, 1 = down
 void SetMAXandMINPoint(const int **MaxPoint, const int **MinPoint, const int *P1, const int *P2);
 void BuildABox(const struct Point *StartPoint, const struct Point *Endpoint, int color,int (*generateColorStyle)(int,int,int,int));
 void BuildAWall(const struct Wall *AWall);
@@ -483,8 +482,9 @@ int isOnUpStairInCaveLV(struct CaveLv *obj);
 int isOnDownStairInCaveLV(struct CaveLv *obj);
 int isOnDownStairInCaveLVFor2D(struct CaveLv *obj);
 
-void getStairOfCaveLv(struct CaveLv *obj,int upOrDownStair,struct Point *startP,struct Point *stopP); // 0 = up, 1 = down
+void getStairPointForCaveOrMazeLv(const struct stair *upStair,const struct stair *downStair,const int upOrDownStair,struct Point *startP,struct Point *stopP);// 0 = up, 1 = down
 void updateCaveLvMap2D(struct CaveLv *obj,const int displayMode); // 1 = no map, 2 = fog, 0 = normal map
+void locateViewPointNearStairInCaveOrMazeLv(const struct stair *upStair,const struct stair *downStair,const int groundLv, struct Point *downViewPoint,struct Point *upViewPoint);
 
 // Underground functions
 void setParameterOfUnderground_defaultValue1(struct Underground *obj,int hasDownStair);
@@ -1934,8 +1934,8 @@ void initialStairsOfCaveLv(struct CaveLv *obj)
     if (obj->m_stairOption == BOTH_UP_DOWN_STAIR || obj->m_stairOption == ONLY_UP_STAIR)
     {
       upStairStartPoint.y =  obj->m_groundLv + 1;
-      upStairStartPoint.x =  getRandomNumber(2 + maxWidth, WORLDX - maxWidth -2);
-      upStairStartPoint.z =  getRandomNumber(2 + maxWidth, WORLDZ - maxWidth -2);
+      upStairStartPoint.x =  getRandomNumber(3 + maxWidth, WORLDX - maxWidth -3);   // 3 --- > 1 for wall side (1 block), 2 (blocks) for space between the wall and stair
+      upStairStartPoint.z =  getRandomNumber(3 + maxWidth, WORLDZ - maxWidth -3);   // 3 --- > 1 for wall side (1 block), 2 (blocks) for space between the wall and stair
       obj->m_upStair = setStairAttribute(upStairStartPoint,getRandomNumber(WEST,NORTH),DEFAULT_STAIR_WIDTH,DEFAULT_STAIR_STEP_NUM,UP_STAIR,5); // white
     }
     // build down, stair
@@ -1945,8 +1945,8 @@ void initialStairsOfCaveLv(struct CaveLv *obj)
       while ((distanceBetween2Stair < (maxWidth+2)) && protectInfinityLoopVal--)
       {
         downStairStartPoint.y =  obj->m_groundLv + 1;
-        downStairStartPoint.x =  getRandomNumber(2 + maxWidth, WORLDX - maxWidth -2);
-        downStairStartPoint.z =  getRandomNumber(2 + maxWidth, WORLDZ - maxWidth -2);
+        downStairStartPoint.x =  getRandomNumber(3 + maxWidth, WORLDX - maxWidth -3);
+        downStairStartPoint.z =  getRandomNumber(3 + maxWidth, WORLDZ - maxWidth -3);
         distanceBetween2Stair = calEucidianDistance3Di(&upStairStartPoint,&downStairStartPoint);
       }
       downStairStartPoint.y = obj->m_groundLv - DEFAULT_STAIR_STEP_NUM - 1;
@@ -2003,6 +2003,8 @@ void createCaveLv(struct CaveLv *obj)
   if (currentState == READY)
   {
     setStairPositionForCaveLvInMap2D(obj);
+    // locate view point in front of any stair
+    locateViewPointNearStairInCaveOrMazeLv(&(obj->m_upStair),&(obj->m_downStair),obj->m_groundLv,&(obj->m_downViewPoint),&(obj->m_upViewPoint));
     obj->m_state = GENERATED_CAVE_LV_DONE;
   }
 
@@ -2012,11 +2014,11 @@ void createCaveLv(struct CaveLv *obj)
   // set the view point position
   if (obj->m_visitedState == ALREADY_DOWN)
   {
-    // 
+    setViewPosition(obj->m_downViewPoint.x*(-1),(-1)*(obj->m_downViewPoint.y),obj->m_downViewPoint.z*(-1));
   }
   else if (obj->m_visitedState == ALREADY_UP)
   {
-
+    setViewPosition(obj->m_upViewPoint.x*(-1),(-1)*(obj->m_upViewPoint.y),obj->m_upViewPoint.z*(-1));
   }
 }
 
@@ -2152,17 +2154,6 @@ void createUnderground(struct Underground *obj)
                   obj->m_upStair = setStairAttribute(goodStairPoint,stairDirection,DEFAULT_STAIR_WIDTH,DEFAULT_STAIR_STEP_NUM,UP_STAIR,5); // white
                   foundPlaceForUpStairResult = 3;
                   obj->m_upStairRoomId  = indexOfRoom;
-
-                  // find start position of View point
-                  struct Point startP;
-                  struct Point stopP;
-                  findStartAndStopPointOfARoom(&(obj->m_rooms[obj->m_upStairRoomId]),&stopP,&startP);
-                  obj->m_downViewPoint.x = startP.x+1;
-                  obj->m_downViewPoint.z = startP.z+1;
-                  obj->m_downViewPoint.y = 1+obj->m_groundLv;
-                  if(world[obj->m_downViewPoint.x][obj->m_downViewPoint.y][obj->m_downViewPoint.z] != 0) obj->m_downViewPoint.y++; // has a cube
-
-
                }
 
             }
@@ -2187,15 +2178,6 @@ void createUnderground(struct Underground *obj)
       if ((foundGoodPlaceForUpStair == 1) &&(obj->m_state == READY))
       {
         obj->m_upStair = setStairAttribute(goodStairPoint,stairDirection,DEFAULT_STAIR_WIDTH,DEFAULT_STAIR_STEP_NUM,UP_STAIR,5); // white
-
-        // find start position of View point
-        struct Point startP;
-        struct Point stopP;
-        findStartAndStopPointOfARoom(&(obj->m_rooms[obj->m_upStairRoomId]),&stopP,&startP);
-        obj->m_downViewPoint.x = startP.x+1;
-        obj->m_downViewPoint.z = startP.z+1;
-        obj->m_downViewPoint.y = 1+obj->m_groundLv;
-        if(world[obj->m_downViewPoint.x][obj->m_downViewPoint.y][obj->m_downViewPoint.z] != 0) obj->m_downViewPoint.y++; // has a cube
       }
        // locate down stair
       if((obj->m_state == READY)&&((obj->m_stairOption == BOTH_UP_DOWN_STAIR) || (obj->m_stairOption == ONLY_DOWN_STAIR)))
@@ -2206,15 +2188,6 @@ void createUnderground(struct Underground *obj)
           int stairColor = 23;//Grey   
           setUserColour(stairColor, 0.604, 0.604, 0.604, 1.0, 0.2, 0.2, 0.2, 1.0); //Grey 
           obj->m_downStair = setStairAttribute(stairPoint,stairDirection,DEFAULT_STAIR_WIDTH,DEFAULT_STAIR_STEP_NUM,DOWN_STAIR,stairColor); // Grey  
-
-
-          struct Point startP;
-          struct Point stopP;
-          findStartAndStopPointOfARoom(&(obj->m_rooms[obj->m_downStairRoomId]),&stopP,&startP);
-          obj->m_upViewPoint.x = startP.x+1;
-          obj->m_upViewPoint.z = startP.z+1;
-          obj->m_upViewPoint.y = 1+obj->m_groundLv;
-          if(world[obj->m_upViewPoint.x][obj->m_upViewPoint.y][obj->m_upViewPoint.z] != 0) obj->m_upViewPoint.y++; // has a cube
         }
         else
         {
@@ -2240,6 +2213,12 @@ void createUnderground(struct Underground *obj)
       setStairPositionInMap2D(obj);
       setRoomsPositionInMap2D(obj);
       setCubePositionInMap2D(obj);   
+
+      // locate view point in front of any stair
+      locateViewPointNearStairInCaveOrMazeLv(&(obj->m_upStair),&(obj->m_downStair),obj->m_groundLv,&(obj->m_downViewPoint),&(obj->m_upViewPoint));
+      // checm cubes and mesh
+      if(world[obj->m_upViewPoint.x][obj->m_upViewPoint.y][obj->m_upViewPoint.z] != 0) obj->m_upViewPoint.y++; // has a cube
+      if(world[obj->m_downViewPoint.x][obj->m_downViewPoint.y][obj->m_downViewPoint.z] != 0) obj->m_downViewPoint.y++; // has a cube
       //printf("create underground state:-1.1 \n");
       obj->m_state = GENERATED_UNDERGROUND_DONE;
    }
@@ -3353,55 +3332,40 @@ void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Poi
    }
 }
 
-void getStairOfCaveLv(struct CaveLv *obj,int upOrDownStair,struct Point *startP,struct Point *stopP) // 0 = up, 1 = down
+void locateViewPointNearStairInCaveOrMazeLv(const struct stair *upStair,const struct stair *downStair,const int groundLv, struct Point *downViewPoint,struct Point *upViewPoint)
 {
-   if (obj->m_state == READY)
-   {
-      if(upOrDownStair == 0)// up stair
-      {  
-            *startP = getReferentStairPoint(&(obj->m_upStair),0); // 0 = start, 1 = stop
-            *stopP = getReferentStairPoint(&(obj->m_upStair),1); // 0 = start, 1 = stop
-      }
-      else if (upOrDownStair == 1) // down stair
-      {            
-            *startP = getReferentStairPoint(&(obj->m_downStair),0); // 0 = start, 1 = stop
-            *stopP = getReferentStairPoint(&(obj->m_downStair),1); // 0 = start, 1 = stop
-      }
-   }
-   else
-   {
-      startP->x = 0;
-      startP->y = 0;
-      startP->z = 0;
-      *stopP = *startP;
-   }
+    struct Point startP,stopP;
+    int direction = upStair->direction;
+    getStairPointForCaveOrMazeLv(upStair,downStair,0,&startP,&stopP);// 0 = up, 1 = down
+    *upViewPoint = (struct Point){downStair->StartPoint.x,groundLv+1,downStair->StartPoint.z}; 
+    if (direction == WEST)
+      *downViewPoint = (struct Point){stopP.x-2,groundLv+1,(startP.z+stopP.z)/2};  
+    if (direction == EAST)
+      *downViewPoint = (struct Point){stopP.x+2,groundLv+1,(startP.z+stopP.z)/2};
+    if (direction == SOUTH)
+      *downViewPoint = (struct Point){(stopP.x+startP.x)/2,groundLv+1,stopP.z-2};  
+    if (direction == NORTH)
+      *downViewPoint = (struct Point){(stopP.x+startP.x)/2,groundLv+1,stopP.z+2};   
+}
+void getStairPointForCaveOrMazeLv(const struct stair *upStair,const struct stair *downStair,const int upOrDownStair,struct Point *startP,struct Point *stopP)// 0 = up, 1 = down
+{
+  startP->x = 0;
+  startP->y = 0;
+  startP->z = 0;
+  *stopP = *startP;
+  if(upOrDownStair == 0)// up stair
+  {  
+    *startP = getReferentStairPoint(upStair,0); // 0 = start, 1 = stop
+    *stopP = getReferentStairPoint(upStair,1); // 0 = start, 1 = stop
+  }
+  else if (upOrDownStair == 1) // down stair
+  {            
+    *startP = getReferentStairPoint(downStair,0); // 0 = start, 1 = stop
+    *stopP = getReferentStairPoint(downStair,1); // 0 = start, 1 = stop
+  }
 }
 
-void getStairOfUndergroundWolrd(struct Underground *obj,int upOrDownStair,struct Point *startP,struct Point *stopP) // 0 = up, 1 = down
-{   
-   if (obj->m_state == READY)
-   {
-      if(upOrDownStair == 0)// up stair
-      {  
-            *startP = getReferentStairPoint(&(obj->m_upStair),0); // 0 = start, 1 = stop
-            *stopP = getReferentStairPoint(&(obj->m_upStair),1); // 0 = start, 1 = stop
-      }
-      else if (upOrDownStair == 1) // down stair
-      {            
-            *startP = getReferentStairPoint(&(obj->m_downStair),0); // 0 = start, 1 = stop
-            *stopP = getReferentStairPoint(&(obj->m_downStair),1); // 0 = start, 1 = stop
-      }
-   }
-   else
-   {
-      startP->x = 0;
-      startP->y = 0;
-      startP->z = 0;
-      *stopP = *startP;
-   }
-}
 //oooooo
-
 void addWallToMap2D(struct Map *obj,const struct Wall *aWall,GLfloat color[4],const int roomID)
 {
     struct Point2D point2Ds[2];
@@ -3950,7 +3914,7 @@ void setStairPositionForCaveLvInMap2D(struct CaveLv *obj)
       // drae up stair position in a map
       if ((obj->m_stairOption == ONLY_UP_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR))
       {
-        getStairOfCaveLv(obj,0,&stairP1,&stairP2); // 0 = up, 1 = down
+        getStairPointForCaveOrMazeLv(&(obj->m_upStair),&(obj->m_downStair),0,&stairP1,&stairP2);// 0 = up, 1 = down
         aPoint2D[0] = convert3DPointTo2DPoint(&stairP1);
         aPoint2D[1] = convert3DPointTo2DPoint(&stairP2);
         setPointsAndColorOfLineOrBox(&(a2DMapP->stairsPos[a2DMapP->numStairs]),aPoint2D,0,white);
@@ -3960,7 +3924,7 @@ void setStairPositionForCaveLvInMap2D(struct CaveLv *obj)
       // drae down stair position in a map
        if ((obj->m_stairOption == ONLY_DOWN_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR))
       {
-        getStairOfCaveLv(obj,1,&stairP1,&stairP2); // 0 = up, 1 = down
+        getStairPointForCaveOrMazeLv(&(obj->m_upStair),&(obj->m_downStair),1,&stairP1,&stairP2);// 0 = up, 1 = down
         aPoint2D[0] = convert3DPointTo2DPoint(&stairP1);
         aPoint2D[1] = convert3DPointTo2DPoint(&stairP2);
         setPointsAndColorOfLineOrBox(&(a2DMapP->stairsPos[a2DMapP->numStairs]),aPoint2D,0,grey);
@@ -3983,7 +3947,7 @@ void setStairPositionInMap2D(struct Underground *obj)
       // drae up stair position in a map
       if ((obj->m_stairOption == ONLY_UP_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR))
       {
-        getStairOfUndergroundWolrd(obj,0,&stairP1,&stairP2); // 0 = up, 1 = down
+        getStairPointForCaveOrMazeLv(&(obj->m_upStair),&(obj->m_downStair),0,&stairP1,&stairP2);// 0 = up, 1 = down
         aPoint2D[0] = convert3DPointTo2DPoint(&stairP1);
         aPoint2D[1] = convert3DPointTo2DPoint(&stairP2);
         setPointsAndColorOfLineOrBox(&(a2DMapP->stairsPos[a2DMapP->numStairs]),aPoint2D,0,white);
@@ -3993,7 +3957,7 @@ void setStairPositionInMap2D(struct Underground *obj)
       // drae down stair position in a map
        if ((obj->m_stairOption == ONLY_DOWN_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR))
       {
-        getStairOfUndergroundWolrd(obj,1,&stairP1,&stairP2); // 0 = up, 1 = down
+        getStairPointForCaveOrMazeLv(&(obj->m_upStair),&(obj->m_downStair),1,&stairP1,&stairP2);// 0 = up, 1 = down
         aPoint2D[0] = convert3DPointTo2DPoint(&stairP1);
         aPoint2D[1] = convert3DPointTo2DPoint(&stairP2);
         setPointsAndColorOfLineOrBox(&(a2DMapP->stairsPos[a2DMapP->numStairs]),aPoint2D,0,grey);
