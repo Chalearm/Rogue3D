@@ -122,7 +122,7 @@ extern void keyboard(unsigned char, int, int);
 /* cave level default parameters */ 
 #define DEFAULT_CAVE_LV_GRAVITY 22
 #define DEFAULT_CAVE_LV_HIGHEST_CEILING 48
-#define DEFAULT_CAVE_LV_LOWEST_CEILING 15
+#define DEFAULT_CAVE_LV_LOWEST_CEILING 10
 #define DEFAULT_CAVE_LV_GROUND_LV 10
 #define DEFAULT_CAVE_LV_WALL_HEIGHT 38
 #define DEFAULT_CAVE_LV_WALL_COLOR TXT_WALL_ID1
@@ -477,6 +477,7 @@ void controlStage(int *stageLv,struct CaveLv *objCave,const int numCave, struct 
 */
 // cave level funciton
 void createPerlinCeiling(unsigned char ceilingBuff[WORLDX][WORLDZ],const int hightestLv,const int lowestLv);
+void generateCaveCeiling(struct CaveLv *obj);
 void setParameteOfCaveLv_defaultValue(struct CaveLv *obj,int hasDownStair);
 void changeVisiteStateInCave(struct CaveLv *obj,const int state);
 void initialStairsOfCaveLv(struct CaveLv *obj);
@@ -1911,52 +1912,28 @@ int boundValue(int max,int min,int originValue)
 
 void createPerlinCeiling(unsigned char ceilingBuff[WORLDX][WORLDZ],const int highestLv,const int lowestLv)
 {
-
-  int randomWidthZ = 0;
-  int randomWidthX = 0;
-  int randomWidthY = 0;
-  int indexXOffset = 0;
-  int indexZOffset = 0;
+  int magnitudeY = highestLv - lowestLv; 
   int indexX = 0;
   int indexZ = 0;
   int indexY = 0;
-  int yStart = getRandomNumber(lowestLv,(highestLv+lowestLv)/2);
+  int yStart = lowestLv;
   double newY = 0.0;
+  int translatedX = WORLDX/2;
+  int translatedZ = WORLDZ/2;
 
-  int translatedX = 0;
-  int translatedZ = 0; 
-  for(indexZOffset = 0; indexZOffset < WORLDZ;indexZOffset += randomWidthZ)
+  for (indexX = 0;indexX <WORLDX;indexX++)
   {
-    randomWidthZ = getRandomNumber(4,20);
-    translatedZ = randomWidthZ/2;
-    for(indexXOffset = 0;indexXOffset < WORLDX;indexXOffset += randomWidthX)
+    for (indexZ = 0;indexZ < WORLDZ;indexZ++)
     {
-      randomWidthX = getRandomNumber(randomWidthZ,20);
-      randomWidthY = getRandomNumber(4,randomWidthZ);
-      translatedX = randomWidthX/2;
-      yStart = getRandomNumber(lowestLv,(highestLv+lowestLv)/2);
-      for (indexX = 0;indexX <randomWidthX;indexX++)
-      {
-        for (indexZ = 0;indexZ < randomWidthZ;indexZ++)
-        {
-              newY = 1.0- 0.5*(pow(((double)(indexZ-translatedZ)/((double)(translatedZ))),2) +  pow(((double)(indexX-translatedX)/((double)(translatedX))),2));
-              newY = newY*randomWidthY + 0.5;
-              if ((isIn1DBound(99,0,indexXOffset+indexX) == 1) && (isIn1DBound(99,0,indexZOffset+indexZ) == 1) )
-              {
-                
-                for(indexY = ((int)newY+yStart);indexY <= highestLv;indexY++)
-                    world[indexXOffset+indexX][indexY][indexZ+indexZOffset] = 1 + (indexY+indexX+indexZ)%3;
-
-              }
-        }
-      }
-
-      //translatedZ = randomWidthZ/2;
-     }
-
+          newY = 1.0- 0.5*(pow(((double)(indexZ-translatedZ)/((double)(translatedZ))),2) +  pow(((double)(indexX-translatedX)/((double)(translatedX))),2));
+          newY = yStart+ newY*magnitudeY + (double)getRandomNumber(-1,1);
+          if (newY > highestLv) newY = highestLv;
+          if ((isIn1DBound(99,0,indexX) == 1) && (isIn1DBound(99,0,indexZ) == 1) )
+          {
+            ceilingBuff[indexX][indexZ] = (int)newY;
+          }
+    }
   }
-
-
 }
 
 void setParameteOfCaveLv_defaultValue(struct CaveLv *obj,int hasDownStair)
@@ -2067,6 +2044,7 @@ void createCaveLv(struct CaveLv *obj)
 
   buildStairsInCaveLv(obj);    
   BuildARoom(&(obj->m_aRoom));
+  generateCaveCeiling(obj);
   g_floorLv =findMinValue(obj->m_groundLv,obj->m_downStairGroundLv);
   // set the view point position
   if (obj->m_visitedState == ALREADY_DOWN)
@@ -2078,7 +2056,31 @@ void createCaveLv(struct CaveLv *obj)
     setViewPosition(obj->m_upViewPoint.x*(-1),(-1)*(obj->m_upViewPoint.y),obj->m_upViewPoint.z*(-1));
   }
 }
+void generateCaveCeiling(struct CaveLv *obj)
+{
+  int indexX = 0;
+  int indexZ = 0;
+  int indexY = 0;
+  int count = 0;
+  for(indexX = 0 ;indexX < WORLDX;indexX++)
+    for(indexZ = 0;indexZ < WORLDZ;indexZ++)
+    {
+        count = 0;
+        for(indexY = obj->m_caveCeiling[indexX][indexZ];indexY < 50;indexY++)
+        {
+            count++;
+            if (count < 5)
+            {
+              world[indexX][indexY][indexZ] = 1 + (indexX+indexY)%4;
+            }
+            else 
+            {
+              indexY = 50;
+            }
 
+        }
+    }
+}
 
 void setParameterOfUnderground_defaultValue1(struct Underground *obj,int hasDownStair)
 {
