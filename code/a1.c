@@ -328,6 +328,7 @@ struct Underground
    struct Point m_downViewPoint;
    int m_state;
    int m_visitedState;
+   int m_isCanGoDown; // this will be 1 when the player find the key to go down to the next level.
 
 };
 
@@ -367,6 +368,7 @@ struct CaveLv
    int m_wallheight;
    int m_groundLv;
    int m_downStairGroundLv;
+   int m_isCanGoDown;// this will be 1 when the player find the key to go down to the next level.
 
    struct aMesh m_meshes[DEFAULT_CAVE_LV_NUM_RESPONSIVE_MESH]; 
 
@@ -1961,6 +1963,7 @@ void createPerlinCeiling(unsigned char ceilingBuff[WORLDX][WORLDZ],const int hig
 void setParameteOfCaveLv_defaultValue(struct CaveLv *obj,int hasDownStair)
 {
    obj->m_visitedState = NOT_VISITED;
+   obj->m_isCanGoDown = 0;
    obj->m_stairOption = hasDownStair; // 0 = no stair, 1 = only upstair, 2 = only down stair, 3 both up and down stairs
    obj->m_roomColor = DEFAULT_CAVE_LV_WALL_COLOR;
    obj->m_highestLv = DEFAULT_CAVE_LV_HIGHEST_CEILING;
