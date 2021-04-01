@@ -327,8 +327,9 @@ struct Underground
    struct Point m_upViewPoint;
    struct Point m_downViewPoint;
    int m_state;
+   struct aMesh m_aKey;
    int m_visitedState;
-   int m_isCanGoDown; // this will be 1 when the player find the key to go down to the next level.
+   int m_isAbleToGoDown; // this will be 1 when the player find the key to go down to the next level.
 
 };
 
@@ -368,7 +369,8 @@ struct CaveLv
    int m_wallheight;
    int m_groundLv;
    int m_downStairGroundLv;
-   int m_isCanGoDown;// this will be 1 when the player find the key to go down to the next level.
+   struct aMesh m_aKey;
+   int m_isAbleToGoDown;// this will be 1 when the player find the key to go down to the next level.
 
    struct aMesh m_meshes[DEFAULT_CAVE_LV_NUM_RESPONSIVE_MESH]; 
 
@@ -381,10 +383,13 @@ struct CaveLv
 // Texture id defined area
 #define TXT_FLOOR_ID1 11
 #define TXT_FLOOR_ID2 12
-#define TXT_WALL_ID1 13
-#define TXT_WALL_ID2 14
-#define TXT_WALL_ID3 15
-#define TXT_CUBE_ID1 16
+#define TXT_FLOOR_ID3 13
+#define TXT_FLOOR_ID4 14
+#define TXT_WALL_ID1 15
+#define TXT_WALL_ID2 16
+#define TXT_WALL_ID3 17
+#define TXT_CUBE_ID1 18
+#define TXT_CAVE_CEILING_ID 19
 
 // ********** End of Texture id defined ared
 // mesh int state; // 0 = hide, 1 = fight, 2 = move around, 3 = dead
@@ -521,7 +526,10 @@ int timer(const float second);
 void hideAllMeshesIntheUnderground(struct Underground *obj);
 float calEucidianDistance2D(struct Pointf *p1,struct Pointf *p2);
 float calEucidianDistance3Di(struct Point *p1,struct Point *p2);
+// for mesh, functions
 
+void setKey(struct aMesh *key,int state,const struct Point startPoint,const struct Point stopPoint);
+void handleKey(int *m_isAbleToGoDown,struct aMesh *key);
 void fishMove(struct aMesh *obj);
 void batMove(struct aMesh *obj,struct Underground *uObj);
 void visibilityTestOfMesh(struct aMesh *obj,int vpRoomIndex, int meshRoomIndex);
@@ -569,6 +577,8 @@ void findStartAndStopPointOfARoom(struct Room *obj,struct Point *maxPoint,struct
 void findStartAndStopPointOfARoom2D(struct Room *obj,struct Point2D *maxPoint,struct Point2D *minPoint);
 int findObjPointIsWhichRoom2D(struct Map *obj,struct Pointf *vPoint);
 void drawAMeshInMap2D(struct aMesh *mesh);
+void drawAKeyMeshInMap2D(struct aMesh *key);
+void drawAKey2D(struct aMesh *key);
 void getColorOfAmeshInMap2D(struct aMesh *mesh,GLfloat *color);
 void drawARoomInMap2D(struct Map *obj,const int roomID);
 
@@ -846,6 +856,18 @@ void draw2D() {
            draw2Dbox(0,0, 100*DEFAULT_MAP_2D_SCALE_VAL-1, 100*DEFAULT_MAP_2D_SCALE_VAL-1); 
       }
 
+      if (stage_Lv == -1)
+      {
+        // do nothing
+      }
+      else if (stage_Lv%2 == 0)
+      {
+        drawAKey2D(&(Undergrounds[lvIndex].m_aKey));
+      }
+      else if (stage_Lv%2 == 1)
+      {
+        drawAKey2D(&(caveLvs[lvIndex].m_aKey));
+      }
    }
 
 }
@@ -1963,7 +1985,7 @@ void createPerlinCeiling(unsigned char ceilingBuff[WORLDX][WORLDZ],const int hig
 void setParameteOfCaveLv_defaultValue(struct CaveLv *obj,int hasDownStair)
 {
    obj->m_visitedState = NOT_VISITED;
-   obj->m_isCanGoDown = 0;
+   obj->m_isAbleToGoDown = 0;
    obj->m_stairOption = hasDownStair; // 0 = no stair, 1 = only upstair, 2 = only down stair, 3 both up and down stairs
    obj->m_roomColor = DEFAULT_CAVE_LV_WALL_COLOR;
    obj->m_highestLv = DEFAULT_CAVE_LV_HIGHEST_CEILING;
@@ -2030,6 +2052,7 @@ void buildStairsInCaveLv(struct CaveLv *obj)
     } 
   }
 }
+
 void createCaveLv(struct CaveLv *obj)
 {    
   int index = 0;
@@ -2039,6 +2062,7 @@ void createCaveLv(struct CaveLv *obj)
   const struct Point FloorStartPoint = {0,obj->m_groundLv,0};
   const struct Point FloorEndPoint = {WORLDX-1,obj->m_groundLv,WORLDZ-1};
   const struct Point meshStartRefPoint = {1,obj->m_groundLv+1,1};
+  const struct Point endCavePoint = {WORLDX-2,obj->m_groundLv+1,WORLDZ-2};
 
   // clear world first and disable fly control
   flycontrol = 0;
@@ -2049,7 +2073,7 @@ void createCaveLv(struct CaveLv *obj)
   // build ground
   setUserColour(20, 0.724, 0.404, 0.116, 1.0, 0.2, 0.2, 0.2, 1.0);
   setUserColour(21, 0.404, 0.268, 0.132, 1.0, 0.2, 0.2, 0.2, 1.0);
-  BuildABox(&FloorStartPoint,&FloorEndPoint,0,&floorStyle1);
+  BuildABox(&FloorStartPoint,&FloorEndPoint,TXT_FLOOR_ID3,&normalColorStyle);
   if (currentState == READY)
   {
     initialMap2D(&(obj->m_a2DMap));
@@ -2064,6 +2088,8 @@ void createCaveLv(struct CaveLv *obj)
     setStairPositionForCaveLvInMap2D(obj);
     // locate view point in front of any stair
     locateViewPointNearStairInCaveOrMazeLv(&(obj->m_upStair),&(obj->m_downStair),obj->m_groundLv,&(obj->m_downViewPoint),&(obj->m_upViewPoint));
+
+    setKey(&(obj->m_aKey),currentState,meshStartRefPoint,endCavePoint);
     obj->m_state = GENERATED_CAVE_LV_DONE;
   }
 
@@ -2096,7 +2122,7 @@ void generateCaveCeiling(struct CaveLv *obj)
             count++;
             if (count < 5)
             {
-              world[indexX][indexY][indexZ] = 7;
+              world[indexX][indexY][indexZ] = TXT_CAVE_CEILING_ID;
             }
             else 
             {
@@ -2107,6 +2133,57 @@ void generateCaveCeiling(struct CaveLv *obj)
     }
 }
 
+void setKey(struct aMesh *key,int state,const struct Point startPoint,const struct Point stopPoint)
+{
+
+  static int idMesh = 33; 
+  if (state == READY)
+  {
+    key->id = idMesh++;
+    key->type = 8; // key
+    key->currentDirection = getRandomNumber(WEST,NORTH);
+    key->startArea = startPoint;
+    key->stopArea = stopPoint;
+    key->randomDestination = (struct Point){getRandomNumber(key->startArea.x,key->stopArea.x),key->startArea.y,getRandomNumber(key->startArea.z,key->stopArea.z)};
+    key->visiblityState = SHOWN; // hide
+    key->state = MOVEAROUND;
+    key->posV = (struct Pointf){(float)getRandomNumber(startPoint.x,key->stopArea.x),(float)startPoint.y,(float)getRandomNumber(startPoint.z,key->stopArea.z)};
+    printf("key place: (%3.2f,%3.2f,%3.2f) \n",key->posV.x,key->posV.y,key->posV.z);
+    key->areaOfBatIndex = -1;
+    key->directionSearchIndex = -1;
+    key->currentAreaIndex = -1;
+    key->areaDestinationIndex = -1; 
+    key->journeyState = 0;  
+    setMeshID(key->id, key->type, key->posV.x, key->posV.y, key->posV.z);
+    drawMesh(key->id);
+  }
+  else if ( ((state == GENERATED_CAVE_LV_DONE) || (state == GENERATED_UNDERGROUND_DONE)) && (key->state != DEAD))
+  {
+    setMeshID(key->id, key->type, key->posV.x, key->posV.y, key->posV.z);
+    drawMesh(key->id);
+  }
+
+}
+
+
+void handleKey(int *m_isAbleToGoDown,struct aMesh *key)
+{
+  struct Pointf viewPoint;
+  struct Point viewPointI;
+  struct Point meshPosI;
+  getAndConvertViewPos(&viewPoint);
+  convertPointfToPointi(&viewPoint,&viewPointI);
+  convertPointfToPointi(&(key->posV),&meshPosI);
+
+  if ((comparePointis(&viewPointI,&meshPosI) == 1) && (key->state != DEAD))
+  {
+
+    key->state = DEAD;
+    key->visiblityState = HIDDEN;
+    *m_isAbleToGoDown = 1;
+    hideMesh(key->id);
+  }
+}
 void setParameterOfUnderground_defaultValue1(struct Underground *obj,int hasDownStair)
 {
    obj->m_visitedState = NOT_VISITED;
@@ -2139,6 +2216,9 @@ void createUnderground(struct Underground *obj)
    const struct Point DoorInitialPoint = {-1, -1, -1};
    int ViewPointID = getRandomNumber(0, DEFAULT_NUM_ROOM-1); //which room the view point will be
    int downStairID = getRandomNumber(0,DEFAULT_NUM_ROOM-1);
+
+  struct Point startP;
+  struct Point stopP;
 
    int stairDirection = EAST;
    int foundGoodPlaceForUpStair = 0;
@@ -2303,6 +2383,11 @@ void createUnderground(struct Underground *obj)
       // checm cubes and mesh
       if(world[obj->m_upViewPoint.x][obj->m_upViewPoint.y][obj->m_upViewPoint.z] != 0) obj->m_upViewPoint.y++; // has a cube
       if(world[obj->m_downViewPoint.x][obj->m_downViewPoint.y][obj->m_downViewPoint.z] != 0) obj->m_downViewPoint.y++; // has a cube
+      // find the position to place key
+      findStartAndStopPointOfARoom(&(obj->m_rooms[getRandomNumber(0,8)]),&stopP,&startP);
+      startP = (struct Point){startP.x+1,obj->m_groundLv+1,startP.z+1};
+      stopP = (struct Point){stopP.x-1,obj->m_groundLv+1,stopP.z-1};
+      setKey(&(obj->m_aKey),obj->m_state,startP,stopP);
       //printf("create underground state:-1.1 \n");
       obj->m_state = GENERATED_UNDERGROUND_DONE;
    }
@@ -2629,7 +2714,7 @@ void generateTerrain(struct OnGround *obj,unsigned char terrain[WORLDX][WORLDZ],
             if ((isIn2DBound(startBoundPoint,stopBoundPoint,&p1) == 0) && (isIn3DBound(&startWorldP,&stopWorldP,&p2) == 1))
             {  
                   terrain[p2.x][p2.z] = currentHeight;
-                  world[p2.x][currentHeight][p2.z] = 1;
+                  world[p2.x][currentHeight][p2.z] = TXT_FLOOR_ID4;
             }
          }
 
@@ -3195,6 +3280,7 @@ int isOnDownStairInCaveLV(struct CaveLv *obj)
       getAndConvertViewPos(&viewPosition);
       convertPointfToPointi(&viewPosition,&viewPositioni);
       ret = isIn3DBound(&startStairPoint,&stopStairPoint,&viewPositioni);
+      ret = (ret == 1) && (obj->m_isAbleToGoDown == 1);
   }
   return ret;
 }
@@ -3215,6 +3301,7 @@ int isOnDownStairUnderground(struct Underground *obj)
       //obj->lowestLv
       //printf("VP(%d,%d,%d)\n",viewPosition.x,viewPosition.y,viewPosition.z);
       ret = isIn3DBound(&startStairPoint,&stopStairPoint,&viewPositioni); 
+      ret = (ret == 1) && (obj->m_isAbleToGoDown == 1);
    } 
    return ret;
 }
@@ -3449,7 +3536,6 @@ void getStairPointForCaveOrMazeLv(const struct stair *upStair,const struct stair
   }
 }
 
-//oooooo
 void addWallToMap2D(struct Map *obj,const struct Wall *aWall,GLfloat color[4],const int roomID)
 {
     struct Point2D point2Ds[2];
@@ -3597,6 +3683,74 @@ void drawAMeshInMap2D(struct aMesh *mesh)
     }
 }
 
+void drawAKey2D(struct aMesh *key)
+{
+    GLfloat red[4] =  {0.7,0.0,0.0,alphaVal};
+    GLfloat noCol[4] =  {0.0,0.0,0.0,0.0};
+    struct Point2D point2Ds[10]; 
+
+    struct Point2D border[4];
+    border[0] = (struct Point2D){screenWidth- 80,0};
+    border[1] = (struct Point2D){border[0].x+80,border[0].z+80};
+    border[2] = (struct Point2D){border[0].x+5,border[0].z+5};
+    border[3] = (struct Point2D){border[1].x-5,border[1].z-5};
+
+    point2Ds[0] =(struct Point2D){screenWidth- 50,50};
+    point2Ds[1] =(struct Point2D){point2Ds[0].x+20,point2Ds[0].z+20};
+
+    point2Ds[2] =(struct Point2D){point2Ds[0].x+5,point2Ds[0].z+5};
+    point2Ds[3] =(struct Point2D){point2Ds[1].x-5,point2Ds[1].z-5};
+
+    point2Ds[4] =(struct Point2D){point2Ds[0].x,point2Ds[1].z};
+    point2Ds[5] =(struct Point2D){point2Ds[0].x+5,point2Ds[1].z-60};
+
+
+    point2Ds[6] =(struct Point2D){point2Ds[0].x+5,point2Ds[1].z-35};
+    point2Ds[7] =(struct Point2D){point2Ds[0].x+15,point2Ds[6].z-5};
+
+    point2Ds[8] =(struct Point2D){point2Ds[0].x+5,point2Ds[1].z-45};
+    point2Ds[9] =(struct Point2D){point2Ds[0].x+15,point2Ds[8].z-5};
+
+    if (key->state == DEAD)
+    {
+      set2Dcolour(noCol);
+      draw2Dbox(point2Ds[2].x,point2Ds[2].z,point2Ds[3].x,point2Ds[3].z);
+      set2Dcolour(red);
+      draw2Dbox(point2Ds[0].x,point2Ds[0].z,point2Ds[1].x,point2Ds[1].z);
+      draw2Dbox(point2Ds[4].x,point2Ds[4].z,point2Ds[5].x,point2Ds[5].z);
+      draw2Dbox(point2Ds[6].x,point2Ds[6].z,point2Ds[7].x,point2Ds[7].z);
+      draw2Dbox(point2Ds[8].x,point2Ds[8].z,point2Ds[9].x,point2Ds[9].z);
+
+      set2Dcolour(noCol);
+      draw2Dbox(border[2].x,border[2].z,border[3].x,border[3].z);
+      set2Dcolour(red);
+      draw2Dbox(border[0].x,border[0].z,border[1].x,border[1].z);
+    }
+}
+void drawAKeyMeshInMap2D(struct aMesh *key)
+{
+    GLfloat red[4] =  {0.7,0.0,0.0,alphaVal};
+    struct Point2D point2Ds[2];
+    struct Point2D keyBodyPoints[2];
+    struct LineOrBox2D aMeshPos;
+    struct LineOrBox2D keyBodyPos;
+    point2Ds[0].x = (int)key->posV.x;
+    point2Ds[0].z = (int)key->posV.z;
+    point2Ds[1] = (struct Point2D){point2Ds[0].x+1,point2Ds[0].z+1};
+
+    keyBodyPoints[0] = point2Ds[0];
+    keyBodyPoints[1] = point2Ds[0];
+
+    keyBodyPoints[1].z  += 4;
+    if (key->state != DEAD)
+    {
+      setPointsAndColorOfLineOrBox(&keyBodyPos,keyBodyPoints,1,red);
+      setPointsAndColorOfLineOrBox(&aMeshPos,point2Ds,0,red);
+      drawLineMap2DWithTransFn(&keyBodyPos,&mapTransformFuntion);
+      drawBoxMap2DWithTransFn(&aMeshPos,&mapTransformFuntion);
+    }
+}
+
 void updateCaveLvMap2D(struct CaveLv *obj,const int displayMode) // 1 = no map, 2 = fog, 0 = normal map
 {
   struct Map *a2DMapP = &(obj->m_a2DMap);
@@ -3619,8 +3773,9 @@ void updateCaveLvMap2D(struct CaveLv *obj,const int displayMode) // 1 = no map, 
       for(index = 0;index < DEFAULT_CAVE_LV_NUM_RESPONSIVE_MESH;index++)
       {
         drawAMeshInMap2D(&(obj->m_meshes[index]));
-        //drawARoomInMap2D(a2DMapP,index);
       }
+      drawAKeyMeshInMap2D(&(obj->m_aKey));
+
   }
 }
 
@@ -3668,6 +3823,8 @@ void updateUndergroundMap2D(struct Underground *obj,const int displayMode)  // 1
         drawAMeshInMap2D(&(obj->m_meshes[indexRoom]));
         drawARoomInMap2D(a2DMapP,indexRoom);
       }
+
+      drawAKeyMeshInMap2D(&(obj->m_aKey));
       // drae down stair position in a map
       if (((obj->m_stairOption == ONLY_DOWN_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR)) && (a2DMapP->numStairs == 2))
       {
@@ -4074,6 +4231,10 @@ void setAllTexture()
       setAssignedTexture(TXT_FLOOR_ID1, 8);
       setUserColour(TXT_FLOOR_ID2, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
       setAssignedTexture(TXT_FLOOR_ID2, 18);
+      setUserColour(TXT_FLOOR_ID3, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+      setAssignedTexture(TXT_FLOOR_ID3, 36);
+      setUserColour(TXT_FLOOR_ID4, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+      setAssignedTexture(TXT_FLOOR_ID4, 41);
       setUserColour(TXT_WALL_ID1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
       setAssignedTexture(TXT_WALL_ID1, 42);
       setUserColour(TXT_WALL_ID2, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
@@ -4082,6 +4243,8 @@ void setAllTexture()
       setAssignedTexture(TXT_WALL_ID3, 27);
       setUserColour(TXT_CUBE_ID1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
       setAssignedTexture(TXT_CUBE_ID1, 26);
+      setUserColour(TXT_CAVE_CEILING_ID, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+      setAssignedTexture(TXT_CAVE_CEILING_ID, 21);
 }
 
 void printLineOrBoxObj(struct LineOrBox2D *obj)
@@ -5188,6 +5351,7 @@ void handleAIMeshInCaveLv(struct CaveLv *obj,const float second)
       updateVisibilityControlVal(&visibilityMananger,1);
       getAndConvertViewPos(&vPoint);
       currentMeshTime = ((float)(clock()-meshMovingRefTime))/CLOCKS_PER_SEC;
+      handleKey(&(obj->m_isAbleToGoDown),&(obj->m_aKey));
       if (currentMeshTime > timeUpdate)
       {      
          meshMovingRefTime = clock();
@@ -5236,6 +5400,7 @@ void handleAIMesh(struct Underground *obj,const float second)
   updateVisibilityControlVal(&visibilityMananger,0);
   getAndConvertViewPos(&vPoint);
   currentMeshTime = ((float)(clock()-meshMovingRefTime))/CLOCKS_PER_SEC;
+  handleKey(&(obj->m_isAbleToGoDown),&(obj->m_aKey));
       if (currentMeshTime > timeUpdate)
       {      
 
