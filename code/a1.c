@@ -167,6 +167,8 @@ extern void keyboard(unsigned char, int, int);
 #define DEFAULT_LOWEST_TERRAIN_NUM 256
 
 #define DEFAULT_MAP_2D_SCALE_VAL 7.0
+#define DEFAULT_MAP_2D_X_REF 80
+#define DEFAULT_MAP_2D_Z_REF 0
 
 struct Point2D
 {
@@ -861,7 +863,7 @@ void draw2D() {
            }
            // draw background
            set2Dcolour(black);
-           draw2Dbox(0,0, 100*DEFAULT_MAP_2D_SCALE_VAL-1, 100*DEFAULT_MAP_2D_SCALE_VAL-1); 
+           draw2Dbox(DEFAULT_MAP_2D_X_REF,DEFAULT_MAP_2D_Z_REF,DEFAULT_MAP_2D_X_REF+ 100*DEFAULT_MAP_2D_SCALE_VAL-1, DEFAULT_MAP_2D_Z_REF+100*DEFAULT_MAP_2D_SCALE_VAL-1); 
       }
 
       if (stage_Lv == -1)
@@ -3964,8 +3966,8 @@ void drawFogInMap(struct FogMap *obj)
 }
 void clearFogPosition(struct FogMap *obj,const int xView,const int zView)
 {
-  int i = (NUM_TILE_X*xView)/WORLDX;
-  int j = (NUM_TILE_Z*zView)/WORLDZ;
+  int i = (NUM_TILE_X*(xView))/WORLDX;
+  int j = (NUM_TILE_Z*(zView))/WORLDZ;
 
   clearFogPositionByIndices(obj,i,j);
   clearFogPositionByIndices(obj,i-1,j-1);
@@ -3993,7 +3995,7 @@ void clearFogInArea(struct FogMap *obj,struct LineOrBox2D *area)
     for(i=aArea.startP.x;i<=aArea.stopP.x;i++)
     {
       for(j=aArea.startP.z;j<=aArea.stopP.z;j++)
-        clearFogPositionByIndices(obj,(NUM_TILE_X*i)/WORLDX,(NUM_TILE_Z*j)/WORLDZ); 
+        clearFogPositionByIndices(obj,(NUM_TILE_X*(i))/WORLDX,(NUM_TILE_Z*(j-DEFAULT_MAP_2D_Z_REF))/WORLDZ); 
     }
     //aArea 
     oldDataOfArea = *area;
@@ -4014,8 +4016,8 @@ void clearFogPositionByIndices(struct FogMap *obj,const int i,const int j)
 void setFogAreaInFogMap(struct FogMap *obj,GLfloat fogColor[4],struct LineOrBox2D (*transformationFn)(struct LineOrBox2D*))
 {
   int i,j;
-  int xVal = 0;
-  int zVal = 0;
+  int xVal = DEFAULT_MAP_2D_X_REF;
+  int zVal = DEFAULT_MAP_2D_Z_REF;
   int xWidth = 0;
   int zWidth = 0;
   struct Point2D point2Ds[2];
@@ -4028,11 +4030,11 @@ void setFogAreaInFogMap(struct FogMap *obj,GLfloat fogColor[4],struct LineOrBox2
   }
   for(i=0;i<NUM_TILE_X;i++)
   {
-    zVal = 0;
+    zVal = DEFAULT_MAP_2D_Z_REF;
     for(j=0;j<NUM_TILE_Z;j++)
     {
       point2Ds[0] = (struct Point2D){xVal,worldZScale-DEFAULT_MAP_2D_SCALE_VAL-zVal};
-      point2Ds[1] = (struct Point2D){xVal+xWidth,(worldZScale-DEFAULT_MAP_2D_SCALE_VAL-(zVal+zWidth))};
+      point2Ds[1] = (struct Point2D){xVal+xWidth,(DEFAULT_MAP_2D_Z_REF+worldZScale-DEFAULT_MAP_2D_SCALE_VAL-(zVal+zWidth))};
       setPointsAndColorOfLineOrBox(&(obj->fogTiles[i][j]),point2Ds,0,fogColor);
      // obj->fogTiles[i][j] = transformationFn(&(obj->fogTiles[i][j]));
       zVal += zWidth;
@@ -4164,8 +4166,8 @@ struct Point2D point2DTransformFuntionForMap(struct Point2D *obj)
 {
     const float scaleVal = DEFAULT_MAP_2D_SCALE_VAL;
     struct Point2D aPoint;
-    aPoint.x = (int)(scaleVal*(float)obj->x);
-    aPoint.z = (int)(scaleVal*((float)(WORLDZ-1) - (float)(obj->z)) + 0.5);
+    aPoint.x = DEFAULT_MAP_2D_X_REF+(int)(scaleVal*(float)obj->x);
+    aPoint.z = DEFAULT_MAP_2D_Z_REF+(int)(scaleVal*((float)(WORLDZ-1) - (float)(obj->z)) + 0.5);
     return aPoint;
 }
 
@@ -4176,8 +4178,8 @@ struct Point2D point2DRetransformFuntionForMap(struct Point2D *obj)
     struct Point2D aPoint = *obj;
     if (scaleVal != 0.0)
     {
-      aPoint.x = (int)((float)obj->x/scaleVal);
-      aPoint.z = (int)(((float)(WORLDZ-1)*scaleVal - (float)(obj->z))/scaleVal + 0.5);
+      aPoint.x = (int)((float)(obj->x-DEFAULT_MAP_2D_X_REF)/scaleVal);
+      aPoint.z = (int)(((float)(WORLDZ-1)*scaleVal - (float)(obj->z-DEFAULT_MAP_2D_Z_REF))/scaleVal + 0.5);
     }
     return aPoint;
 }
