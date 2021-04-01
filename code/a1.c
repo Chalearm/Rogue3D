@@ -327,7 +327,12 @@ struct Underground
    struct Point m_upViewPoint;
    struct Point m_downViewPoint;
    int m_state;
+
    struct aMesh m_aKey;
+   struct aMesh m_anOpenChest;
+   struct aMesh m_aSword;
+   struct aMesh m_aCoin;
+   struct aMesh m_anArmour;
    int m_visitedState;
    int m_isAbleToGoDown; // this will be 1 when the player find the key to go down to the next level.
 
@@ -528,8 +533,9 @@ float calEucidianDistance2D(struct Pointf *p1,struct Pointf *p2);
 float calEucidianDistance3Di(struct Point *p1,struct Point *p2);
 // for mesh, functions
 
-void setKey(struct aMesh *key,int state,const struct Point startPoint,const struct Point stopPoint);
-void handleKey(int *m_isAbleToGoDown,struct aMesh *key);
+void setItemMeshInARoom(struct aMesh *obj,struct Room *rooms, const int state,const int typeItem,const int groundLv,const int roomID);
+void setItemMesh(struct aMesh *obj,const int state,int typeItem,const struct Point startPoint,const struct Point stopPoint);
+void handleAItemMesh(int *m_isAbleToGoDown,const float coinTimeUpdate,struct aMesh *obj);
 void fishMove(struct aMesh *obj);
 void batMove(struct aMesh *obj,struct Underground *uObj);
 void visibilityTestOfMesh(struct aMesh *obj,int vpRoomIndex, int meshRoomIndex);
@@ -579,6 +585,8 @@ int findObjPointIsWhichRoom2D(struct Map *obj,struct Pointf *vPoint);
 void drawAMeshInMap2D(struct aMesh *mesh);
 void drawAKeyMeshInMap2D(struct aMesh *key);
 void drawAKey2D(struct aMesh *key);
+void drawASword2D(struct aMesh *aSword);
+void drawArmour2D(struct aMesh *anArmour);
 void getColorOfAmeshInMap2D(struct aMesh *mesh,GLfloat *color);
 void drawARoomInMap2D(struct Map *obj,const int roomID);
 
@@ -863,6 +871,8 @@ void draw2D() {
       else if (stage_Lv%2 == 0)
       {
         drawAKey2D(&(Undergrounds[lvIndex].m_aKey));
+        drawArmour2D(&(Undergrounds[lvIndex].m_anArmour));
+        drawASword2D(&(Undergrounds[lvIndex].m_aSword));
       }
       else if (stage_Lv%2 == 1)
       {
@@ -2089,7 +2099,7 @@ void createCaveLv(struct CaveLv *obj)
     // locate view point in front of any stair
     locateViewPointNearStairInCaveOrMazeLv(&(obj->m_upStair),&(obj->m_downStair),obj->m_groundLv,&(obj->m_downViewPoint),&(obj->m_upViewPoint));
 
-    setKey(&(obj->m_aKey),currentState,meshStartRefPoint,endCavePoint);
+    setItemMesh(&(obj->m_aKey),currentState,8,meshStartRefPoint,endCavePoint);// #8 is for a key mesh   
     obj->m_state = GENERATED_CAVE_LV_DONE;
   }
 
@@ -2133,56 +2143,87 @@ void generateCaveCeiling(struct CaveLv *obj)
     }
 }
 
-void setKey(struct aMesh *key,int state,const struct Point startPoint,const struct Point stopPoint)
+void setItemMeshInARoom(struct aMesh *obj,struct Room *rooms, const int state,const int typeItem,const int groundLv,const int roomID)
 {
-
+  struct Point stopP,startP;
+  findStartAndStopPointOfARoom(&(rooms[roomID]),&stopP,&startP);
+  startP = (struct Point){startP.x+1,groundLv+1,startP.z+1};
+  stopP = (struct Point){stopP.x-1,groundLv+1,stopP.z-1};
+  setItemMesh(obj,state,typeItem,startP,stopP); 
+}
+void setItemMesh(struct aMesh *obj,const int state,const int typeItem,const struct Point startPoint,const struct Point stopPoint)
+{
   static int idMesh = 33; 
+  int protectInfinityLoopVal = 30;
   if (state == READY)
   {
-    key->id = idMesh++;
-    key->type = 8; // key
-    key->currentDirection = getRandomNumber(WEST,NORTH);
-    key->startArea = startPoint;
-    key->stopArea = stopPoint;
-    key->randomDestination = (struct Point){getRandomNumber(key->startArea.x,key->stopArea.x),key->startArea.y,getRandomNumber(key->startArea.z,key->stopArea.z)};
-    key->visiblityState = SHOWN; // hide
-    key->state = MOVEAROUND;
-    key->posV = (struct Pointf){(float)getRandomNumber(startPoint.x,key->stopArea.x),(float)startPoint.y,(float)getRandomNumber(startPoint.z,key->stopArea.z)};
-    printf("key place: (%3.2f,%3.2f,%3.2f) \n",key->posV.x,key->posV.y,key->posV.z);
-    key->areaOfBatIndex = -1;
-    key->directionSearchIndex = -1;
-    key->currentAreaIndex = -1;
-    key->areaDestinationIndex = -1; 
-    key->journeyState = 0;  
-    setMeshID(key->id, key->type, key->posV.x, key->posV.y, key->posV.z);
-    drawMesh(key->id);
+    obj->id = idMesh++;
+    obj->type = typeItem; // key
+    obj->currentDirection = getRandomNumber(WEST,NORTH);
+    obj->startArea = startPoint;
+    obj->stopArea = stopPoint;
+    obj->randomDestination = (struct Point){getRandomNumber(obj->startArea.x,obj->stopArea.x),obj->startArea.y,getRandomNumber(obj->startArea.z,obj->stopArea.z)};
+    obj->visiblityState = SHOWN; // hide
+    obj->state = MOVEAROUND;
+    do
+    {
+      obj->posV = (struct Pointf){(float)getRandomNumber(startPoint.x,obj->stopArea.x),(float)startPoint.y,(float)getRandomNumber(startPoint.z,obj->stopArea.z)};
+    }
+    while((readWorldSpace(obj->posV) != 0) &&(protectInfinityLoopVal--));
+    obj->areaOfBatIndex = -1;
+    obj->directionSearchIndex = -1;
+    obj->currentAreaIndex = -1;
+    obj->areaDestinationIndex = -1; 
+    obj->journeyState = 0;  
+    setMeshID(obj->id, obj->type, obj->posV.x, obj->posV.y, obj->posV.z);
+    drawMesh(obj->id);
+
+    if (typeItem== 5)printf(" open chest place is (%3.2f,%3.2f)",obj->posV.x,obj->posV.z);
   }
-  else if ( ((state == GENERATED_CAVE_LV_DONE) || (state == GENERATED_UNDERGROUND_DONE)) && (key->state != DEAD))
+  else if ( ((state == GENERATED_CAVE_LV_DONE) || (state == GENERATED_UNDERGROUND_DONE)) && (obj->state != DEAD))
   {
-    setMeshID(key->id, key->type, key->posV.x, key->posV.y, key->posV.z);
-    drawMesh(key->id);
+    setMeshID(obj->id, obj->type, obj->posV.x, obj->posV.y, obj->posV.z);
+    drawMesh(obj->id);
   }
 
 }
 
-
-void handleKey(int *m_isAbleToGoDown,struct aMesh *key)
+void handleAItemMesh(int *m_isAbleToGoDown,const float coinTimeUpdate,struct aMesh *obj)
 {
+
+  static clock_t coinRotatingTime = 0;
+  const float timeUpdate = coinTimeUpdate;
+  static float currentCoinTime = 0;
+  static float rotateDegree = 0.0;
+  currentCoinTime = ((float)(clock()-coinRotatingTime))/CLOCKS_PER_SEC;
   struct Pointf viewPoint;
   struct Point viewPointI;
   struct Point meshPosI;
   getAndConvertViewPos(&viewPoint);
   convertPointfToPointi(&viewPoint,&viewPointI);
-  convertPointfToPointi(&(key->posV),&meshPosI);
-
-  if ((comparePointis(&viewPointI,&meshPosI) == 1) && (key->state != DEAD))
+  convertPointfToPointi(&(obj->posV),&meshPosI);
+  viewPointI.y = 0;
+  meshPosI.y = 0;
+  if ((comparePointis(&viewPointI,&meshPosI) == 1) && (obj->state != DEAD))
   {
 
-    key->state = DEAD;
-    key->visiblityState = HIDDEN;
+    obj->state = DEAD;
+    obj->visiblityState = HIDDEN;
+    if (obj->type == 8) // #8 is for a key mesh
     *m_isAbleToGoDown = 1;
-    hideMesh(key->id);
+    else if(obj->type == 5)
+    printf("treasure was found\n");
+    else if(obj->type == 11)
+    printf("coin was found\n");
+    hideMesh(obj->id);
   }
+  if ((currentCoinTime > timeUpdate) && (obj->state != DEAD) && (obj->type == 11)) // #11 is coin
+  {     
+    coinRotatingTime = clock();
+    rotateDegree += 5.0;
+    rotateDegree = (float)(((int)rotateDegree)%180);
+    setRotateMesh(obj->id, 0.0,rotateDegree,0.0);
+  } 
 }
 void setParameterOfUnderground_defaultValue1(struct Underground *obj,int hasDownStair)
 {
@@ -2384,10 +2425,15 @@ void createUnderground(struct Underground *obj)
       if(world[obj->m_upViewPoint.x][obj->m_upViewPoint.y][obj->m_upViewPoint.z] != 0) obj->m_upViewPoint.y++; // has a cube
       if(world[obj->m_downViewPoint.x][obj->m_downViewPoint.y][obj->m_downViewPoint.z] != 0) obj->m_downViewPoint.y++; // has a cube
       // find the position to place key
-      findStartAndStopPointOfARoom(&(obj->m_rooms[getRandomNumber(0,8)]),&stopP,&startP);
-      startP = (struct Point){startP.x+1,obj->m_groundLv+1,startP.z+1};
-      stopP = (struct Point){stopP.x-1,obj->m_groundLv+1,stopP.z-1};
-      setKey(&(obj->m_aKey),obj->m_state,startP,stopP);
+    
+      int randomRoomID = getRandomNumber(0,8); 
+      setItemMeshInARoom(&(obj->m_aKey),obj->m_rooms,obj->m_state,8,obj->m_groundLv,randomRoomID);        // #8 is for a key mesh 
+      setItemMeshInARoom(&(obj->m_anOpenChest),obj->m_rooms,obj->m_state,5,obj->m_groundLv,(++randomRoomID)%DEFAULT_NUM_ROOM); // #5 is for an open chest mesh 
+      setItemMeshInARoom(&(obj->m_anArmour),obj->m_rooms,obj->m_state,6,obj->m_groundLv+1,(++randomRoomID)%DEFAULT_NUM_ROOM); // #6 is for an Armour mesh 
+      setItemMeshInARoom(&(obj->m_aSword),obj->m_rooms,obj->m_state,4,obj->m_groundLv,(++randomRoomID)%DEFAULT_NUM_ROOM); // #4 is for a Sword mesh
+      setItemMeshInARoom(&(obj->m_aCoin),obj->m_rooms,obj->m_state,11,obj->m_groundLv+1,(++randomRoomID)%DEFAULT_NUM_ROOM); // #11 is for a coin mesh
+
+
       //printf("create underground state:-1.1 \n");
       obj->m_state = GENERATED_UNDERGROUND_DONE;
    }
@@ -3683,12 +3729,81 @@ void drawAMeshInMap2D(struct aMesh *mesh)
     }
 }
 
+void drawASword2D(struct aMesh *aSword)
+{
+  GLfloat green[4] =  {0.0,0.7,0.0,alphaVal};
+  GLfloat noCol[4] =  {0.0,0.0,0.0,0.0};
+    struct Point2D point2Ds[4]; 
+    struct Point2D border[4];
+
+    border[0] = (struct Point2D){0,80};
+    border[1] = (struct Point2D){border[0].x+80,border[0].z+80};
+    border[2] = (struct Point2D){border[0].x+5,border[0].z+5};
+    border[3] = (struct Point2D){border[1].x-5,border[1].z-5};
+
+    point2Ds[0] =(struct Point2D){25,100};
+    point2Ds[1] =(struct Point2D){point2Ds[0].x+30,point2Ds[0].z+10};
+
+
+    point2Ds[2] =(struct Point2D){35,150};
+    point2Ds[3] =(struct Point2D){point2Ds[2].x+10,point2Ds[2].z-60};
+    if (aSword->state == DEAD)
+    {
+
+      set2Dcolour(green);
+      draw2Dbox(point2Ds[0].x,point2Ds[0].z,point2Ds[1].x,point2Ds[1].z);
+      draw2Dbox(point2Ds[2].x,point2Ds[2].z,point2Ds[3].x,point2Ds[3].z);
+      /*
+      draw2Dbox(point2Ds[4].x,point2Ds[4].z,point2Ds[5].x,point2Ds[5].z);
+      draw2Dbox(point2Ds[6].x,point2Ds[6].z,point2Ds[7].x,point2Ds[7].z);
+      draw2Dbox(point2Ds[8].x,point2Ds[8].z,point2Ds[9].x,point2Ds[9].z);*/
+
+      set2Dcolour(noCol);
+      draw2Dbox(border[2].x,border[2].z,border[3].x,border[3].z);
+      set2Dcolour(green);
+      draw2Dbox(border[0].x,border[0].z,border[1].x,border[1].z);
+    }
+}
+void drawArmour2D(struct aMesh *anArmour)
+{
+
+    GLfloat blue[4] =  {0.0,0.0,0.7,alphaVal};
+    GLfloat noCol[4] =  {0.0,0.0,0.0,0.0};
+    struct Point2D point2Ds[4]; 
+    struct Point2D border[4];
+
+    border[0] = (struct Point2D){0,0};
+    border[1] = (struct Point2D){border[0].x+80,border[0].z+80};
+    border[2] = (struct Point2D){border[0].x+5,border[0].z+5};
+    border[3] = (struct Point2D){border[1].x-5,border[1].z-5};
+
+    point2Ds[0] =(struct Point2D){20,40};
+    point2Ds[1] =(struct Point2D){point2Ds[0].x+40,point2Ds[0].z+20};
+    point2Ds[2] =(struct Point2D){point2Ds[0].x+5,point2Ds[0].z};
+    point2Ds[3] =(struct Point2D){point2Ds[0].x+35,point2Ds[0].z-20};
+    if (anArmour->state == DEAD)
+    {
+
+      set2Dcolour(blue);
+      draw2Dbox(point2Ds[0].x,point2Ds[0].z,point2Ds[1].x,point2Ds[1].z);
+      draw2Dbox(point2Ds[2].x,point2Ds[2].z,point2Ds[3].x,point2Ds[3].z);
+      /*
+      draw2Dbox(point2Ds[4].x,point2Ds[4].z,point2Ds[5].x,point2Ds[5].z);
+      draw2Dbox(point2Ds[6].x,point2Ds[6].z,point2Ds[7].x,point2Ds[7].z);
+      draw2Dbox(point2Ds[8].x,point2Ds[8].z,point2Ds[9].x,point2Ds[9].z);*/
+
+      set2Dcolour(noCol);
+      draw2Dbox(border[2].x,border[2].z,border[3].x,border[3].z);
+      set2Dcolour(blue);
+      draw2Dbox(border[0].x,border[0].z,border[1].x,border[1].z);
+    }
+
+}
 void drawAKey2D(struct aMesh *key)
 {
     GLfloat red[4] =  {0.7,0.0,0.0,alphaVal};
     GLfloat noCol[4] =  {0.0,0.0,0.0,0.0};
     struct Point2D point2Ds[10]; 
-
     struct Point2D border[4];
     border[0] = (struct Point2D){screenWidth- 80,0};
     border[1] = (struct Point2D){border[0].x+80,border[0].z+80};
@@ -5337,7 +5452,6 @@ int timer(const float second)
 
 void handleAIMeshInCaveLv(struct CaveLv *obj,const float second)
 {
-
       int i; 
       int isAbleToSeeMesh = 0;
       struct Pointf vPoint  = {0.0,0.0,0.0};
@@ -5351,7 +5465,7 @@ void handleAIMeshInCaveLv(struct CaveLv *obj,const float second)
       updateVisibilityControlVal(&visibilityMananger,1);
       getAndConvertViewPos(&vPoint);
       currentMeshTime = ((float)(clock()-meshMovingRefTime))/CLOCKS_PER_SEC;
-      handleKey(&(obj->m_isAbleToGoDown),&(obj->m_aKey));
+      handleAItemMesh(&(obj->m_isAbleToGoDown),0.0,&(obj->m_aKey));
       if (currentMeshTime > timeUpdate)
       {      
          meshMovingRefTime = clock();
@@ -5400,42 +5514,46 @@ void handleAIMesh(struct Underground *obj,const float second)
   updateVisibilityControlVal(&visibilityMananger,0);
   getAndConvertViewPos(&vPoint);
   currentMeshTime = ((float)(clock()-meshMovingRefTime))/CLOCKS_PER_SEC;
-  handleKey(&(obj->m_isAbleToGoDown),&(obj->m_aKey));
-      if (currentMeshTime > timeUpdate)
-      {      
+  handleAItemMesh(&(obj->m_isAbleToGoDown),0.0,&(obj->m_aKey));
+  handleAItemMesh(&(obj->m_isAbleToGoDown),0.0,&(obj->m_anOpenChest));
+  handleAItemMesh(&(obj->m_isAbleToGoDown),0.0,&(obj->m_anArmour));
+  handleAItemMesh(&(obj->m_isAbleToGoDown),0.0,&(obj->m_aSword));
+  handleAItemMesh(&(obj->m_isAbleToGoDown),0.05,&(obj->m_aCoin));
+  if (currentMeshTime > timeUpdate)
+  {      
 
-         meshMovingRefTime = clock();
-          for(i = 0;i < DEFAULT_NUM_ROOM;i++)
+     meshMovingRefTime = clock();
+      for(i = 0;i < DEFAULT_NUM_ROOM;i++)
+      {
+
+        if(meshes[i].state != DEAD)
+        {
+
+          isAbleToSeeMesh = testVisibilityOfAMesh(&visibilityMananger,i,obj->m_meshes);
+          meshRoomIndex = findObjPointIsWhichRoom2D(&(obj->m_a2DMap),&(meshes[i].posV));
+          vpRoomIndex = findObjPointIsWhichRoom2D(&(obj->m_a2DMap),&vPoint);
+          visibilityTestOfMesh(&meshes[i],vpRoomIndex,meshRoomIndex);
+          if (isAbleToSeeMesh == 1)
           {
-
-            if(meshes[i].state != DEAD)
-            {
-
-              isAbleToSeeMesh = testVisibilityOfAMesh(&visibilityMananger,i,obj->m_meshes);
-              meshRoomIndex = findObjPointIsWhichRoom2D(&(obj->m_a2DMap),&(meshes[i].posV));
-              vpRoomIndex = findObjPointIsWhichRoom2D(&(obj->m_a2DMap),&vPoint);
-              visibilityTestOfMesh(&meshes[i],vpRoomIndex,meshRoomIndex);
-              if (isAbleToSeeMesh == 1)
-              {
-                isAbleToSeeMesh = SHOWN;
-              }
-              else
-              {
-                 isAbleToSeeMesh = HIDDEN;
-              }
-
-
-            if (meshes[i].type == FISH) // fish
-                fishMove(&meshes[i]);
-            if (meshes[i].type == BAT) // bat
-                batMove(&meshes[i],obj);
-
-
-              setTranslateMesh(meshes[i].id,meshes[i].posV.x, meshes[i].posV.y, meshes[i].posV.z);
-              changeStatusAndPrintInfo(&(meshes[i]),isAbleToSeeMesh,1); // 0 not print info , 1 print inf
-            }
+            isAbleToSeeMesh = SHOWN;
           }
+          else
+          {
+             isAbleToSeeMesh = HIDDEN;
+          }
+
+
+        if (meshes[i].type == FISH) // fish
+            fishMove(&meshes[i]);
+        if (meshes[i].type == BAT) // bat
+            batMove(&meshes[i],obj);
+
+
+          setTranslateMesh(meshes[i].id,meshes[i].posV.x, meshes[i].posV.y, meshes[i].posV.z);
+          changeStatusAndPrintInfo(&(meshes[i]),isAbleToSeeMesh,1); // 0 not print info , 1 print inf
+        }
       }
+  }
 }
 
 void fightingWithMeshes(struct aMesh *meshes,const int numberOfMeshes,const float turnBasedTime)
