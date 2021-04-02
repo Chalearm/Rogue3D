@@ -1141,7 +1141,9 @@ float x, y, z;
         lvIndex = stage_Lv/2;
         if(stage_Lv == -1)
         {
-          // move cloud every 0.1 second
+          // move cloud every 0.1 second and arrow handle
+          updateVisibilityControlVal(&aPlayerProp,1);
+          handleABow(&aPlayerProp,0.1,0,0);
           moveCloudInOutsideLand(&OutsideLand,0.1);
         }
         else if (stage_Lv%2 == 1)
@@ -2588,7 +2590,7 @@ void locateAndBuildStairOnTerrain(struct OnGround *obj)
                }
                else
                {
-                  world[i][obj->terrain[i][j]][j] = 1;
+                  world[i][obj->terrain[i][j]][j] = TXT_FLOOR_ID4;
                }
       }
       g_floorLv = obj->lowestLv; 
@@ -5546,7 +5548,7 @@ int timer(const float second)
   }
   return ret;
 }
-//mmmmmmmmm
+
 void handleABow(struct playerProperty *playerProp,const float timer,struct aMesh *meshes,const int numMesh)
 {
   static int arrowState = 0; //0 is inital, 1 is not shooting, 2 is shooting
@@ -5880,6 +5882,8 @@ void controlStage(int *stageLv,struct CaveLv *objCave,const int numCave, struct 
     {
            if((isOnUpStairUnderground(&objU[lvIndex]) == 1) && (stageVal == 0))
            {
+              // hide all mesh first
+              hideMOBAndItemsInUnderground(&objU[lvIndex]);
               createOnGround(objOG);
               stageVal--;
            }
