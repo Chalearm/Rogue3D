@@ -170,6 +170,9 @@ extern void keyboard(unsigned char, int, int);
 #define DEFAULT_MAP_2D_X_REF 80
 #define DEFAULT_MAP_2D_Z_REF 0
 
+#define NO_BOW 0
+#define HAS_A_BOW 1
+
 struct Point2D
 {
   int x;
@@ -217,7 +220,7 @@ struct Pointf
    float z;
 };
 
-struct visiblityControlVal
+struct playerProperty
 {
   struct Point refMouse;
   struct Point oldMouse;
@@ -230,6 +233,12 @@ struct visiblityControlVal
   float deltaRadian;
   int indexArea;
   int isNeighborArea[DEFAULT_NUM_ROOM];
+
+  // have items
+  int m_hasArmour;
+  int m_hasSword;
+  int m_hasBow;
+
 };
 
 struct Wall
@@ -329,12 +338,14 @@ struct Underground
    struct Point m_upViewPoint;
    struct Point m_downViewPoint;
    int m_state;
+   int m_hasABow;
 
    struct aMesh m_aKey;
    struct aMesh m_anOpenChest;
    struct aMesh m_aSword;
    struct aMesh m_aCoin;
    struct aMesh m_anArmour;
+   struct aMesh m_aBow;
    int m_visitedState;
    int m_isAbleToGoDown; // this will be 1 when the player find the key to go down to the next level.
 
@@ -454,7 +465,7 @@ void createAMeshInCave(struct aMesh *obj,const struct Point refPoint);
 void fightingWithMeshes(struct aMesh *meshes,const int numberOfMeshes,const float turnBasedTime);
 void changeStatusAndPrintInfo(struct aMesh *obj,int state,int option); // 0 not print info , 1 print info
  
-void userDefinedkeyboard(unsigned char key, int x, int y);
+void userDefinedkeyboard(unsigned char key, int x, int y); 
 const char* printMeshName(const int id);
 
 // testure function
@@ -468,10 +479,11 @@ int comparePointfs(struct Pointf *obj1,struct Pointf *obj2);
 int comparePointfsAsInt(struct Pointf *obj1,struct Pointf *obj2);
 int comparePointis(struct Point *obj1,struct Point *obj2);
 float findRadian(const float x,const float z); 
-int meshCollideHanndle(struct Pointf *obj,struct Pointf *oldPos);
-void updateVisibilityControlVal(struct visiblityControlVal *obj,const int isOnlyOneRoom);
-int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,struct aMesh *meshes);
-int findThePointfIsinWhichArea(const struct Pointf *obj);
+int meshCollideHanndle(struct Pointf *obj,struct Pointf *oldPos,const int meshIndex,struct aMesh *meshes,const int numMesh);
+void updateVisibilityControlVal(struct playerProperty *obj,const int isOnlyOneRoom);
+void initialPlayerProperty(struct playerProperty *obj);
+int testVisibilityOfAMesh(struct playerProperty *obj,const int meshIndex,struct aMesh *meshes);
+
 float distanceAliveBatToPlayer(struct aMesh *meshes,const int indexMesh);
 void getStairOfOutSideWorld(struct OnGround *obj,struct Point *startP,struct Point *stopP);
 void SetMAXandMINPoint(const int **MaxPoint, const int **MinPoint, const int *P1, const int *P2);
@@ -505,15 +517,16 @@ void buildStairsInCaveLv(struct CaveLv *obj);
 int isOnUpStairInCaveLV(struct CaveLv *obj);
 int isOnDownStairInCaveLV(struct CaveLv *obj);
 int isOnDownStairInCaveLVFor2D(struct CaveLv *obj);
-void batMoveInCaveLv(struct aMesh *obj);
+void batMoveInCaveLv(struct aMesh *meshes,const int meshIndex,const int numMesh);
 void handleAIMeshInCaveLv(struct CaveLv *obj,const float second);
+void handleABow(struct playerProperty *playerProp,const float timer,struct aMesh *meshes,const int numMesh);
 
 void getStairPointForCaveOrMazeLv(const struct stair *upStair,const struct stair *downStair,const int upOrDownStair,struct Point *startP,struct Point *stopP);// 0 = up, 1 = down
 void updateCaveLvMap2D(struct CaveLv *obj,const int displayMode); // 1 = no map, 2 = fog, 0 = normal map
 void locateViewPointNearStairInCaveOrMazeLv(const struct stair *upStair,const struct stair *downStair,const int groundLv, struct Point *downViewPoint,struct Point *upViewPoint);
 
 // Underground functions
-void setParameterOfUnderground_defaultValue1(struct Underground *obj,int hasDownStair);
+void setParameterOfUnderground_defaultValue1(struct Underground *obj,int hasDownStair, int hasABow);
 void createUnderground(struct Underground *obj);
 int findProperPositionToPlaceUpStairInRoomOfUnderground(struct Underground *obj,struct Point *stairPoint,int *stairDirection,const int stairWidth,const int stairNum, const int roomID);
 int findProperPositionToPlaceDownStairInRoomOfUnderground(struct Underground *obj,struct Point *stairPoint,int *stairDirection,const int stairWidth,const int stairNum);
@@ -530,16 +543,17 @@ int isOnDownStairUndergroundFor2D(struct Underground *obj);
 void changeVisiteStateInUnderground(struct Underground *obj,const int state);
 void handleAIMesh(struct Underground *obj,const float second);
 int timer(const float second);
-void hideAllMeshesIntheUnderground(struct Underground *obj);
+void hideAllMeshesInMazeOrCaveLv(struct aMesh *meshes,const int numMesh);
+void hideMOBAndItemsInUnderground(struct Underground *obj);
 float calEucidianDistance2D(struct Pointf *p1,struct Pointf *p2);
 float calEucidianDistance3Di(struct Point *p1,struct Point *p2);
 // for mesh, functions
 
 void setItemMeshInARoom(struct aMesh *obj,struct Room *rooms, const int state,const int typeItem,const int groundLv,const int roomID);
 void setItemMesh(struct aMesh *obj,const int state,int typeItem,const struct Point startPoint,const struct Point stopPoint);
-void handleAItemMesh(int *m_isAbleToGoDown,const float coinTimeUpdate,struct aMesh *obj);
-void fishMove(struct aMesh *obj);
-void batMove(struct aMesh *obj,struct Underground *uObj);
+void handleAItemMesh(int *m_isAbleToGoDown,struct playerProperty *aPlayerProp,const float coinTimeUpdate,struct aMesh *obj);
+void fishMove(struct aMesh *meshes,const int meshIndex,const int numMesh);
+void batMove(struct aMesh *meshes,const int meshIndex,const int numMesh,struct Underground *uObj);
 void visibilityTestOfMesh(struct aMesh *obj,int vpRoomIndex, int meshRoomIndex);
 void directionRandomMoveOfAMesh(struct aMesh *obj);
 int collsionResponseForMeshes(struct aMesh *obj,const int numberOfMeshes);
@@ -586,9 +600,10 @@ void findStartAndStopPointOfARoom2D(struct Room *obj,struct Point2D *maxPoint,st
 int findObjPointIsWhichRoom2D(struct Map *obj,struct Pointf *vPoint);
 void drawAMeshInMap2D(struct aMesh *mesh);
 void drawAKeyMeshInMap2D(struct aMesh *key);
+void drawABowMeshInMap2D(struct aMesh *aBow);
 void drawAKey2D(struct aMesh *key);
-void drawASword2D(struct aMesh *aSword);
-void drawArmour2D(struct aMesh *anArmour);
+void drawASword2D(struct playerProperty *aPlayerProp);
+void drawArmour2D(struct playerProperty *aPlayerProp);
 void getColorOfAmeshInMap2D(struct aMesh *mesh,GLfloat *color);
 void drawARoomInMap2D(struct Map *obj,const int roomID);
 
@@ -655,7 +670,7 @@ unsigned char currentKeyPressed = 0;
 struct OnGround OutsideLand;
 struct Underground Undergrounds[DEFAULT_NUM_UNDERGROUND_LV];
 struct CaveLv caveLvs[DEFAULT_NUM_CAVE_LV];
-struct visiblityControlVal visibilityMananger;
+struct playerProperty aPlayerProp;
 // define the dimension of Grid 3X3
 int dimensionOfGrid3x3[9][4] = {{0, 0, 33, 33},
                                 {33, 0, 34, 33},
@@ -873,13 +888,13 @@ void draw2D() {
       else if (stage_Lv%2 == 0)
       {
         drawAKey2D(&(Undergrounds[lvIndex].m_aKey));
-        drawArmour2D(&(Undergrounds[lvIndex].m_anArmour));
-        drawASword2D(&(Undergrounds[lvIndex].m_aSword));
       }
       else if (stage_Lv%2 == 1)
       {
         drawAKey2D(&(caveLvs[lvIndex].m_aKey));
       }
+      drawArmour2D(&aPlayerProp);
+      drawASword2D(&aPlayerProp);
    }
 
 }
@@ -1370,11 +1385,16 @@ int i, j, k;
       setAllTexture();
       int index = 0;
       int count = findMaxValue(DEFAULT_NUM_UNDERGROUND_LV,DEFAULT_NUM_CAVE_LV);
+      initialPlayerProperty(&aPlayerProp);
       for (index = 0;index < count ; index++)
       {
-        if (index < DEFAULT_NUM_UNDERGROUND_LV)
+        if (index == 0)
         {
-          setParameterOfUnderground_defaultValue1(&Undergrounds[index],BOTH_UP_DOWN_STAIR);
+          setParameterOfUnderground_defaultValue1(&Undergrounds[index],BOTH_UP_DOWN_STAIR,HAS_A_BOW);
+        }
+        else if (index < DEFAULT_NUM_UNDERGROUND_LV)
+        {
+          setParameterOfUnderground_defaultValue1(&Undergrounds[index],BOTH_UP_DOWN_STAIR,NO_BOW);
         }
         if (index == (DEFAULT_NUM_CAVE_LV -1))
         {
@@ -1388,7 +1408,7 @@ int i, j, k;
       setPrameterOfOnGround_defauleValue1(&OutsideLand);
       createOnGround(&OutsideLand);
 
-      glutKeyboardFunc (userDefinedkeyboard);
+      glutKeyboardFunc (userDefinedkeyboard); 
       //　setViewPosition(-1 * xViewP, -1 * yStartP, -1 * zViewP);
      // setViewPosition(-1*10, -1*48, -1*10);
 
@@ -1401,6 +1421,7 @@ int i, j, k;
    return 0; 
 }
 
+ 
 void SetMAXandMINPoint(const int** MaxPoint,const int** MinPoint,const int* P1,const int* P2)
 {
    if(*P1 > *P2)
@@ -2189,8 +2210,7 @@ void setItemMesh(struct aMesh *obj,const int state,const int typeItem,const stru
   }
 
 }
-
-void handleAItemMesh(int *m_isAbleToGoDown,const float coinTimeUpdate,struct aMesh *obj)
+void handleAItemMesh(int *m_isAbleToGoDown,struct playerProperty *aPlayerProp,const float coinTimeUpdate,struct aMesh *obj)
 {
 
   static clock_t coinRotatingTime = 0;
@@ -2206,17 +2226,29 @@ void handleAItemMesh(int *m_isAbleToGoDown,const float coinTimeUpdate,struct aMe
   convertPointfToPointi(&(obj->posV),&meshPosI);
   viewPointI.y = 0;
   meshPosI.y = 0;
+
+  if ((obj->state != DEAD) && (obj->visiblityState == HIDDEN))
+  {
+    obj->visiblityState = SHOWN;
+    drawMesh(obj->id);
+  }
   if ((comparePointis(&viewPointI,&meshPosI) == 1) && (obj->state != DEAD))
   {
 
     obj->state = DEAD;
     obj->visiblityState = HIDDEN;
     if (obj->type == 8) // #8 is for a key mesh
-    *m_isAbleToGoDown = 1;
+      *m_isAbleToGoDown = 1;
     else if(obj->type == 5)
-    printf("treasure was found\n");
+      printf("treasure was found\n");
     else if(obj->type == 11)
-    printf("coin was found\n");
+      printf("coin was found\n");
+    else if (obj->type == 6) // armour
+      aPlayerProp->m_hasArmour = 1;
+    else if (obj->type == 4) // sword
+      aPlayerProp->m_hasSword = 1;
+    else if (obj->type == 14) // bow
+      aPlayerProp->m_hasBow = 1;
     hideMesh(obj->id);
   }
   if ((currentCoinTime > timeUpdate) && (obj->state != DEAD) && (obj->type == 11)) // #11 is coin
@@ -2227,13 +2259,15 @@ void handleAItemMesh(int *m_isAbleToGoDown,const float coinTimeUpdate,struct aMe
     setRotateMesh(obj->id, 0.0,rotateDegree,0.0);
   } 
 }
-void setParameterOfUnderground_defaultValue1(struct Underground *obj,int hasDownStair)
+
+void setParameterOfUnderground_defaultValue1(struct Underground *obj,int hasDownStair, int hasABow)
 {
    obj->m_visitedState = NOT_VISITED;
    obj->m_downStairGroundLv = DEFAULT_UNDERGROUND_LV;
    obj->m_groundLv   = DEFAULT_UNDERGROUND_LV;
    obj->m_doorHeight = DEFAULT_DOOR_HEIGHT;
    obj->m_doorWidth = DEFAULT_DOOR_WIDTH;
+   obj->m_hasABow = hasABow;
    obj->m_roomWallHeight = DEFAULT_ROOM_HEIGHT;
    obj->m_gravity = DEFAULT_GRAVITY;
    obj->m_collisionMargin = DEFAULT_COLLISION_MARGIN;
@@ -2279,7 +2313,7 @@ void createUnderground(struct Underground *obj)
    int protectInfinityLoopVal = 30;
 
    // initial visiblity test manager
-   visibilityMananger.indexArea = -1;
+   aPlayerProp.indexArea = -1;
 
 
    flycontrol = 0;
@@ -2434,6 +2468,15 @@ void createUnderground(struct Underground *obj)
       setItemMeshInARoom(&(obj->m_anArmour),obj->m_rooms,obj->m_state,6,obj->m_groundLv+1,(++randomRoomID)%DEFAULT_NUM_ROOM); // #6 is for an Armour mesh 
       setItemMeshInARoom(&(obj->m_aSword),obj->m_rooms,obj->m_state,4,obj->m_groundLv,(++randomRoomID)%DEFAULT_NUM_ROOM); // #4 is for a Sword mesh
       setItemMeshInARoom(&(obj->m_aCoin),obj->m_rooms,obj->m_state,11,obj->m_groundLv+1,(++randomRoomID)%DEFAULT_NUM_ROOM); // #11 is for a coin mesh
+      if (obj->m_hasABow == HAS_A_BOW)
+      {
+        setItemMeshInARoom(&(obj->m_aBow),obj->m_rooms,obj->m_state,14,obj->m_groundLv+1,(++randomRoomID)%DEFAULT_NUM_ROOM); // #14 is for a bow mesh
+      }
+      else
+      {
+        obj->m_aBow.state = DEAD;
+        obj->m_aBow.visiblityState = HIDDEN;
+      }
 
 
       //printf("create underground state:-1.1 \n");
@@ -3731,7 +3774,7 @@ void drawAMeshInMap2D(struct aMesh *mesh)
     }
 }
 
-void drawASword2D(struct aMesh *aSword)
+void drawASword2D(struct playerProperty *aPlayerProp)
 {
   GLfloat green[4] =  {0.0,0.7,0.0,alphaVal};
   GLfloat noCol[4] =  {0.0,0.0,0.0,0.0};
@@ -3749,7 +3792,7 @@ void drawASword2D(struct aMesh *aSword)
 
     point2Ds[2] =(struct Point2D){35,150};
     point2Ds[3] =(struct Point2D){point2Ds[2].x+10,point2Ds[2].z-60};
-    if (aSword->state == DEAD)
+    if (aPlayerProp->m_hasSword == 1)
     {
 
       set2Dcolour(green);
@@ -3766,7 +3809,7 @@ void drawASword2D(struct aMesh *aSword)
       draw2Dbox(border[0].x,border[0].z,border[1].x,border[1].z);
     }
 }
-void drawArmour2D(struct aMesh *anArmour)
+void drawArmour2D(struct playerProperty *aPlayerProp)
 {
 
     GLfloat blue[4] =  {0.0,0.0,0.7,alphaVal};
@@ -3783,7 +3826,7 @@ void drawArmour2D(struct aMesh *anArmour)
     point2Ds[1] =(struct Point2D){point2Ds[0].x+40,point2Ds[0].z+20};
     point2Ds[2] =(struct Point2D){point2Ds[0].x+5,point2Ds[0].z};
     point2Ds[3] =(struct Point2D){point2Ds[0].x+35,point2Ds[0].z-20};
-    if (anArmour->state == DEAD)
+    if (aPlayerProp->m_hasArmour == 1)
     {
 
       set2Dcolour(blue);
@@ -3844,6 +3887,25 @@ void drawAKey2D(struct aMesh *key)
       draw2Dbox(border[0].x,border[0].z,border[1].x,border[1].z);
     }
 }
+
+void drawABowMeshInMap2D(struct aMesh *aBow)
+{
+    GLfloat blue[4] =  {0.0,0.0,0.7,alphaVal};
+    struct Point2D point2Ds[2];
+
+    struct LineOrBox2D aMeshPos;
+    struct LineOrBox2D keyBodyPos;
+    point2Ds[0].x = (int)aBow->posV.x;
+    point2Ds[0].z = (int)aBow->posV.z;
+    point2Ds[1] = (struct Point2D){point2Ds[0].x+1,point2Ds[0].z+3};
+
+    if (aBow->state != DEAD)
+    {
+      setPointsAndColorOfLineOrBox(&aMeshPos,point2Ds,1,blue);
+      drawBoxMap2DWithTransFn(&aMeshPos,&mapTransformFuntion);
+    }
+}
+
 void drawAKeyMeshInMap2D(struct aMesh *key)
 {
     GLfloat red[4] =  {0.7,0.0,0.0,alphaVal};
@@ -3940,7 +4002,7 @@ void updateUndergroundMap2D(struct Underground *obj,const int displayMode)  // 1
         drawAMeshInMap2D(&(obj->m_meshes[indexRoom]));
         drawARoomInMap2D(a2DMapP,indexRoom);
       }
-
+      drawABowMeshInMap2D(&(obj->m_aBow));
       drawAKeyMeshInMap2D(&(obj->m_aKey));
       // drae down stair position in a map
       if (((obj->m_stairOption == ONLY_DOWN_STAIR) || (obj->m_stairOption == BOTH_UP_DOWN_STAIR)) && (a2DMapP->numStairs == 2))
@@ -4452,7 +4514,7 @@ void createAMeshInARoom(struct aMesh *obj,struct Room *aRoom,int reduceIdVal)
 
 }
 //AAAAAAAAAAAAAAAA
-int meshCollideHanndle(struct Pointf  *obj,struct Pointf *oldPos)
+int meshCollideHanndle(struct Pointf *obj,struct Pointf *oldPos,const int meshIndex,struct aMesh *meshes,const int numMesh)
 {
   struct Pointf vPoint  = {0.0,0.0,0.0};
   float oldMeshX = oldPos->x;
@@ -4461,12 +4523,29 @@ int meshCollideHanndle(struct Pointf  *obj,struct Pointf *oldPos)
   float margin2 = 0.6;
   float margin3 = 0.4;
   float margin4 = 0.2;
+  float distanceVal = 0.0;
+  int index = 0;
+  int isCollidedWithOtherMesh = 0;
 
-
+  
   float Xdirection = (obj->x > oldPos->x) - (obj->x < oldPos->x);
   float Zdirection = (obj->z > oldPos->z) - (obj->z < oldPos->z);
   getAndConvertViewPos(&vPoint);
   int isCollided = 0;
+
+  for (index = 0 ;index < numMesh;index++)
+  {
+    if (meshIndex != index)
+    {
+      distanceVal = calEucidianDistance2D(obj,&(meshes[index].posV));
+    }
+    if (distanceVal < 1.34)
+    {
+      index = numMesh;
+      isCollidedWithOtherMesh = 1;
+    }
+  }
+
     // detect collision
   isCollided = (readTranslatedWorldSpace(*obj,0.0,0.0,Zdirection*margin) != 0);
   isCollided = isCollided || (readTranslatedWorldSpace(*obj,margin*Xdirection,0.0,Zdirection*margin) != 0);
@@ -4484,8 +4563,12 @@ int meshCollideHanndle(struct Pointf  *obj,struct Pointf *oldPos)
   isCollided = isCollided || (readTranslatedWorldSpace(*obj,margin4*Xdirection,0.0,Zdirection*margin4) != 0);
   isCollided = isCollided || (readTranslatedWorldSpace(*obj,margin4*Xdirection,0.0,0.0) != 0);
   isCollided = isCollided || ((vPoint.x == obj->x) && (vPoint.z == obj->z));
-
-  if ((readTranslatedWorldSpace(*oldPos,margin*Xdirection,0,0) == 0) && (readTranslatedWorldSpace(*oldPos,margin2*Xdirection,0,0) == 0) && (readTranslatedWorldSpace(*oldPos,margin3*Xdirection,0,0) == 0) && (readTranslatedWorldSpace(*oldPos,margin4*Xdirection,0,0) == 0) && (isCollided != 0))  
+  if (isCollidedWithOtherMesh == 1)
+  {
+    obj->x = oldMeshX;
+    obj->z= oldMeshZ;
+  }
+  else if ((readTranslatedWorldSpace(*oldPos,margin*Xdirection,0,0) == 0) && (readTranslatedWorldSpace(*oldPos,margin2*Xdirection,0,0) == 0) && (readTranslatedWorldSpace(*oldPos,margin3*Xdirection,0,0) == 0) && (readTranslatedWorldSpace(*oldPos,margin4*Xdirection,0,0) == 0) && (isCollided != 0))  
   {
     obj->z= oldMeshZ;
     isCollided = 0;
@@ -4585,11 +4668,17 @@ float distanceAliveBatToPlayer(struct aMesh *meshes,const int indexMesh)
 
   return distanceVal;
 }
-int findThePointfIsinWhichArea(const struct Pointf *obj)
+
+void initialPlayerProperty(struct playerProperty *obj)
 {
-  return 0;
+  obj->indexArea = 0;
+  // have items
+  obj->m_hasArmour = 0;
+  obj->m_hasSword = 0;
+  obj->m_hasBow = 0;
 }
-int testVisibilityOfAMesh(struct visiblityControlVal *obj,const int meshIndex,struct aMesh *meshes)
+
+int testVisibilityOfAMesh(struct playerProperty *obj,const int meshIndex,struct aMesh *meshes)
 {
   int ret = 0;
   struct Pointf vPoint  = {0.0,0.0,0.0};
@@ -4703,7 +4792,7 @@ if(currentKeyPressed == 'c')
   return ret;
 
 }
-void updateVisibilityControlVal(struct visiblityControlVal *obj,const int isOnlyOneRoom)
+void updateVisibilityControlVal(struct playerProperty *obj,const int isOnlyOneRoom)
 {
   struct Pointf vPoint  = {0.0,0.0,0.0};
   struct Pointf vOldPoint  = {0.0,0.0,0.0};
@@ -4802,11 +4891,21 @@ float calEucidianDistance2D(struct Pointf *p1,struct Pointf *p2)
   return pow(pow(diffPoint.x,2)+pow(diffPoint.z,2),0.5);
 }
 
-void hideAllMeshesIntheUnderground(struct Underground *obj)
+void hideMOBAndItemsInUnderground(struct Underground *obj)
+{
+    hideAllMeshesInMazeOrCaveLv(obj->m_meshes,DEFAULT_NUM_ROOM);
+    changeStatusAndPrintInfo(&(obj->m_aKey),HIDDEN,0); // 0 not print info , 1 print inf
+    changeStatusAndPrintInfo(&(obj->m_anOpenChest),HIDDEN,0); // 0 not print info , 1 print inf
+    changeStatusAndPrintInfo(&(obj->m_aSword),HIDDEN,0); // 0 not print info , 1 print inf
+    changeStatusAndPrintInfo(&(obj->m_aCoin),HIDDEN,0); // 0 not print info , 1 print inf
+    changeStatusAndPrintInfo(&(obj->m_anArmour),HIDDEN,0); // 0 not print info , 1 print inf
+
+}
+
+void hideAllMeshesInMazeOrCaveLv(struct aMesh *meshes,const int numMesh)
 {
   int index = 0;
-  struct aMesh *meshes = obj->m_meshes;
-  for(index = 0;index < DEFAULT_NUM_ROOM;index++)
+  for(index = 0;index < numMesh;index++)
   {
     if (meshes[index].visiblityState == SHOWN) // show 
     {
@@ -4849,9 +4948,9 @@ int readWorldSpace(const struct Pointf aPoint)
   return ret;
 }
 
-void batMoveInCaveLv(struct aMesh *obj)
+void batMoveInCaveLv(struct aMesh *meshes,const int meshIndex,const int numMesh)
 {
-
+  struct aMesh *obj = &(meshes[meshIndex]);
   float oldMeshX = 0.0;
   float oldMeshZ = 0.0;
   struct Pointf vPoint  = {0.0,0.0,0.0};
@@ -4880,7 +4979,6 @@ void batMoveInCaveLv(struct aMesh *obj)
   {
       obj->randomDestination = (struct Point){getRandomNumber(obj->startArea.x,obj->stopArea.x),obj->startArea.y,getRandomNumber(obj->startArea.z,obj->stopArea.z)};
   }
- // printf("id:%d (%d %d %d)\n",obj->id,obj->randomDestination.x,obj->randomDestination.y,obj->randomDestination.z);
 
   // move the mesh according to the direction
   oldMovePos = obj->posV;
@@ -4893,21 +4991,21 @@ void batMoveInCaveLv(struct aMesh *obj)
   aPointf = (struct Pointf){obj->posV.x+cos(radian),obj->posV.y,obj->posV.z+sin(radian)};
   aPointf2 = (struct Pointf){obj->posV.x,obj->posV.y,obj->posV.z+sin(radian)};
   aPointf3 = (struct Pointf){obj->posV.x+cos(radian),obj->posV.y,obj->posV.z};
-
-  if ((meshCollideHanndle(&aPointf,&oldMovePos) == 0) && getRandomNumber(0,3) != 1)
+   
+  if ((meshCollideHanndle(&aPointf,&oldMovePos,meshIndex,meshes,numMesh) == 0) && getRandomNumber(0,3) != 1)
   {
     newPos.z = (((float)getRandomNumber(0,1000))/1000.0)*sin(radian);
     newPos.x = (((float)getRandomNumber(0,1000))/1000.0)*cos(radian);
   //  roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
         // printf("3.1  id:%d rm(%d)  ,radian(%3.2f) cos(%3.2f) curPos(%3.2f,%3.2f)(%d) nextPos(%3.2f,%3.2f)(%d) :\n",obj->id,roomIndex,radian*180.0/3.14,cos(radian),obj->posV.x,obj->posV.z,readWorldSpace(obj->posV),obj->posV.x+newPos.x,obj->posV.z+newPos.z,readWorldSpace((struct Pointf){obj->posV.x+cos(radian),obj->posV.y,obj->posV.z+sin(radian)}));
   }
-  else if ((meshCollideHanndle(&aPointf2,&oldMovePos) == 0) && getRandomNumber(0,3) != 1)
+  else if ((meshCollideHanndle(&aPointf2,&oldMovePos,meshIndex,meshes,numMesh) == 0) && getRandomNumber(0,3) != 1)
   {
     newPos.z = (((float)getRandomNumber(0,1000))/1000.0)*sin(radian);
    // roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
       //  printf("3.2  id:%d rm(%d) ,radian(%3.2f) cos(%3.2f) curPos(%3.2f,%3.2f)(%d) nextPos(%3.2f,%3.2f)(%d) :\n",obj->id,roomIndex,radian*180.0/3.14,cos(radian),obj->posV.x,obj->posV.z,readWorldSpace(obj->posV),obj->posV.x,obj->posV.z+newPos.z,readWorldSpace((struct Pointf){obj->posV.x,obj->posV.y,obj->posV.z+sin(radian)}));
   }
-  else  if ((meshCollideHanndle(&aPointf3,&oldMovePos) == 0) && getRandomNumber(0,3) != 1)
+  else  if ((meshCollideHanndle(&aPointf3,&oldMovePos,meshIndex,meshes,numMesh) == 0) && getRandomNumber(0,3) != 1)
   {
     newPos.x = (((float)getRandomNumber(0,1000))/1000.0)*cos(radian);
    //roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
@@ -4969,15 +5067,16 @@ void batMoveInCaveLv(struct aMesh *obj)
   // detect collision
   aPointf = obj->posV;
   aPointf.y = aPointf.y - 1.0;
-  if (meshCollideHanndle(&aPointf,&oldMovePos) == 1)
+  if (meshCollideHanndle(&aPointf,&oldMovePos,meshIndex,meshes,numMesh) == 1)
   {
     obj->posV.x = oldMovePos.x;
     obj->posV.z = oldMovePos.z;
   }
 }
-void batMove(struct aMesh *obj,struct Underground *uObj)
-{
 
+void batMove(struct aMesh *meshes,const int meshIndex,const int numMesh,struct Underground *uObj)
+{
+  struct aMesh *obj = &(meshes[meshIndex]);
   int index = 0;
   int roomIndex = 0;
   struct Room *pRoom = NULL;
@@ -5216,31 +5315,26 @@ void batMove(struct aMesh *obj,struct Underground *uObj)
           aPointf2 = (struct Pointf){obj->posV.x,obj->posV.y,obj->posV.z+sin(radian)};
           aPointf3 = (struct Pointf){obj->posV.x+cos(radian),obj->posV.y,obj->posV.z};
           
-          if ((meshCollideHanndle(&aPointf,&oldMovePos) == 0) && getRandomNumber(0,3) != 1)
+          if ((meshCollideHanndle(&aPointf,&oldMovePos,meshIndex,meshes,numMesh) == 0) && getRandomNumber(0,3) != 1)
           {
             newPos.z = (((float)getRandomNumber(0,1000))/1000.0)*sin(radian);
             newPos.x = (((float)getRandomNumber(0,1000))/1000.0)*cos(radian);
-   //   roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
-     //       printf("5.1  id:%d rm(%d)  ,radian(%3.2f) cos(%3.2f) curPos(%3.2f,%3.2f)(%d) nextPos(%3.2f,%3.2f)(%d) :\n",obj->id,roomIndex,radian*180.0/3.14,cos(radian),obj->posV.x,obj->posV.z,readWorldSpace(obj->posV),obj->posV.x+newPos.x,obj->posV.z+newPos.z,readWorldSpace((struct Pointf){obj->posV.x+cos(radian),obj->posV.y,obj->posV.z+sin(radian)}));
           }
-          else if ((meshCollideHanndle(&aPointf2,&oldMovePos) == 0) && getRandomNumber(0,3) != 1)
+
+          else if ((meshCollideHanndle(&aPointf2,&oldMovePos,meshIndex,meshes,numMesh) == 0) && getRandomNumber(0,3) != 1)
           {
             newPos.z = (((float)getRandomNumber(0,1000))/1000.0)*sin(radian);
-   //   roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
-     //       printf("5.2  id:%d rm(%d) ,radian(%3.2f) cos(%3.2f) curPos(%3.2f,%3.2f)(%d) nextPos(%3.2f,%3.2f)(%d) :\n",obj->id,roomIndex,radian*180.0/3.14,cos(radian),obj->posV.x,obj->posV.z,readWorldSpace(obj->posV),obj->posV.x,obj->posV.z+newPos.z,readWorldSpace((struct Pointf){obj->posV.x,obj->posV.y,obj->posV.z+sin(radian)}));
           }
-          else  if ((meshCollideHanndle(&aPointf3,&oldMovePos) == 0) && getRandomNumber(0,3) != 1)
+
+          else  if ((meshCollideHanndle(&aPointf3,&oldMovePos,meshIndex,meshes,numMesh) == 0) && getRandomNumber(0,3) != 1)
           {
             newPos.x = (((float)getRandomNumber(0,1000))/1000.0)*cos(radian);
-     // roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
-       //     printf("5.3  id:%d rm(%d) ,radian(%3.2f)  curPos(%3.2f,%3.2f)(%d) nextPos(%3.2f,%3.2f)(%d) :\n",obj->id,roomIndex,radian*180.0/3.14,obj->posV.x,obj->posV.z,readWorldSpace(obj->posV),obj->posV.x+newPos.x,obj->posV.z,readWorldSpace((struct Pointf){obj->posV.x+cos(radian),obj->posV.y,obj->posV.z}));
           }
           else
           {
               newPos.z = -1.0+ (((float)getRandomNumber(600,2000))/1000.0);
               newPos.x = -1.0+((float)getRandomNumber(600,2000))/1000.0;
 
-              //printf("id:%d random(%3.2f,%3.2f)\n",obj->id,newPos.x ,newPos.z);
           }
 
       if (obj->state == FIGHT)
@@ -5284,7 +5378,7 @@ void batMove(struct aMesh *obj,struct Underground *uObj)
         else if ((roomIndex != -1)&&(roomIndex != obj->areaOfBatIndex))obj->journeyState = 0;
       }
 
-    if (meshCollideHanndle(&(obj->posV),&oldMovePos) == 1)
+    if (meshCollideHanndle(&(obj->posV),&oldMovePos,meshIndex,meshes,numMesh)  == 1)
     {
       obj->posV.x = oldMovePos.x;
       obj->posV.z = oldMovePos.z;
@@ -5310,9 +5404,10 @@ int collsionResponseForMeshes(struct aMesh *obj,const int numberOfMeshes)
     return ret;
 }
 
-void fishMove(struct aMesh *obj)
+void fishMove(struct aMesh *meshes,const int meshIndex,const int numMesh)
 {
 
+  struct aMesh *obj = &(meshes[meshIndex]);
   float oldMeshX = 0.0;
   float oldMeshZ = 0.0;
   struct Pointf vPoint  = {0.0,0.0,0.0};
@@ -5355,20 +5450,20 @@ void fishMove(struct aMesh *obj)
   aPointf2 = (struct Pointf){obj->posV.x,obj->posV.y,obj->posV.z+sin(radian)};
   aPointf3 = (struct Pointf){obj->posV.x+cos(radian),obj->posV.y,obj->posV.z};
 
-  if ((meshCollideHanndle(&aPointf,&oldMovePos) == 0) && getRandomNumber(0,3) != 1)
+  if ((meshCollideHanndle(&aPointf,&oldMovePos,meshIndex,meshes,numMesh) == 0) && getRandomNumber(0,3) != 1)
   {
     newPos.z = (((float)getRandomNumber(0,1000))/1000.0)*sin(radian);
     newPos.x = (((float)getRandomNumber(0,1000))/1000.0)*cos(radian);
   //  roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
         // printf("3.1  id:%d rm(%d)  ,radian(%3.2f) cos(%3.2f) curPos(%3.2f,%3.2f)(%d) nextPos(%3.2f,%3.2f)(%d) :\n",obj->id,roomIndex,radian*180.0/3.14,cos(radian),obj->posV.x,obj->posV.z,readWorldSpace(obj->posV),obj->posV.x+newPos.x,obj->posV.z+newPos.z,readWorldSpace((struct Pointf){obj->posV.x+cos(radian),obj->posV.y,obj->posV.z+sin(radian)}));
   }
-  else if ((meshCollideHanndle(&aPointf2,&oldMovePos) == 0) && getRandomNumber(0,3) != 1)
+  else if ((meshCollideHanndle(&aPointf2,&oldMovePos,meshIndex,meshes,numMesh) == 0) && getRandomNumber(0,3) != 1)
   {
     newPos.z = (((float)getRandomNumber(0,1000))/1000.0)*sin(radian);
    // roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
       //  printf("3.2  id:%d rm(%d) ,radian(%3.2f) cos(%3.2f) curPos(%3.2f,%3.2f)(%d) nextPos(%3.2f,%3.2f)(%d) :\n",obj->id,roomIndex,radian*180.0/3.14,cos(radian),obj->posV.x,obj->posV.z,readWorldSpace(obj->posV),obj->posV.x,obj->posV.z+newPos.z,readWorldSpace((struct Pointf){obj->posV.x,obj->posV.y,obj->posV.z+sin(radian)}));
   }
-  else  if ((meshCollideHanndle(&aPointf3,&oldMovePos) == 0) && getRandomNumber(0,3) != 1)
+  else  if ((meshCollideHanndle(&aPointf3,&oldMovePos,meshIndex,meshes,numMesh) == 0) && getRandomNumber(0,3) != 1)
   {
     newPos.x = (((float)getRandomNumber(0,1000))/1000.0)*cos(radian);
    //roomIndex = findObjPointIsWhichRoom2D(&(uObj->m_a2DMap),&(obj->posV));
@@ -5430,7 +5525,7 @@ void fishMove(struct aMesh *obj)
   // detect collision
   aPointf = obj->posV;
   aPointf.y = aPointf.y - 1.0;
-  if (meshCollideHanndle(&aPointf,&oldMovePos) == 1)
+  if (meshCollideHanndle(&aPointf,&oldMovePos,meshIndex,meshes,numMesh) == 1)
   {
     obj->posV.x = oldMovePos.x;
     obj->posV.z = oldMovePos.z;
@@ -5451,6 +5546,82 @@ int timer(const float second)
   }
   return ret;
 }
+//mmmmmmmmm
+void handleABow(struct playerProperty *playerProp,const float timer,struct aMesh *meshes,const int numMesh)
+{
+  static int arrowState = 0; //0 is inital, 1 is not shooting, 2 is shooting
+  static clock_t arrowUpdateRefTime = 0;
+  static float currentMeshTime = 0;
+  const float timeUpdate = timer;
+  static struct aMesh anArrow;
+  static float arrowRadian = 0.0;
+  static struct Pointf startPoint;
+  currentMeshTime = ((float)(clock()-arrowUpdateRefTime))/CLOCKS_PER_SEC;
+  float arrowDegree =0.0;
+  int index = 0;
+  if(playerProp->m_hasBow == 0)
+  {
+    // Do nothing
+  }
+  else if((currentKeyPressed == ' ') && (arrowState != 2)) // nort shoot
+  {
+    currentKeyPressed = 0;
+    getAndConvertViewPos(&startPoint);
+    anArrow.posV = startPoint;
+    anArrow.posV.y += 1.0;
+
+    // set up arrow 
+    // initial 
+    if (arrowState == 0)
+    {
+      anArrow.id = 48;
+      anArrow.type = 18;
+      setMeshID(anArrow.id, anArrow.type, anArrow.posV.x, anArrow.posV.y, anArrow.posV.z);
+
+    } 
+    else
+    {
+      changeStatusAndPrintInfo(&anArrow,SHOWN,0); // 0 not print info , 1 print inf
+    }
+    arrowRadian = playerProp->deltaRadian + playerProp->refRadian;
+    arrowDegree = 180- 180.0*arrowRadian/3.141592;
+
+
+    setRotateMesh(anArrow.id, 0.0,arrowDegree,90.0);
+
+    arrowState = 2;
+  }  
+  else if ((currentMeshTime > timeUpdate) && (arrowState == 2))
+  {
+    arrowUpdateRefTime = clock();
+    for(index = 0;index < numMesh;index++)
+    {
+      if( (meshes[index].state != DEAD)&& (calEucidianDistance2D(&(meshes[index].posV),&(anArrow.posV)) < 1.20))
+      {
+        printf("Player hits\n");
+        changeStatusAndPrintInfo(&(meshes[index]),HIDDEN,0); // 0 not print info , 1 print inf
+        changeStatusAndPrintInfo(&(meshes[index]),DEAD,0); // 0 not print info , 1 print inf
+        changeStatusAndPrintInfo(&anArrow,HIDDEN,0); // 0 not print info , 1 print inf
+        index = numMesh;
+        arrowState = 1;
+
+      }
+    }
+
+    if ((calEucidianDistance2D(&startPoint,&(anArrow.posV)) > 10.0) || (readWorldSpace(anArrow.posV) != 0))
+    {
+      changeStatusAndPrintInfo(&anArrow,HIDDEN,0); // 0 not print info , 1 print inf
+      arrowState = 1;
+    }
+    else
+    {
+      anArrow.posV.x += cos(arrowRadian);
+      anArrow.posV.z += sin(arrowRadian);
+      setTranslateMesh(anArrow.id,anArrow.posV.x,anArrow.posV.y, anArrow.posV.z);
+    }
+
+  }
+}
 
 void handleAIMeshInCaveLv(struct CaveLv *obj,const float second)
 {
@@ -5464,10 +5635,11 @@ void handleAIMeshInCaveLv(struct CaveLv *obj,const float second)
       float oldMeshZ = 0.0;
 
       struct aMesh *meshes = obj->m_meshes;
-      updateVisibilityControlVal(&visibilityMananger,1);
+      updateVisibilityControlVal(&aPlayerProp,1);
       getAndConvertViewPos(&vPoint);
       currentMeshTime = ((float)(clock()-meshMovingRefTime))/CLOCKS_PER_SEC;
-      handleAItemMesh(&(obj->m_isAbleToGoDown),0.0,&(obj->m_aKey));
+      handleAItemMesh(&(obj->m_isAbleToGoDown),&aPlayerProp,0.0,&(obj->m_aKey));
+      handleABow(&aPlayerProp,0.1,meshes,DEFAULT_CAVE_LV_NUM_RESPONSIVE_MESH);
       if (currentMeshTime > timeUpdate)
       {      
          meshMovingRefTime = clock();
@@ -5477,7 +5649,7 @@ void handleAIMeshInCaveLv(struct CaveLv *obj,const float second)
             if(meshes[i].state != DEAD)
             {
 
-             isAbleToSeeMesh = testVisibilityOfAMesh(&visibilityMananger,i,obj->m_meshes);
+             isAbleToSeeMesh = testVisibilityOfAMesh(&aPlayerProp,i,obj->m_meshes);
               visibilityTestOfMesh(&meshes[i],0,0);
               if (isAbleToSeeMesh == 1)
               {
@@ -5489,7 +5661,7 @@ void handleAIMeshInCaveLv(struct CaveLv *obj,const float second)
               }
 
               if (meshes[i].type == BAT) // bat]
-                batMoveInCaveLv(&meshes[i]);
+                batMoveInCaveLv(meshes,i,DEFAULT_CAVE_LV_NUM_RESPONSIVE_MESH);
 
 
               setTranslateMesh(meshes[i].id,meshes[i].posV.x, meshes[i].posV.y, meshes[i].posV.z);
@@ -5513,14 +5685,16 @@ void handleAIMesh(struct Underground *obj,const float second)
 
 
   struct aMesh *meshes = obj->m_meshes;
-  updateVisibilityControlVal(&visibilityMananger,0);
+  updateVisibilityControlVal(&aPlayerProp,0);
   getAndConvertViewPos(&vPoint);
   currentMeshTime = ((float)(clock()-meshMovingRefTime))/CLOCKS_PER_SEC;
-  handleAItemMesh(&(obj->m_isAbleToGoDown),0.0,&(obj->m_aKey));
-  handleAItemMesh(&(obj->m_isAbleToGoDown),0.0,&(obj->m_anOpenChest));
-  handleAItemMesh(&(obj->m_isAbleToGoDown),0.0,&(obj->m_anArmour));
-  handleAItemMesh(&(obj->m_isAbleToGoDown),0.0,&(obj->m_aSword));
-  handleAItemMesh(&(obj->m_isAbleToGoDown),0.05,&(obj->m_aCoin));
+  handleAItemMesh(&(obj->m_isAbleToGoDown),&aPlayerProp,0.0,&(obj->m_aKey));
+  handleAItemMesh(&(obj->m_isAbleToGoDown),&aPlayerProp,0.0,&(obj->m_anOpenChest));
+  handleAItemMesh(&(obj->m_isAbleToGoDown),&aPlayerProp,0.0,&(obj->m_anArmour));
+  handleAItemMesh(&(obj->m_isAbleToGoDown),&aPlayerProp,0.0,&(obj->m_aSword));
+  handleAItemMesh(&(obj->m_isAbleToGoDown),&aPlayerProp,0.05,&(obj->m_aCoin));
+  handleAItemMesh(&(obj->m_isAbleToGoDown),&aPlayerProp,0.0,&(obj->m_aBow));
+  handleABow(&aPlayerProp,0.01,meshes,DEFAULT_NUM_ROOM);
   if (currentMeshTime > timeUpdate)
   {      
 
@@ -5531,7 +5705,7 @@ void handleAIMesh(struct Underground *obj,const float second)
         if(meshes[i].state != DEAD)
         {
 
-          isAbleToSeeMesh = testVisibilityOfAMesh(&visibilityMananger,i,obj->m_meshes);
+          isAbleToSeeMesh = testVisibilityOfAMesh(&aPlayerProp,i,obj->m_meshes);
           meshRoomIndex = findObjPointIsWhichRoom2D(&(obj->m_a2DMap),&(meshes[i].posV));
           vpRoomIndex = findObjPointIsWhichRoom2D(&(obj->m_a2DMap),&vPoint);
           visibilityTestOfMesh(&meshes[i],vpRoomIndex,meshRoomIndex);
@@ -5546,9 +5720,9 @@ void handleAIMesh(struct Underground *obj,const float second)
 
 
         if (meshes[i].type == FISH) // fish
-            fishMove(&meshes[i]);
+            fishMove(meshes,i,DEFAULT_NUM_ROOM);
         if (meshes[i].type == BAT) // bat
-            batMove(&meshes[i],obj);
+            batMove(meshes,i,DEFAULT_NUM_ROOM,obj);
 
 
           setTranslateMesh(meshes[i].id,meshes[i].posV.x, meshes[i].posV.y, meshes[i].posV.z);
@@ -5712,7 +5886,7 @@ void controlStage(int *stageLv,struct CaveLv *objCave,const int numCave, struct 
            else if(isOnUpStairUnderground(&objU[lvIndex]) == 1)
            { 
               // hide all mesh first
-              hideAllMeshesIntheUnderground(&objU[lvIndex]);
+              hideMOBAndItemsInUnderground(&objU[lvIndex]);
               stageVal--;
               upOrDown = ALREADY_UP;
               isStageChanged = 1;
@@ -5720,7 +5894,7 @@ void controlStage(int *stageLv,struct CaveLv *objCave,const int numCave, struct 
            else if (isOnDownStairUnderground(&objU[lvIndex]) == 1)
            {
               // hide all mesh first
-              hideAllMeshesIntheUnderground(&objU[lvIndex]);
+              hideMOBAndItemsInUnderground(&objU[lvIndex]);
               stageVal++;
               upOrDown = ALREADY_DOWN;
               isStageChanged = 1;
@@ -5738,7 +5912,7 @@ void controlStage(int *stageLv,struct CaveLv *objCave,const int numCave, struct 
            if(isOnUpStairInCaveLV(&objCave[lvIndex]) == 1)
            { 
               // hide all mesh first
-             // hideAllMeshesIntheUnderground(&objU[lvIndex]);
+              hideAllMeshesInMazeOrCaveLv(objCave[lvIndex].m_meshes,DEFAULT_CAVE_LV_NUM_RESPONSIVE_MESH);
               stageVal--;
               upOrDown = ALREADY_UP;
               isStageChanged = 1;
@@ -5746,7 +5920,7 @@ void controlStage(int *stageLv,struct CaveLv *objCave,const int numCave, struct 
            else if (isOnDownStairInCaveLV(&objCave[lvIndex]) == 1)
            {
               // hide all mesh first
-             // hideAllMeshesIntheUnderground(&objU[lvIndex]);
+              hideAllMeshesInMazeOrCaveLv(objCave[lvIndex].m_meshes,DEFAULT_CAVE_LV_NUM_RESPONSIVE_MESH);
               stageVal++;
               upOrDown = ALREADY_DOWN;
               isStageChanged = 1;
