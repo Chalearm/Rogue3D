@@ -4901,6 +4901,10 @@ void hideMOBAndItemsInUnderground(struct Underground *obj)
     changeStatusAndPrintInfo(&(obj->m_aSword),HIDDEN,0); // 0 not print info , 1 print inf
     changeStatusAndPrintInfo(&(obj->m_aCoin),HIDDEN,0); // 0 not print info , 1 print inf
     changeStatusAndPrintInfo(&(obj->m_anArmour),HIDDEN,0); // 0 not print info , 1 print inf
+    if (obj->m_hasABow == HAS_A_BOW)
+    {
+      changeStatusAndPrintInfo(&(obj->m_aBow),HIDDEN,0); // 0 not print info , 1 print inf
+    }
 
 }
 
