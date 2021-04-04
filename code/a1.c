@@ -366,6 +366,9 @@ struct OnGround
 
    int highestLvOfCubesNum;
    int lowestLvOfCubesNum;
+
+   struct aMesh m_aKey;
+   int m_isAbleToGoDown;// this will be 1 when the player find the key to go down to the next level.
 };
 
 struct CaveLv
@@ -551,6 +554,7 @@ float calEucidianDistance3Di(struct Point *p1,struct Point *p2);
 
 void setItemMeshInARoom(struct aMesh *obj,struct Room *rooms, const int state,const int typeItem,const int groundLv,const int roomID);
 void setItemMesh(struct aMesh *obj,const int state,int typeItem,const struct Point startPoint,const struct Point stopPoint);
+void setItemMeshOnGroundLv(struct aMesh *obj,const int state,int typeItem,const unsigned char terrain[WORLDX][WORLDZ], const struct Point startPoint,const struct Point stopPoint);
 void handleAItemMesh(int *m_isAbleToGoDown,struct playerProperty *aPlayerProp,const float coinTimeUpdate,struct aMesh *obj);
 void fishMove(struct aMesh *meshes,const int meshIndex,const int numMesh);
 void batMove(struct aMesh *meshes,const int meshIndex,const int numMesh,struct Underground *uObj);
@@ -866,6 +870,7 @@ void draw2D() {
            if(stage_Lv == -1)
            {
               getStairOfOutSideWorld(&OutsideLand,&stairP1,&stairP2);
+              drawAKeyMeshInMap2D(&(OutsideLand.m_aKey));
               drawAStairInMap(&stairP1,&stairP2,grey,&mapTransformFuntion);
            }
            else if (stage_Lv%2 == 0)
@@ -884,6 +889,9 @@ void draw2D() {
       if (stage_Lv == -1)
       {
         // do nothing
+
+        drawAKey2D(&(OutsideLand.m_aKey));
+
       }
       else if (stage_Lv%2 == 0)
       {
@@ -1144,6 +1152,7 @@ float x, y, z;
           // move cloud every 0.1 second and arrow handle
           updateVisibilityControlVal(&aPlayerProp,1);
           handleABow(&aPlayerProp,0.1,0,0);
+          handleAItemMesh(&(OutsideLand.m_isAbleToGoDown),&aPlayerProp,0.0,&(OutsideLand.m_aKey));
           moveCloudInOutsideLand(&OutsideLand,0.1);
         }
         else if (stage_Lv%2 == 1)
@@ -2176,6 +2185,42 @@ void setItemMeshInARoom(struct aMesh *obj,struct Room *rooms, const int state,co
   stopP = (struct Point){stopP.x-1,groundLv+1,stopP.z-1};
   setItemMesh(obj,state,typeItem,startP,stopP); 
 }
+
+void setItemMeshOnGroundLv(struct aMesh *obj,const int state,int typeItem,const unsigned char terrain[WORLDX][WORLDZ], const struct Point startPoint,const struct Point stopPoint)
+{
+
+  static int idMesh = 33; 
+  int protectInfinityLoopVal = 30;
+  if (state == READY)
+  {
+    obj->id = idMesh++;
+    obj->type = typeItem; // key
+    obj->currentDirection = getRandomNumber(WEST,NORTH);
+    obj->startArea = startPoint;
+    obj->stopArea = stopPoint;
+    obj->randomDestination = (struct Point){getRandomNumber(obj->startArea.x,obj->stopArea.x),obj->startArea.y,getRandomNumber(obj->startArea.z,obj->stopArea.z)};
+    obj->visiblityState = SHOWN; // hide
+    obj->state = MOVEAROUND;
+    do
+    {
+      obj->posV = (struct Pointf){(float)getRandomNumber(startPoint.x,obj->stopArea.x),(float)startPoint.y,(float)getRandomNumber(startPoint.z,obj->stopArea.z)};
+    }
+    while((readWorldSpace(obj->posV) != 0) &&(protectInfinityLoopVal--));
+    obj->areaOfBatIndex = -1;
+    obj->directionSearchIndex = -1;
+    obj->currentAreaIndex = -1;
+    obj->areaDestinationIndex = -1; 
+    obj->journeyState = 0;  
+    obj->posV.y = 1+ (float)terrain[(int)obj->posV.x][(int)obj->posV.z];
+    setMeshID(obj->id, obj->type, obj->posV.x, obj->posV.y, obj->posV.z);
+    drawMesh(obj->id);
+  }
+  else if ((state == TERRAIN_AND_STAIR_IS_BUILT) && (obj->state != DEAD))
+  {
+    setMeshID(obj->id, obj->type, obj->posV.x, obj->posV.y, obj->posV.z);
+    drawMesh(obj->id);
+  }
+}
 void setItemMesh(struct aMesh *obj,const int state,const int typeItem,const struct Point startPoint,const struct Point stopPoint)
 {
   static int idMesh = 33; 
@@ -2202,8 +2247,6 @@ void setItemMesh(struct aMesh *obj,const int state,const int typeItem,const stru
     obj->journeyState = 0;  
     setMeshID(obj->id, obj->type, obj->posV.x, obj->posV.y, obj->posV.z);
     drawMesh(obj->id);
-
-    if (typeItem== 5)printf(" open chest place is (%3.2f,%3.2f)",obj->posV.x,obj->posV.z);
   }
   else if ( ((state == GENERATED_CAVE_LV_DONE) || (state == GENERATED_UNDERGROUND_DONE)) && (obj->state != DEAD))
   {
@@ -2537,6 +2580,7 @@ void locateAndBuildStairOnTerrain(struct OnGround *obj)
       clock_t timeRef = clock();
       if(obj->state == READY)
       {
+          obj->m_isAbleToGoDown = 0;
          createCloudsInDefinedArea(obj);
          timeRef = clock();
          while(((obj->highestLvOfCubesNum >= highestLvOfCubesNum)||(obj->lowestLvOfCubesNum >= lowestLvOfCubesNum))&&(k-- > 0))
@@ -2596,6 +2640,7 @@ void locateAndBuildStairOnTerrain(struct OnGround *obj)
       g_floorLv = obj->lowestLv; 
       setViewPosition(obj->downStair.StartPoint.x*(-1),(-1)*(startStairPoint.y+1),obj->downStair.StartPoint.z*(-1));
       BuildStair(&(obj->downStair));
+      setItemMeshOnGroundLv(&(obj->m_aKey),obj->state,8,obj->terrain,(struct Point){0,g_floorLv,0},(struct Point){WORLDX-1,g_floorLv,WORLDZ-1});
 
 }
 void BuildStair(const struct stair *obj)
@@ -3060,6 +3105,7 @@ int isOnDownStair(struct OnGround *obj)
       startStairPoint.y = obj->lowestLv;
       stopStairPoint.y = obj->lowestLv;
       ret = ret || isIn3DBound(&startStairPoint,&stopStairPoint,&viewPosition);
+      ret = ret && (obj->m_isAbleToGoDown == 1);
    } 
    return ret;
 
